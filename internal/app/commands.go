@@ -69,3 +69,14 @@ type TaggedTickMsg struct {
 	Time time.Time
 	Tag  string
 }
+
+// PluginFocusedMsg is sent to a plugin when it becomes the active plugin.
+// Plugins can use this to refresh data or update their state on focus.
+type PluginFocusedMsg struct{}
+
+// PluginFocused returns a command that sends PluginFocusedMsg.
+func PluginFocused() tea.Cmd {
+	return func() tea.Msg {
+		return PluginFocusedMsg{}
+	}
+}

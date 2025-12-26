@@ -79,8 +79,9 @@ func (m Model) ActivePlugin() plugin.Plugin {
 	return plugins[m.activePlugin]
 }
 
-// SetActivePlugin sets the active plugin by index.
-func (m *Model) SetActivePlugin(idx int) {
+// SetActivePlugin sets the active plugin by index and returns a command
+// to notify the plugin it has been focused.
+func (m *Model) SetActivePlugin(idx int) tea.Cmd {
 	plugins := m.registry.Plugins()
 	if idx >= 0 && idx < len(plugins) {
 		// Unfocus current
@@ -92,41 +93,43 @@ func (m *Model) SetActivePlugin(idx int) {
 		if next := m.ActivePlugin(); next != nil {
 			next.SetFocused(true)
 			m.activeContext = next.FocusContext()
+			return PluginFocused()
 		}
 	}
+	return nil
 }
 
 // NextPlugin switches to the next plugin.
-func (m *Model) NextPlugin() {
+func (m *Model) NextPlugin() tea.Cmd {
 	plugins := m.registry.Plugins()
 	if len(plugins) == 0 {
-		return
+		return nil
 	}
-	m.SetActivePlugin((m.activePlugin + 1) % len(plugins))
+	return m.SetActivePlugin((m.activePlugin + 1) % len(plugins))
 }
 
 // PrevPlugin switches to the previous plugin.
-func (m *Model) PrevPlugin() {
+func (m *Model) PrevPlugin() tea.Cmd {
 	plugins := m.registry.Plugins()
 	if len(plugins) == 0 {
-		return
+		return nil
 	}
 	idx := m.activePlugin - 1
 	if idx < 0 {
 		idx = len(plugins) - 1
 	}
-	m.SetActivePlugin(idx)
+	return m.SetActivePlugin(idx)
 }
 
 // FocusPluginByID switches to a plugin by its ID.
-func (m *Model) FocusPluginByID(id string) {
+func (m *Model) FocusPluginByID(id string) tea.Cmd {
 	plugins := m.registry.Plugins()
 	for i, p := range plugins {
 		if p.ID() == id {
-			m.SetActivePlugin(i)
-			return
+			return m.SetActivePlugin(i)
 		}
 	}
+	return nil
 }
 
 // ShowToast displays a temporary status message.

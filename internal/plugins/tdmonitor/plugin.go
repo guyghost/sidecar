@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/marcus/td/pkg/monitor"
+	"github.com/sst/sidecar/internal/app"
 	"github.com/sst/sidecar/internal/plugin"
 )
 
@@ -87,6 +88,11 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
 		p.width = wsm.Width
 		p.height = wsm.Height
+	}
+
+	// Refresh data when plugin becomes focused
+	if _, ok := msg.(app.PluginFocusedMsg); ok {
+		return p, p.model.Init()
 	}
 
 	// Intercept quit to prevent monitor from exiting the whole app

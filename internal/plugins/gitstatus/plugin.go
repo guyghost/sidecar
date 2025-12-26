@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/sst/sidecar/internal/plugin"
+	"github.com/sst/sidecar/internal/state"
 )
 
 const (
@@ -91,6 +92,13 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 	p.ctx = ctx
 	p.tree = NewFileTree(ctx.WorkDir)
 	p.externalTool = NewExternalTool(ToolModeAuto)
+
+	// Load saved diff view mode preference
+	if state.GetGitDiffMode() == "side-by-side" {
+		p.diffViewMode = DiffViewSideBySide
+	} else {
+		p.diffViewMode = DiffViewUnified
+	}
 
 	return nil
 }
@@ -362,8 +370,10 @@ func (p *Plugin) updateDiff(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 		// Toggle between unified and side-by-side view
 		if p.diffViewMode == DiffViewUnified {
 			p.diffViewMode = DiffViewSideBySide
+			_ = state.SetGitDiffMode("side-by-side")
 		} else {
 			p.diffViewMode = DiffViewUnified
+			_ = state.SetGitDiffMode("unified")
 		}
 		p.diffHorizOff = 0
 

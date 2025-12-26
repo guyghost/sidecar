@@ -39,7 +39,7 @@ func DefaultBindings() []Binding {
 		{Key: "d", Command: "show-diff", Context: "git-status"},
 		{Key: "D", Command: "show-diff-staged", Context: "git-status"},
 		{Key: "v", Command: "toggle-diff-mode", Context: "git-status"},
-		{Key: "enter", Command: "open-file", Context: "git-status"},
+		{Key: "enter", Command: "show-diff", Context: "git-status"},
 
 		// Git Diff context
 		{Key: "esc", Command: "close-diff", Context: "git-diff"},

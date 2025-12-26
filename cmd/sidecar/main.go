@@ -20,6 +20,7 @@ import (
 	"github.com/sst/sidecar/internal/plugins/conversations"
 	"github.com/sst/sidecar/internal/plugins/gitstatus"
 	"github.com/sst/sidecar/internal/plugins/tdmonitor"
+	"github.com/sst/sidecar/internal/state"
 )
 
 // Version is set at build time via ldflags
@@ -57,6 +58,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Load persistent state (ignore errors - state is optional)
+	_ = state.Init()
 
 	// Create event dispatcher
 	dispatcher := event.NewWithLogger(logger)
