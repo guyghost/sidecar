@@ -160,23 +160,69 @@ func (p *Plugin) renderEntry(entry *FileEntry, selected bool) string {
 func (p *Plugin) renderDiffModal() string {
 	var sb strings.Builder
 
-	// Header
-	header := fmt.Sprintf(" Diff: %s", p.diffFile)
+	// Header with view mode indicator
+	viewModeStr := "unified"
+	if p.diffViewMode == DiffViewSideBySide {
+		viewModeStr = "side-by-side"
+	}
+	header := fmt.Sprintf(" Diff: %s [%s]", p.diffFile, viewModeStr)
 	sb.WriteString(styles.ModalTitle.Render(header))
 	sb.WriteString("\n")
 	sb.WriteString(styles.Muted.Render(strings.Repeat("━", p.width-2)))
 	sb.WriteString("\n")
 
+	// Show delta tip if not installed (one-time)
+	if p.externalTool != nil && p.externalTool.ShouldShowTip() {
+		tip := styles.Code.Render(p.externalTool.GetTipMessage())
+		sb.WriteString(tip)
+		sb.WriteString("\n\n")
+	}
+
 	// Content
 	if p.diffContent == "" {
 		sb.WriteString(styles.Muted.Render(" Loading diff..."))
 	} else {
-		lines := strings.Split(p.diffContent, "\n")
-		visibleLines := p.height - 2
+		visibleLines := p.height - 3
 		if visibleLines < 1 {
 			visibleLines = 1
 		}
 
+		// Determine content to display based on view mode and available tools
+		var displayContent string
+		useDelta := p.externalTool != nil && p.externalTool.ShouldUseDelta()
+
+		if p.diffViewMode == DiffViewSideBySide {
+			if useDelta {
+				// Use delta's side-by-side mode
+				rendered, _ := p.externalTool.RenderWithDelta(p.diffRaw, true, p.width)
+				displayContent = rendered
+			} else {
+				// Use built-in side-by-side renderer
+				parsed := p.parsedDiff
+				if parsed == nil {
+					parsed, _ = ParseUnifiedDiff(p.diffRaw)
+				}
+				if parsed != nil {
+					sb.WriteString(RenderSideBySide(parsed, p.width, p.diffScroll, visibleLines, p.diffHorizOff))
+				} else {
+					sb.WriteString(styles.Muted.Render(" Unable to parse diff for side-by-side view"))
+				}
+				return sb.String()
+			}
+		} else {
+			// Unified view
+			if useDelta && p.diffContent != p.diffRaw {
+				displayContent = p.diffContent
+			} else if p.parsedDiff != nil {
+				sb.WriteString(RenderLineDiff(p.parsedDiff, p.width, p.diffScroll, visibleLines))
+				return sb.String()
+			} else {
+				displayContent = p.diffRaw
+			}
+		}
+
+		// Render line-by-line content (delta output or raw)
+		lines := strings.Split(displayContent, "\n")
 		start := p.diffScroll
 		if start >= len(lines) {
 			start = 0
@@ -187,7 +233,11 @@ func (p *Plugin) renderDiffModal() string {
 		}
 
 		for _, line := range lines[start:end] {
-			sb.WriteString(p.renderDiffLine(line))
+			if useDelta {
+				sb.WriteString(line)
+			} else {
+				sb.WriteString(p.renderDiffLine(line))
+			}
 			sb.WriteString("\n")
 		}
 	}

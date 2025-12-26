@@ -1,0 +1,206 @@
+package gitstatus
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/sst/sidecar/internal/styles"
+)
+
+// renderHistory renders the commit history list.
+func (p *Plugin) renderHistory() string {
+	var sb strings.Builder
+
+	// Header
+	header := " Commit History"
+	sb.WriteString(styles.PanelHeader.Render(header))
+	sb.WriteString("\n")
+	sb.WriteString(styles.Muted.Render(strings.Repeat("━", p.width-2)))
+	sb.WriteString("\n")
+
+	if p.commits == nil || len(p.commits) == 0 {
+		sb.WriteString(styles.Muted.Render(" Loading commits..."))
+		return sb.String()
+	}
+
+	// Calculate visible area
+	contentHeight := p.height - 3 // header + separator + padding
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	// Render commits
+	start := p.historyScroll
+	if start >= len(p.commits) {
+		start = 0
+	}
+	end := start + contentHeight
+	if end > len(p.commits) {
+		end = len(p.commits)
+	}
+
+	for i := start; i < end; i++ {
+		commit := p.commits[i]
+		selected := i == p.historyCursor
+
+		line := p.renderCommitLine(commit, selected)
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+// renderCommitLine renders a single commit entry.
+func (p *Plugin) renderCommitLine(c *Commit, selected bool) string {
+	// Cursor indicator
+	cursor := "  "
+	if selected {
+		cursor = styles.ListCursor.Render("> ")
+	}
+
+	// Hash
+	hash := styles.Code.Render(c.ShortHash)
+
+	// Subject (truncate if needed)
+	maxSubjectWidth := p.width - 30 // Reserve space for hash, time, etc.
+	subject := c.Subject
+	if len(subject) > maxSubjectWidth && maxSubjectWidth > 3 {
+		subject = subject[:maxSubjectWidth-3] + "..."
+	}
+
+	// Relative time
+	timeStr := styles.Muted.Render(RelativeTime(c.Date))
+
+	// Compose line
+	lineStyle := styles.ListItemNormal
+	if selected {
+		lineStyle = styles.ListItemSelected
+	}
+
+	return lineStyle.Render(fmt.Sprintf("%s%s %s  %s", cursor, hash, subject, timeStr))
+}
+
+// renderCommitDetail renders the commit detail view.
+func (p *Plugin) renderCommitDetail() string {
+	var sb strings.Builder
+
+	if p.selectedCommit == nil {
+		sb.WriteString(styles.Muted.Render(" Loading commit..."))
+		return sb.String()
+	}
+
+	c := p.selectedCommit
+
+	// Header with commit info
+	sb.WriteString(styles.ModalTitle.Render(" Commit: " + c.ShortHash))
+	sb.WriteString("\n")
+	sb.WriteString(styles.Muted.Render(strings.Repeat("━", p.width-2)))
+	sb.WriteString("\n\n")
+
+	// Metadata
+	sb.WriteString(styles.Subtitle.Render(" Author: "))
+	sb.WriteString(styles.Body.Render(fmt.Sprintf("%s <%s>", c.Author, c.AuthorEmail)))
+	sb.WriteString("\n")
+
+	sb.WriteString(styles.Subtitle.Render(" Date:   "))
+	sb.WriteString(styles.Body.Render(c.Date.Format("Mon Jan 2 15:04:05 2006")))
+	sb.WriteString("\n\n")
+
+	// Subject
+	sb.WriteString(styles.Title.Render(" " + c.Subject))
+	sb.WriteString("\n")
+
+	// Body (if present)
+	if c.Body != "" {
+		sb.WriteString("\n")
+		for _, line := range strings.Split(c.Body, "\n") {
+			sb.WriteString(styles.Body.Render(" " + line))
+			sb.WriteString("\n")
+		}
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(styles.Muted.Render(strings.Repeat("─", p.width-2)))
+	sb.WriteString("\n")
+
+	// Stats
+	statsLine := fmt.Sprintf(" %d files changed", c.Stats.FilesChanged)
+	if c.Stats.Additions > 0 {
+		statsLine += ", " + styles.DiffAdd.Render(fmt.Sprintf("+%d", c.Stats.Additions))
+	}
+	if c.Stats.Deletions > 0 {
+		statsLine += ", " + styles.DiffRemove.Render(fmt.Sprintf("-%d", c.Stats.Deletions))
+	}
+	sb.WriteString(statsLine)
+	sb.WriteString("\n\n")
+
+	// Files list
+	contentHeight := p.height - 12 // Account for header, metadata, etc.
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	start := p.commitDetailScroll
+	if start >= len(c.Files) {
+		start = 0
+	}
+	end := start + contentHeight
+	if end > len(c.Files) {
+		end = len(c.Files)
+	}
+
+	for i := start; i < end; i++ {
+		file := c.Files[i]
+		selected := i == p.commitDetailCursor
+
+		line := p.renderCommitFile(file, selected)
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+// renderCommitFile renders a single file in commit detail.
+func (p *Plugin) renderCommitFile(f CommitFile, selected bool) string {
+	// Cursor
+	cursor := "  "
+	if selected {
+		cursor = styles.ListCursor.Render("> ")
+	}
+
+	// Path
+	path := f.Path
+	if f.OldPath != "" {
+		path = fmt.Sprintf("%s → %s", f.OldPath, f.Path)
+	}
+
+	// Stats
+	stats := ""
+	if f.Additions > 0 || f.Deletions > 0 {
+		addStr := ""
+		delStr := ""
+		if f.Additions > 0 {
+			addStr = styles.DiffAdd.Render(fmt.Sprintf("+%d", f.Additions))
+		}
+		if f.Deletions > 0 {
+			delStr = styles.DiffRemove.Render(fmt.Sprintf("-%d", f.Deletions))
+		}
+		stats = fmt.Sprintf(" %s %s", addStr, delStr)
+	}
+
+	// Style
+	lineStyle := styles.ListItemNormal
+	if selected {
+		lineStyle = styles.ListItemSelected
+	}
+
+	// Truncate path if needed
+	maxPathWidth := p.width - 20
+	if len(path) > maxPathWidth && maxPathWidth > 3 {
+		path = "..." + path[len(path)-maxPathWidth+3:]
+	}
+
+	return lineStyle.Render(fmt.Sprintf("%s%s%s", cursor, path, stats))
+}

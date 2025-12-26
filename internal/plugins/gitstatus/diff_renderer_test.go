@@ -1,0 +1,240 @@
+package gitstatus
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestRenderLineDiff_EmptyDiff(t *testing.T) {
+	result := RenderLineDiff(nil, 80, 0, 20)
+	if !strings.Contains(result, "No diff content") {
+		t.Error("expected 'No diff content' message for nil diff")
+	}
+}
+
+func TestRenderLineDiff_BinaryFile(t *testing.T) {
+	diff := &ParsedDiff{Binary: true}
+	result := RenderLineDiff(diff, 80, 0, 20)
+	if !strings.Contains(result, "Binary") {
+		t.Error("expected 'Binary' message for binary diff")
+	}
+}
+
+func TestRenderLineDiff_BasicOutput(t *testing.T) {
+	diff := &ParsedDiff{
+		OldFile: "test.go",
+		NewFile: "test.go",
+		Hunks: []Hunk{
+			{
+				OldStart: 1,
+				OldCount: 2,
+				NewStart: 1,
+				NewCount: 2,
+				Lines: []DiffLine{
+					{Type: LineContext, OldLineNo: 1, NewLineNo: 1, Content: "context"},
+					{Type: LineRemove, OldLineNo: 2, NewLineNo: 0, Content: "old"},
+					{Type: LineAdd, OldLineNo: 0, NewLineNo: 2, Content: "new"},
+				},
+			},
+		},
+	}
+
+	result := RenderLineDiff(diff, 80, 0, 20)
+
+	if result == "" {
+		t.Error("RenderLineDiff returned empty string")
+	}
+
+	// Should contain hunk header
+	if !strings.Contains(result, "@@") {
+		t.Error("expected hunk header in output")
+	}
+}
+
+func TestRenderSideBySide_EmptyDiff(t *testing.T) {
+	result := RenderSideBySide(nil, 80, 0, 20, 0)
+	if !strings.Contains(result, "No diff content") {
+		t.Error("expected 'No diff content' message for nil diff")
+	}
+}
+
+func TestRenderSideBySide_BinaryFile(t *testing.T) {
+	diff := &ParsedDiff{Binary: true}
+	result := RenderSideBySide(diff, 80, 0, 20, 0)
+	if !strings.Contains(result, "Binary") {
+		t.Error("expected 'Binary' message for binary diff")
+	}
+}
+
+func TestRenderSideBySide_BasicOutput(t *testing.T) {
+	diff := &ParsedDiff{
+		OldFile: "test.go",
+		NewFile: "test.go",
+		Hunks: []Hunk{
+			{
+				OldStart: 1,
+				OldCount: 2,
+				NewStart: 1,
+				NewCount: 2,
+				Lines: []DiffLine{
+					{Type: LineContext, OldLineNo: 1, NewLineNo: 1, Content: "context"},
+					{Type: LineRemove, OldLineNo: 2, NewLineNo: 0, Content: "old"},
+					{Type: LineAdd, OldLineNo: 0, NewLineNo: 2, Content: "new"},
+				},
+			},
+		},
+	}
+
+	result := RenderSideBySide(diff, 100, 0, 20, 0)
+
+	if result == "" {
+		t.Error("RenderSideBySide returned empty string")
+	}
+
+	// Should contain separator character
+	if !strings.Contains(result, "│") {
+		t.Error("expected separator character in side-by-side output")
+	}
+}
+
+func TestGroupLinesForSideBySide_ContextLines(t *testing.T) {
+	lines := []DiffLine{
+		{Type: LineContext, Content: "ctx1"},
+		{Type: LineContext, Content: "ctx2"},
+	}
+
+	pairs := groupLinesForSideBySide(lines)
+
+	if len(pairs) != 2 {
+		t.Fatalf("len(pairs) = %d, want 2", len(pairs))
+	}
+
+	// Context lines appear on both sides
+	for i, p := range pairs {
+		if p.left == nil || p.right == nil {
+			t.Errorf("pair[%d] has nil side for context line", i)
+		}
+	}
+}
+
+func TestGroupLinesForSideBySide_RemoveAddPair(t *testing.T) {
+	lines := []DiffLine{
+		{Type: LineRemove, Content: "old"},
+		{Type: LineAdd, Content: "new"},
+	}
+
+	pairs := groupLinesForSideBySide(lines)
+
+	if len(pairs) != 1 {
+		t.Fatalf("len(pairs) = %d, want 1", len(pairs))
+	}
+
+	if pairs[0].left == nil || pairs[0].left.Content != "old" {
+		t.Error("left side should be 'old'")
+	}
+	if pairs[0].right == nil || pairs[0].right.Content != "new" {
+		t.Error("right side should be 'new'")
+	}
+}
+
+func TestGroupLinesForSideBySide_MultipleRemoves(t *testing.T) {
+	lines := []DiffLine{
+		{Type: LineRemove, Content: "old1"},
+		{Type: LineRemove, Content: "old2"},
+		{Type: LineAdd, Content: "new1"},
+	}
+
+	pairs := groupLinesForSideBySide(lines)
+
+	if len(pairs) != 2 {
+		t.Fatalf("len(pairs) = %d, want 2", len(pairs))
+	}
+
+	// First pair: old1 -> new1
+	if pairs[0].left.Content != "old1" {
+		t.Errorf("first left = %q, want 'old1'", pairs[0].left.Content)
+	}
+	// Second pair: old2 -> nil
+	if pairs[1].left.Content != "old2" {
+		t.Errorf("second left = %q, want 'old2'", pairs[1].left.Content)
+	}
+	if pairs[1].right != nil {
+		t.Error("second right should be nil")
+	}
+}
+
+func TestTruncateLine(t *testing.T) {
+	tests := []struct {
+		input    string
+		maxWidth int
+		want     string
+	}{
+		{"short", 10, "short"},
+		{"exactly10!", 10, "exactly10!"},
+		{"this is too long", 10, "this is..."},
+		{"ab", 5, "ab"},
+		{"abc", 3, "abc"},
+		{"abcd", 3, "abc"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := truncateLine(tc.input, tc.maxWidth)
+			if got != tc.want {
+				t.Errorf("truncateLine(%q, %d) = %q, want %q", tc.input, tc.maxWidth, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPadRight(t *testing.T) {
+	tests := []struct {
+		input string
+		width int
+		want  string
+	}{
+		{"abc", 5, "abc  "},
+		{"abc", 3, "abc"},
+		{"abc", 2, "abc"},
+		{"", 3, "   "},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := padRight(tc.input, tc.width)
+			if got != tc.want {
+				t.Errorf("padRight(%q, %d) = %q, want %q", tc.input, tc.width, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestApplyHorizontalOffset(t *testing.T) {
+	tests := []struct {
+		input  string
+		offset int
+		want   string
+	}{
+		{"hello world", 0, "hello world"},
+		{"hello world", 6, "world"},
+		{"hello world", 20, ""},
+		{"abc", 1, "bc"},
+		{"abc", 3, ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := applyHorizontalOffset(tc.input, tc.offset)
+			if got != tc.want {
+				t.Errorf("applyHorizontalOffset(%q, %d) = %q, want %q", tc.input, tc.offset, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDiffViewMode_Constants(t *testing.T) {
+	// Verify the constants exist and are distinct
+	if DiffViewUnified == DiffViewSideBySide {
+		t.Error("DiffViewUnified and DiffViewSideBySide should be different")
+	}
+}
