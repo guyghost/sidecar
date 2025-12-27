@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sst/sidecar/internal/adapter"
 	"github.com/sst/sidecar/internal/plugin"
 )
@@ -336,15 +337,17 @@ func (p *Plugin) View(width, height int) string {
 	p.width = width
 	p.height = height
 
+	var content string
 	if p.adapter == nil {
-		return renderNoAdapter()
+		content = renderNoAdapter()
+	} else if p.view == ViewMessages {
+		content = p.renderMessages()
+	} else {
+		content = p.renderSessions()
 	}
 
-	if p.view == ViewMessages {
-		return p.renderMessages()
-	}
-
-	return p.renderSessions()
+	// Constrain output to allocated height to prevent header scrolling off-screen
+	return lipgloss.NewStyle().Width(width).Height(height).Render(content)
 }
 
 // IsFocused returns whether the plugin is focused.
