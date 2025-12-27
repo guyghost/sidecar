@@ -1,15 +1,18 @@
 package gitstatus
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestStringToInt(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    int
-		wantOK  bool
+		name   string
+		input  string
+		want   int
+		wantOK bool
 	}{
 		{"zero", "0", 0, true},
 		{"single digit", "5", 5, true},
@@ -45,5 +48,77 @@ func TestStringToInt_Accumulates(t *testing.T) {
 	stringToInt("12", &result)
 	if result != 12 {
 		t.Errorf("got %d, want 12", result)
+	}
+}
+
+func TestGetNewFileDiff(t *testing.T) {
+	// Create temp dir with a test file
+	tmpDir := t.TempDir()
+	testFile := "newfile.txt"
+	content := "line1\nline2\nline3"
+	err := os.WriteFile(filepath.Join(tmpDir, testFile), []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	diff, err := GetNewFileDiff(tmpDir, testFile)
+	if err != nil {
+		t.Fatalf("GetNewFileDiff failed: %v", err)
+	}
+
+	// Check diff header
+	if !strings.Contains(diff, "diff --git") {
+		t.Error("diff missing git header")
+	}
+	if !strings.Contains(diff, "new file mode") {
+		t.Error("diff missing new file indicator")
+	}
+	if !strings.Contains(diff, "--- /dev/null") {
+		t.Error("diff missing /dev/null source")
+	}
+	if !strings.Contains(diff, "+++ b/"+testFile) {
+		t.Error("diff missing dest path")
+	}
+	if !strings.Contains(diff, "@@ -0,0") {
+		t.Error("diff missing hunk header")
+	}
+
+	// Check all lines are additions
+	lines := strings.Split(diff, "\n")
+	var addCount int
+	for _, line := range lines {
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			addCount++
+		}
+	}
+	if addCount != 3 {
+		t.Errorf("expected 3 addition lines, got %d", addCount)
+	}
+}
+
+func TestGetNewFileDiff_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := "empty.txt"
+	err := os.WriteFile(filepath.Join(tmpDir, testFile), []byte(""), 0644)
+	if err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	diff, err := GetNewFileDiff(tmpDir, testFile)
+	if err != nil {
+		t.Fatalf("GetNewFileDiff failed: %v", err)
+	}
+
+	if !strings.Contains(diff, "new file mode") {
+		t.Error("diff missing new file indicator for empty file")
+	}
+}
+
+func TestGetNewFileDiff_NotExists(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	_, err := GetNewFileDiff(tmpDir, "nonexistent.txt")
+	if err == nil {
+		t.Error("expected error for nonexistent file")
 	}
 }

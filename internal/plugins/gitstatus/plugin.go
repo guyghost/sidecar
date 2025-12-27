@@ -64,15 +64,15 @@ type Plugin struct {
 	diffPaneParsedDiff  *ParsedDiff // Parsed diff for inline view
 
 	// Diff state (for full-screen diff view)
-	showDiff       bool
-	diffContent    string
-	diffFile       string
-	diffScroll     int
-	diffRaw        string       // Raw diff before delta processing
-	diffCommit     string       // Commit hash if viewing commit diff
-	diffViewMode   DiffViewMode // Line or side-by-side
-	diffHorizOff   int          // Horizontal scroll for side-by-side
-	parsedDiff     *ParsedDiff  // Parsed diff for enhanced rendering
+	showDiff     bool
+	diffContent  string
+	diffFile     string
+	diffScroll   int
+	diffRaw      string       // Raw diff before delta processing
+	diffCommit   string       // Commit hash if viewing commit diff
+	diffViewMode DiffViewMode // Line or side-by-side
+	diffHorizOff int          // Horizontal scroll for side-by-side
+	parsedDiff   *ParsedDiff  // Parsed diff for enhanced rendering
 
 	// History state
 	commits            []*Commit
@@ -325,7 +325,7 @@ func (p *Plugin) updateStatus(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			p.diffFile = entry.Path
 			p.diffCommit = ""
 			p.diffScroll = 0
-			return p, p.loadDiff(entry.Path, entry.Staged)
+			return p, p.loadDiff(entry.Path, entry.Staged, entry.Status)
 		}
 
 	case "enter":
@@ -462,7 +462,7 @@ func (p *Plugin) updateStatusDiffPane(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			p.diffFile = entry.Path
 			p.diffCommit = ""
 			p.diffScroll = 0
-			return p, p.loadDiff(entry.Path, entry.Staged)
+			return p, p.loadDiff(entry.Path, entry.Staged, entry.Status)
 		}
 	}
 
@@ -486,7 +486,7 @@ func (p *Plugin) autoLoadDiff() tea.Cmd {
 	p.selectedDiffFile = entry.Path
 	p.diffPaneParsedDiff = nil
 	p.diffPaneScroll = 0
-	return p.loadInlineDiff(entry.Path, entry.Staged)
+	return p.loadInlineDiff(entry.Path, entry.Staged, entry.Status)
 }
 
 // countParsedDiffLines counts total lines in a parsed diff.
@@ -759,17 +759,28 @@ func (p *Plugin) startWatcher() tea.Cmd {
 }
 
 // loadDiff loads the diff for a file, rendering through delta if available.
-func (p *Plugin) loadDiff(path string, staged bool) tea.Cmd {
+func (p *Plugin) loadDiff(path string, staged bool, status FileStatus) tea.Cmd {
+	workDir := p.ctx.WorkDir
+	extTool := p.externalTool
+	width := p.width
 	return func() tea.Msg {
-		rawDiff, err := GetDiff(p.ctx.WorkDir, path, staged)
+		var rawDiff string
+		var err error
+
+		// Untracked files need special handling - create new file diff
+		if status == StatusUntracked {
+			rawDiff, err = GetNewFileDiff(workDir, path)
+		} else {
+			rawDiff, err = GetDiff(workDir, path, staged)
+		}
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
 
 		// Try to render with delta if available
 		content := rawDiff
-		if p.externalTool != nil && p.externalTool.ShouldUseDelta() {
-			rendered, _ := p.externalTool.RenderWithDelta(rawDiff, false, p.width)
+		if extTool != nil && extTool.ShouldUseDelta() {
+			rendered, _ := extTool.RenderWithDelta(rawDiff, false, width)
 			content = rendered
 		}
 
@@ -843,9 +854,9 @@ type CommitErrorMsg struct {
 
 // InlineDiffLoadedMsg is sent when an inline diff finishes loading.
 type InlineDiffLoadedMsg struct {
-	File    string
-	Raw     string
-	Parsed  *ParsedDiff
+	File   string
+	Raw    string
+	Parsed *ParsedDiff
 }
 
 // RecentCommitsLoadedMsg is sent when recent commits are loaded for sidebar.
@@ -865,10 +876,18 @@ func (p *Plugin) loadHistory() tea.Cmd {
 }
 
 // loadInlineDiff loads a diff for inline preview in the three-pane view.
-func (p *Plugin) loadInlineDiff(path string, staged bool) tea.Cmd {
+func (p *Plugin) loadInlineDiff(path string, staged bool, status FileStatus) tea.Cmd {
 	workDir := p.ctx.WorkDir
 	return func() tea.Msg {
-		rawDiff, err := GetDiff(workDir, path, staged)
+		var rawDiff string
+		var err error
+
+		// Untracked files need special handling - create new file diff
+		if status == StatusUntracked {
+			rawDiff, err = GetNewFileDiff(workDir, path)
+		} else {
+			rawDiff, err = GetDiff(workDir, path, staged)
+		}
 		if err != nil {
 			return InlineDiffLoadedMsg{File: path, Raw: "", Parsed: nil}
 		}

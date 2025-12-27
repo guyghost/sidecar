@@ -1,7 +1,10 @@
 package gitstatus
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -97,4 +100,30 @@ func stringToInt(s string, result *int) (bool, error) {
 		*result = *result*10 + int(c-'0')
 	}
 	return true, nil
+}
+
+// GetNewFileDiff creates a diff-like view for an untracked file.
+// Shows file content as all additions (new file).
+func GetNewFileDiff(workDir, path string) (string, error) {
+	fullPath := filepath.Join(workDir, path)
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	lineCount := len(lines)
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", path, path))
+	sb.WriteString("new file mode 100644\n")
+	sb.WriteString(fmt.Sprintf("--- /dev/null\n"))
+	sb.WriteString(fmt.Sprintf("+++ b/%s\n", path))
+	sb.WriteString(fmt.Sprintf("@@ -0,0 +1,%d @@\n", lineCount))
+
+	for _, line := range lines {
+		sb.WriteString("+" + line + "\n")
+	}
+
+	return strings.TrimSuffix(sb.String(), "\n"), nil
 }
