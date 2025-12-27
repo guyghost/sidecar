@@ -268,6 +268,127 @@ func TestVisibleSessions(t *testing.T) {
 	}
 }
 
+func TestShortID(t *testing.T) {
+	tests := []struct {
+		id       string
+		expected string
+	}{
+		{"12345678", "12345678"},
+		{"123456789abcdef", "12345678"},
+		{"1234567", "1234567"},
+		{"abc", "abc"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		result := shortID(tt.id)
+		if result != tt.expected {
+			t.Errorf("shortID(%q) = %q, expected %q", tt.id, result, tt.expected)
+		}
+	}
+}
+
+func TestFormatTokens(t *testing.T) {
+	tests := []struct {
+		input, output, cache int
+		expected             string
+	}{
+		{0, 0, 0, ""},
+		{100, 0, 0, " (in:100)"},
+		{0, 100, 0, " (out:100)"},
+		{0, 0, 100, " ($:100)"},
+		{1000, 2000, 500, " (in:1.0k out:2.0k $:500)"},
+		{1500000, 2500000, 0, " (in:1.5M out:2.5M)"},
+	}
+
+	for _, tt := range tests {
+		result := formatTokens(tt.input, tt.output, tt.cache)
+		if result != tt.expected {
+			t.Errorf("formatTokens(%d, %d, %d) = %q, expected %q",
+				tt.input, tt.output, tt.cache, result, tt.expected)
+		}
+	}
+}
+
+func TestFormatK(t *testing.T) {
+	tests := []struct {
+		n        int
+		expected string
+	}{
+		{0, "0"},
+		{999, "999"},
+		{1000, "1.0k"},
+		{1500, "1.5k"},
+		{999999, "1000.0k"},
+		{1000000, "1.0M"},
+		{2500000, "2.5M"},
+	}
+
+	for _, tt := range tests {
+		result := formatK(tt.n)
+		if result != tt.expected {
+			t.Errorf("formatK(%d) = %q, expected %q", tt.n, result, tt.expected)
+		}
+	}
+}
+
+func TestDiagnosticsEmptySessions(t *testing.T) {
+	p := New()
+	p.adapter = &mockAdapter{}
+	p.sessions = []adapter.Session{} // Empty but adapter exists
+
+	diags := p.Diagnostics()
+
+	if len(diags) != 2 {
+		t.Fatalf("expected 2 diagnostics, got %d", len(diags))
+	}
+
+	if diags[0].Status != "empty" {
+		t.Errorf("expected status 'empty', got %q", diags[0].Status)
+	}
+}
+
+func TestDiagnosticsActiveSessions(t *testing.T) {
+	p := New()
+	p.adapter = &mockAdapter{}
+	p.sessions = []adapter.Session{
+		{ID: "test-1", IsActive: true},
+		{ID: "test-2", IsActive: false},
+		{ID: "test-3", IsActive: true},
+	}
+
+	diags := p.Diagnostics()
+
+	if len(diags) != 2 {
+		t.Fatalf("expected 2 diagnostics, got %d", len(diags))
+	}
+
+	// Should show "3 sessions (2 active)"
+	if diags[0].Status != "ok" {
+		t.Errorf("expected status 'ok', got %q", diags[0].Status)
+	}
+	expectedDetail := "3 sessions (2 active)"
+	if diags[0].Detail != expectedDetail {
+		t.Errorf("expected detail %q, got %q", expectedDetail, diags[0].Detail)
+	}
+}
+
+func TestDiagnosticsWatcherOn(t *testing.T) {
+	p := New()
+	p.adapter = &mockAdapter{}
+	p.watchChan = make(chan adapter.Event) // Non-nil channel
+
+	diags := p.Diagnostics()
+
+	if len(diags) != 2 {
+		t.Fatalf("expected 2 diagnostics, got %d", len(diags))
+	}
+
+	if diags[1].Status != "on" {
+		t.Errorf("expected watcher status 'on', got %q", diags[1].Status)
+	}
+}
+
 // mockAdapter is a minimal adapter for testing
 type mockAdapter struct{}
 

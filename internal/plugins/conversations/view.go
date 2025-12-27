@@ -92,7 +92,7 @@ func (p *Plugin) renderSessionRow(session adapter.Session, selected bool) string
 	// Session name/ID
 	name := session.Name
 	if name == "" {
-		name = session.ID[:8]
+		name = shortID(session.ID)
 	}
 
 	// Compose line
@@ -115,12 +115,12 @@ func (p *Plugin) renderMessages() string {
 	var sb strings.Builder
 
 	// Find session name
-	sessionName := p.selectedSession[:8]
+	sessionName := shortID(p.selectedSession)
 	for _, s := range p.sessions {
 		if s.ID == p.selectedSession {
 			sessionName = s.Name
 			if sessionName == "" {
-				sessionName = s.ID[:8]
+				sessionName = shortID(s.ID)
 			}
 			break
 		}

@@ -254,3 +254,23 @@ func TestSessions_RelativePath(t *testing.T) {
 			len(sessionsRel), len(sessionsAbs))
 	}
 }
+
+func TestShortID(t *testing.T) {
+	tests := []struct {
+		id       string
+		expected string
+	}{
+		{"12345678", "12345678"},
+		{"123456789abcdef", "12345678"},
+		{"1234567", "1234567"},
+		{"abc", "abc"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		result := shortID(tt.id)
+		if result != tt.expected {
+			t.Errorf("shortID(%q) = %q, expected %q", tt.id, result, tt.expected)
+		}
+	}
+}

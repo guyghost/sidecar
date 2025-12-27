@@ -91,7 +91,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		// Use slug as name if available, otherwise short ID
 		name := meta.Slug
 		if name == "" {
-			name = meta.SessionID[:8]
+			name = shortID(meta.SessionID)
 		}
 
 		sessions = append(sessions, adapter.Session{
@@ -273,6 +273,14 @@ func (a *Adapter) parseSessionMetadata(path string) (*SessionMetadata, error) {
 	}
 
 	return meta, nil
+}
+
+// shortID returns the first 8 characters of an ID, or the full ID if shorter.
+func shortID(id string) string {
+	if len(id) >= 8 {
+		return id[:8]
+	}
+	return id
 }
 
 // parseContent extracts text content and tool uses from the content field.

@@ -16,7 +16,7 @@ const (
 	pluginIcon = "C"
 
 	// Default page size for messages
-	defaultPageSize = 50
+	defaultPageSize     = 50
 	maxMessagesInMemory = 500
 )
 
@@ -135,7 +135,11 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		return p, nil
 
 	case WatchStartedMsg:
-		// Watcher started, now listen for events
+		// Watcher started, store channel and start listening
+		if msg.Channel == nil {
+			return p, nil // Watcher failed
+		}
+		p.watchChan = msg.Channel
 		return p, p.listenForWatchEvents()
 
 	case WatchEventMsg:
@@ -455,17 +459,13 @@ func (p *Plugin) loadMessages(sessionID string) tea.Cmd {
 func (p *Plugin) startWatcher() tea.Cmd {
 	return func() tea.Msg {
 		if p.adapter == nil {
-			p.ctx.Logger.Debug("conversations: no adapter, skip watcher")
-			return nil
+			return WatchStartedMsg{Channel: nil}
 		}
 		ch, err := p.adapter.Watch(p.ctx.WorkDir)
 		if err != nil {
-			p.ctx.Logger.Error("conversations: watcher failed", "error", err)
-			return nil
+			return WatchStartedMsg{Channel: nil}
 		}
-		p.watchChan = ch
-		p.ctx.Logger.Debug("conversations: watcher started")
-		return WatchStartedMsg{}
+		return WatchStartedMsg{Channel: ch}
 	}
 }
 
@@ -520,6 +520,14 @@ func formatSessionCount(n int) string {
 	return fmt.Sprintf("%d sessions", n)
 }
 
+// shortID returns the first 8 characters of an ID, or the full ID if shorter.
+func shortID(id string) string {
+	if len(id) >= 8 {
+		return id[:8]
+	}
+	return id
+}
+
 // Message types
 type SessionsLoadedMsg struct {
 	Sessions []adapter.Session
@@ -530,7 +538,9 @@ type MessagesLoadedMsg struct {
 }
 
 type WatchEventMsg struct{}
-type WatchStartedMsg struct{}
+type WatchStartedMsg struct {
+	Channel <-chan adapter.Event
+}
 type ErrorMsg struct{ Err error }
 
 // TickCmd returns a command that triggers periodic refresh.
