@@ -268,34 +268,26 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Plugin switching
 	switch msg.String() {
-	case "tab":
+	case "`":
+		// Backtick cycles to next plugin (except in text input contexts)
+		if isTextInputContext(m.activeContext) {
+			break
+		}
 		return m, m.NextPlugin()
-	case "shift+tab":
+	case "~":
+		// Tilde cycles to previous plugin (except in text input contexts)
+		if isTextInputContext(m.activeContext) {
+			break
+		}
 		return m, m.PrevPlugin()
 	case "1", "2", "3", "4":
-		// Only switch plugins in global context; forward to plugin otherwise
-		// (e.g., td-monitor uses 1,2,3 for pane switching)
-		if m.activeContext == "global" || m.activeContext == "" {
-			idx := int(msg.Runes[0] - '1')
-			return m, m.SetActivePlugin(idx)
+		// Number keys for direct plugin switching
+		// Block in text input contexts (user is typing numbers)
+		if isTextInputContext(m.activeContext) {
+			break
 		}
-		// Fall through to forward to plugin
-	case "g", "t", "c", "f":
-		// Only switch plugins in global context; forward to plugin otherwise
-		// Plugin-specific bindings take precedence (e.g., 'c' for commit in git-status)
-		if m.activeContext == "global" || m.activeContext == "" {
-			switch msg.String() {
-			case "g":
-				return m, m.FocusPluginByID("git-status")
-			case "t":
-				return m, m.FocusPluginByID("td-monitor")
-			case "c":
-				return m, m.FocusPluginByID("conversations")
-			case "f":
-				return m, m.FocusPluginByID("file-browser")
-			}
-		}
-		// Fall through to forward to plugin
+		idx := int(msg.Runes[0] - '1')
+		return m, m.SetActivePlugin(idx)
 	}
 
 	// Toggles
@@ -378,6 +370,21 @@ func isRootContext(ctx string) bool {
 	case "file-browser-tree":
 		return true
 	case "td-monitor":
+		return true
+	default:
+		return false
+	}
+}
+
+// isTextInputContext returns true if the context is a text input mode
+// where alphanumeric keys should be forwarded to the plugin for typing.
+func isTextInputContext(ctx string) bool {
+	switch ctx {
+	case "git-commit",
+		"conversations-search", "conversations-filter",
+		"file-browser-search", "file-browser-content-search",
+		"file-browser-quick-open", "file-browser-file-op",
+		"td-search":
 		return true
 	default:
 		return false

@@ -40,7 +40,7 @@ Most bindings exist to show hints in the footer bar. These bindings:
 ### 2. App-Level Handlers (Intercepted Keys)
 Some commands have registered handlers that intercept keys before they reach plugins:
 - `quit` (ctrl+c) - Shows quit confirmation
-- `next-plugin` / `prev-plugin` (tab/shift+tab) - Plugin switching
+- `next-plugin` / `prev-plugin` (` / ~) - Plugin cycling
 - `toggle-palette` (?) - Command palette
 - `toggle-diagnostics` (!) - Diagnostics overlay
 - `refresh` (r) - Global refresh
@@ -56,7 +56,7 @@ User presses key
 │  1. Check quit confirm modal                │
 │  2. Check text input contexts (git-commit)  │
 │  3. Check 'q' in root contexts → quit       │
-│  4. Check app-level shortcuts (tab, ?, !)   │
+│  4. Check app-level shortcuts (`, ~, ?, !)  │
 │  5. keymap.Handle() - registered handlers   │
 └─────────────────────────────────────────────┘
        │ If not handled
@@ -156,6 +156,65 @@ The footer auto-truncates hints that exceed available width. To maximize visibil
 - Keep command names short: "Stage" not "Stage file"
 - Set appropriate `Priority` values (important commands survive truncation)
 - Test at different terminal widths
+
+### Global Footer Hints
+
+Global hints (shown after plugin hints) are defined in `internal/app/view.go` in `globalFooterHints()`:
+
+```go
+func (m Model) globalFooterHints() []footerHint {
+    bindings := m.keymap.BindingsForContext("global")
+    keysByCmd := bindingKeysByCommand(bindings)
+
+    specs := []struct {
+        id    string
+        label string
+    }{
+        {id: "toggle-palette", label: "help"},
+        {id: "quit", label: "quit"},
+    }
+
+    var hints []footerHint
+
+    // Custom consolidated hints (not tied to single binding)
+    hints = append(hints, footerHint{keys: "1-4", label: "plugins"})
+
+    // Binding-based hints
+    for _, spec := range specs {
+        keys := keysByCmd[spec.id]
+        if len(keys) == 0 {
+            continue
+        }
+        hints = append(hints, footerHint{keys: keys[0], label: spec.label})
+    }
+    return hints
+}
+```
+
+**Two ways to add global hints:**
+
+1. **Binding-based**: Add to `specs` slice with the command ID from `bindings.go`. The key is looked up automatically.
+
+2. **Custom/consolidated**: Directly append a `footerHint{keys: "...", label: "..."}`. Use this for:
+   - Combining multiple keys (e.g., `"1-4"` for focus-plugin-1 through focus-plugin-4)
+   - Showing key ranges or alternatives (e.g., `"j/k"` for navigation)
+
+### Footer Rendering Flow
+
+```
+footerHints()
+    │
+    ├── pluginFooterHints(activePlugin, context)
+    │   └── Returns hints from plugin.Commands() matching current context
+    │       sorted by Priority (lower = first)
+    │
+    └── globalFooterHints()
+        └── Returns app-level hints (plugins, help, quit)
+
+renderHintLineTruncated(hints, availableWidth)
+    └── Renders hints left-to-right until width exceeded
+        (plugin hints shown first, then global)
+```
 
 ## FocusContext Reference
 
@@ -362,8 +421,8 @@ func (p *Plugin) Commands() []plugin.Command {
 // Special keys
 {Key: "enter", Command: "select", Context: "global"}
 {Key: "esc", Command: "back", Context: "global"}
-{Key: "tab", Command: "next-plugin", Context: "global"}
-{Key: "shift+tab", Command: "prev-plugin", Context: "global"}
+{Key: "`", Command: "next-plugin", Context: "global"}
+{Key: "~", Command: "prev-plugin", Context: "global"}
 {Key: "up", Command: "cursor-up", Context: "global"}
 {Key: "down", Command: "cursor-down", Context: "global"}
 
