@@ -48,8 +48,11 @@ const (
 
 // Message types
 type (
-	RefreshMsg      struct{}
-	TreeBuiltMsg    struct{ Err error }
+	RefreshMsg       struct{}
+	TreeBuiltMsg     struct{ Err error }
+	StateRestoredMsg struct {
+		State state.FileBrowserState
+	}
 	WatchStartedMsg struct{ Watcher *Watcher }
 	WatchEventMsg   struct{}
 	OpenFileMsg     struct {
@@ -169,6 +172,9 @@ type Plugin struct {
 
 	// Mouse support
 	mouseHandler *mouse.Handler
+
+	// State restoration flag
+	stateRestored bool
 }
 
 // New creates a new File Browser plugin.
@@ -211,6 +217,56 @@ func (p *Plugin) Start() tea.Cmd {
 func (p *Plugin) Stop() {
 	if p.watcher != nil {
 		p.watcher.Stop()
+	}
+	// Save state on shutdown
+	p.saveState()
+}
+
+// saveState persists the current file browser state to disk.
+func (p *Plugin) saveState() {
+	if p.tree == nil {
+		return
+	}
+
+	// Get expanded directory paths
+	expandedPaths := p.tree.GetExpandedPaths()
+	expandedList := make([]string, 0, len(expandedPaths))
+	for path := range expandedPaths {
+		expandedList = append(expandedList, path)
+	}
+
+	// Determine selected file
+	var selectedFile string
+	if node := p.tree.GetNode(p.treeCursor); node != nil {
+		selectedFile = node.Path
+	}
+
+	// Determine active pane string
+	activePane := "tree"
+	if p.activePane == PanePreview {
+		activePane = "preview"
+	}
+
+	fbState := state.FileBrowserState{
+		SelectedFile:  selectedFile,
+		TreeScroll:    p.treeScrollOff,
+		PreviewScroll: p.previewScroll,
+		ExpandedDirs:  expandedList,
+		ActivePane:    activePane,
+		PreviewFile:   p.previewFile,
+		TreeCursor:    p.treeCursor,
+	}
+
+	if err := state.SetFileBrowserState(fbState); err != nil {
+		p.ctx.Logger.Error("file browser: failed to save state", "error", err)
+	}
+}
+
+// restoreState loads saved file browser state from disk.
+func (p *Plugin) restoreState() tea.Cmd {
+	return func() tea.Msg {
+		fbState := state.GetFileBrowserState()
+		return StateRestoredMsg{State: fbState}
 	}
 }
 
@@ -683,6 +739,47 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 	case TreeBuiltMsg:
 		if msg.Err != nil {
 			p.ctx.Logger.Error("file browser: tree build failed", "error", msg.Err)
+		}
+		// Restore state after first tree build
+		if !p.stateRestored {
+			p.stateRestored = true
+			return p, p.restoreState()
+		}
+
+	case StateRestoredMsg:
+		// Apply restored state
+		fbState := msg.State
+
+		// Restore expanded directories
+		if len(fbState.ExpandedDirs) > 0 {
+			expandedPaths := make(map[string]bool, len(fbState.ExpandedDirs))
+			for _, path := range fbState.ExpandedDirs {
+				expandedPaths[path] = true
+			}
+			p.tree.RestoreExpandedPaths(expandedPaths)
+		}
+
+		// Restore tree cursor position
+		if fbState.TreeCursor > 0 && fbState.TreeCursor < p.tree.Len() {
+			p.treeCursor = fbState.TreeCursor
+			p.ensureTreeCursorVisible()
+		}
+
+		// Restore scroll offsets
+		if fbState.TreeScroll > 0 {
+			p.treeScrollOff = fbState.TreeScroll
+		}
+
+		// Restore active pane
+		if fbState.ActivePane == "preview" {
+			p.activePane = PanePreview
+		}
+
+		// Restore preview file and load content
+		if fbState.PreviewFile != "" {
+			p.previewFile = fbState.PreviewFile
+			p.previewScroll = fbState.PreviewScroll
+			return p, LoadPreview(p.ctx.WorkDir, p.previewFile)
 		}
 
 	case PreviewLoadedMsg:

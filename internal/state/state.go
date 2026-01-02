@@ -15,6 +15,20 @@ type State struct {
 	FileBrowserTreeWidth   int `json:"fileBrowserTreeWidth,omitempty"`
 	GitStatusSidebarWidth  int `json:"gitStatusSidebarWidth,omitempty"`
 	ConversationsSideWidth int `json:"conversationsSideWidth,omitempty"`
+
+	// Plugin-specific state
+	FileBrowser FileBrowserState `json:"fileBrowser,omitempty"`
+}
+
+// FileBrowserState holds persistent file browser state.
+type FileBrowserState struct {
+	SelectedFile   string   `json:"selectedFile,omitempty"`   // Currently selected file path (relative)
+	TreeScroll     int      `json:"treeScroll,omitempty"`     // Tree pane scroll offset
+	PreviewScroll  int      `json:"previewScroll,omitempty"`  // Preview pane scroll offset
+	ExpandedDirs   []string `json:"expandedDirs,omitempty"`   // List of expanded directory paths
+	ActivePane     string   `json:"activePane,omitempty"`     // "tree" or "preview"
+	PreviewFile    string   `json:"previewFile,omitempty"`    // File being previewed (relative)
+	TreeCursor     int      `json:"treeCursor,omitempty"`     // Tree cursor position
 }
 
 var (
@@ -159,6 +173,27 @@ func SetConversationsSideWidth(width int) error {
 		current = &State{}
 	}
 	current.ConversationsSideWidth = width
+	mu.Unlock()
+	return Save()
+}
+
+// GetFileBrowserState returns the saved file browser state.
+func GetFileBrowserState() FileBrowserState {
+	mu.RLock()
+	defer mu.RUnlock()
+	if current == nil {
+		return FileBrowserState{}
+	}
+	return current.FileBrowser
+}
+
+// SetFileBrowserState saves the file browser state.
+func SetFileBrowserState(state FileBrowserState) error {
+	mu.Lock()
+	if current == nil {
+		current = &State{}
+	}
+	current.FileBrowser = state
 	mu.Unlock()
 	return Save()
 }
