@@ -119,7 +119,7 @@ func main() {
 	// Create and run application
 	currentVersion := effectiveVersion(Version)
 	model := app.New(registry, km, currentVersion)
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseAllMotion())
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running application: %v\n", err)

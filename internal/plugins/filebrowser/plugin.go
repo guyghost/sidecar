@@ -20,6 +20,7 @@ import (
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/msg"
 	"github.com/marcus/sidecar/internal/plugin"
+	"github.com/marcus/sidecar/internal/state"
 )
 
 const (
@@ -190,6 +191,11 @@ func (p *Plugin) Icon() string { return pluginIcon }
 func (p *Plugin) Init(ctx *plugin.Context) error {
 	p.ctx = ctx
 	p.tree = NewFileTree(ctx.WorkDir)
+
+	// Load saved pane width from state
+	if saved := state.GetFileBrowserTreeWidth(); saved > 0 {
+		p.treeWidth = saved
+	}
 	return nil
 }
 

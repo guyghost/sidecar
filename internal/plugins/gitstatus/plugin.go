@@ -159,6 +159,11 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 		p.diffViewMode = DiffViewUnified
 	}
 
+	// Load saved sidebar width from state
+	if saved := state.GetGitStatusSidebarWidth(); saved > 0 {
+		p.sidebarWidth = saved
+	}
+
 	return nil
 }
 

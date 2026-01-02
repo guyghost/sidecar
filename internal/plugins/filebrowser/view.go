@@ -16,14 +16,34 @@ const (
 	PanePreview
 )
 
+// dividerWidth is the width of the draggable divider between panes.
+const dividerWidth = 1
+
 // calculatePaneWidths sets the tree and preview pane widths.
+// If treeWidth is already set (from drag), only updates previewWidth.
 func (p *Plugin) calculatePaneWidths() {
-	// Account for borders (2 chars each pane) and separator
-	available := p.width - 6
-	p.treeWidth = available * 30 / 100
-	if p.treeWidth < 20 {
-		p.treeWidth = 20
+	// Original: available = width - 6 (4 for borders + 2 margin)
+	// With divider: subtract 1 more for the divider character
+	available := p.width - 6 - dividerWidth
+
+	// Only set default treeWidth if not yet initialized
+	if p.treeWidth == 0 {
+		p.treeWidth = available * 30 / 100
 	}
+
+	// Clamp treeWidth to valid bounds
+	minWidth := 20
+	maxWidth := available - 40 // Leave at least 40 for preview
+	if maxWidth < minWidth {
+		maxWidth = minWidth
+	}
+	if p.treeWidth < minWidth {
+		p.treeWidth = minWidth
+	} else if p.treeWidth > maxWidth {
+		p.treeWidth = maxWidth
+	}
+
+	// Calculate previewWidth from remaining space
 	p.previewWidth = available - p.treeWidth
 	if p.previewWidth < 40 {
 		p.previewWidth = 40
@@ -66,7 +86,7 @@ func (p *Plugin) renderView() string {
 		}
 	}
 
-	// Calculate pane height: total - input bar - pane border (2 lines)
+	// Calculate pane height for content (excluding borders)
 	// Note: footer is rendered by the app, not by the plugin
 	paneHeight := p.height - inputBarHeight - 2
 	if paneHeight < 4 {
@@ -82,7 +102,7 @@ func (p *Plugin) renderView() string {
 	treeContent := p.renderTreePane(innerHeight)
 	previewContent := p.renderPreviewPane(innerHeight)
 
-	// Apply styles
+	// Apply styles - border adds 2 lines to visual height
 	leftPane := treeBorder.
 		Width(p.treeWidth).
 		Height(paneHeight).
@@ -93,8 +113,12 @@ func (p *Plugin) renderView() string {
 		Height(paneHeight).
 		Render(previewContent)
 
-	// Join panes horizontally
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+	// Render visible divider between panes
+	// MarginTop(1) in renderDivider shifts it down, so use paneHeight directly
+	divider := p.renderDivider(paneHeight)
+
+	// Join panes horizontally with divider in between
+	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, divider, rightPane)
 
 	// Build final layout
 	var parts []string
@@ -117,19 +141,25 @@ func (p *Plugin) renderView() string {
 	parts = append(parts, panes)
 
 	// Register mouse hit regions for panes
-	// Panes start after any input bars; add 2 for pane header lines
+	// Panes start after any input bars
 	paneY := inputBarHeight
 	treeItemY := paneY + 3 // border(1) + header(2)
 
-	// Register pane regions FIRST (tested last = lower priority, act as fallback)
-	// Tree pane region (x=0, full width including border)
-	p.mouseHandler.HitMap.AddRect(regionTreePane, 0, paneY, p.treeWidth+2, paneHeight, nil)
+	// Register pane regions - tested in reverse order (last added = highest priority)
+	// Tree pane region (x=0, full width) - lowest priority fallback
+	p.mouseHandler.HitMap.AddRect(regionTreePane, 0, paneY, p.treeWidth, paneHeight, nil)
 
-	// Pane divider region (narrow area between panes)
-	p.mouseHandler.HitMap.AddRect(regionPaneDivider, p.treeWidth+2, paneY, 2, paneHeight, nil)
+	// Preview pane region (after divider) - medium priority
+	previewX := p.treeWidth + dividerWidth
+	p.mouseHandler.HitMap.AddRect(regionPreviewPane, previewX, paneY, p.previewWidth, paneHeight, nil)
 
-	// Preview pane region
-	p.mouseHandler.HitMap.AddRect(regionPreviewPane, p.treeWidth+4, paneY, p.previewWidth+2, paneHeight, nil)
+	// Pane divider region - HIGH PRIORITY (registered after panes so it wins in overlap)
+	// Left pane is Width(treeWidth), so occupies columns 0 to treeWidth-1
+	// Divider is at column treeWidth
+	// Hit region is wider for easier clicking
+	dividerX := p.treeWidth
+	dividerHitWidth := 3
+	p.mouseHandler.HitMap.AddRect(regionPaneDivider, dividerX, paneY, dividerHitWidth, paneHeight, nil)
 
 	// Register individual tree items LAST (tested first = higher priority)
 	// Note: regions are tested in reverse order, so items added last take precedence
@@ -140,12 +170,32 @@ func (p *Plugin) renderView() string {
 		}
 		for i := p.treeScrollOff; i < end; i++ {
 			itemY := treeItemY + (i - p.treeScrollOff)
-			// Register region: x=1 (inside border), width=treeWidth, height=1, data=tree index
-			p.mouseHandler.HitMap.AddRect(regionTreeItem, 1, itemY, p.treeWidth, 1, i)
+			// Register region: x=1 (inside border), width=treeWidth-2, height=1, data=tree index
+			p.mouseHandler.HitMap.AddRect(regionTreeItem, 1, itemY, p.treeWidth-2, 1, i)
 		}
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Top, parts...)
+}
+
+// renderDivider renders the vertical divider between panes.
+func (p *Plugin) renderDivider(height int) string {
+	// Use a subtle vertical bar as the divider
+	// MarginTop(1) shifts it down to align with pane content (below top border)
+	dividerStyle := lipgloss.NewStyle().
+		Foreground(styles.BorderNormal).
+		MarginTop(1)
+
+	// Build vertical bar with exact height
+	var sb strings.Builder
+	for i := 0; i < height; i++ {
+		sb.WriteString("│")
+		if i < height-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	return dividerStyle.Render(sb.String())
 }
 
 // renderContentSearchBar renders the content search input bar for preview pane.

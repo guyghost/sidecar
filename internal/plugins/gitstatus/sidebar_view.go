@@ -8,23 +8,40 @@ import (
 	"github.com/marcus/sidecar/internal/styles"
 )
 
-// calculatePaneWidths sets the sidebar and diff pane widths.
-func (p *Plugin) calculatePaneWidths() {
-	// Account for borders: each pane has 2 (left+right border)
-	// Two panes = 4 border chars total, plus 1 gap between panes
-	available := p.width - 5
+// dividerWidth is the width of the draggable divider between panes.
+const dividerWidth = 1
 
+// calculatePaneWidths sets the sidebar and diff pane widths.
+// If sidebarWidth is already set (from drag), only updates diffPaneWidth.
+func (p *Plugin) calculatePaneWidths() {
 	if !p.sidebarVisible {
 		p.sidebarWidth = 0
-		p.diffPaneWidth = available - 2 // Single pane border
+		p.diffPaneWidth = p.width
 		return
 	}
 
-	// 30% sidebar, 70% diff
-	p.sidebarWidth = available * 30 / 100
-	if p.sidebarWidth < 25 {
-		p.sidebarWidth = 25
+	// Original: available = width - 5 (4 for borders + 1 margin)
+	// With divider: subtract 1 more for the divider character
+	available := p.width - 5 - dividerWidth
+
+	// Only set default sidebarWidth if not yet initialized
+	if p.sidebarWidth == 0 {
+		p.sidebarWidth = available * 30 / 100
 	}
+
+	// Clamp sidebarWidth to valid bounds
+	minWidth := 25
+	maxWidth := available - 40 // Leave at least 40 for diff
+	if maxWidth < minWidth {
+		maxWidth = minWidth
+	}
+	if p.sidebarWidth < minWidth {
+		p.sidebarWidth = minWidth
+	} else if p.sidebarWidth > maxWidth {
+		p.sidebarWidth = maxWidth
+	}
+
+	// Calculate diffPaneWidth from remaining space
 	p.diffPaneWidth = available - p.sidebarWidth
 	if p.diffPaneWidth < 40 {
 		p.diffPaneWidth = 40
@@ -52,16 +69,20 @@ func (p *Plugin) renderThreePaneView() string {
 	p.mouseHandler.Clear()
 
 	if p.sidebarVisible {
-		// Register hit regions for sidebar, divider, and diff pane
-		// Sidebar region (includes border)
-		p.mouseHandler.HitMap.AddRect(regionSidebar, 0, 0, p.sidebarWidth+1, p.height, nil)
+		// Register hit regions - tested in reverse order (last added = highest priority)
+		// Sidebar region - lowest priority fallback
+		p.mouseHandler.HitMap.AddRect(regionSidebar, 0, 0, p.sidebarWidth, p.height, nil)
 
-		// Pane divider region (1 char wide between panes)
-		p.mouseHandler.HitMap.AddRect(regionPaneDivider, p.sidebarWidth+1, 0, 2, p.height, nil)
-
-		// Diff pane region
-		diffX := p.sidebarWidth + 3
+		// Diff pane region (after divider) - medium priority
+		diffX := p.sidebarWidth + dividerWidth
 		p.mouseHandler.HitMap.AddRect(regionDiffPane, diffX, 0, p.diffPaneWidth, p.height, nil)
+
+		// Pane divider region - HIGH PRIORITY (registered after panes so it wins in overlap)
+		// Sidebar is Width(sidebarWidth), so occupies columns 0 to sidebarWidth-1
+		// Divider is at column sidebarWidth
+		dividerX := p.sidebarWidth
+		dividerHitWidth := 3
+		p.mouseHandler.HitMap.AddRect(regionPaneDivider, dividerX, 0, dividerHitWidth, p.height, nil)
 
 		// Determine border styles based on focus
 		sidebarBorder := styles.PanelInactive
@@ -80,12 +101,16 @@ func (p *Plugin) renderThreePaneView() string {
 			Height(paneHeight).
 			Render(sidebarContent)
 
+		// Render visible divider between panes
+		// MarginTop(1) in renderDivider shifts it down, so use paneHeight directly
+		divider := p.renderDivider(paneHeight)
+
 		rightPane := diffBorder.
 			Width(p.diffPaneWidth).
 			Height(paneHeight).
 			Render(diffContent)
 
-		return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+		return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, divider, rightPane)
 	}
 
 	// Full-width diff pane when sidebar is hidden
@@ -634,4 +659,24 @@ func truncateDiffPath(path string, maxWidth int) string {
 		return path[:maxWidth]
 	}
 	return "…" + path[len(path)-maxWidth+1:]
+}
+
+// renderDivider renders the vertical divider between panes.
+func (p *Plugin) renderDivider(height int) string {
+	// Use a subtle vertical bar as the divider
+	// MarginTop(1) shifts it down to align with pane content (below top border)
+	dividerStyle := lipgloss.NewStyle().
+		Foreground(styles.BorderNormal).
+		MarginTop(1)
+
+	// Build vertical bar with exact height
+	var sb strings.Builder
+	for i := 0; i < height; i++ {
+		sb.WriteString("│")
+		if i < height-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	return dividerStyle.Render(sb.String())
 }

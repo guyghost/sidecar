@@ -809,8 +809,8 @@ func (p *Plugin) View(width, height int) string {
 	p.width = width
 	p.height = height
 
-	// Enable two-pane for wide terminals (>= 120 columns)
-	p.twoPane = width >= 120
+	// Enable two-pane for wide terminals (>= 102 columns)
+	p.twoPane = width >= 102
 	if p.twoPane {
 		p.sidebarWidth = width * 30 / 100
 		if p.sidebarWidth < 25 {

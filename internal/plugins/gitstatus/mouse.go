@@ -3,6 +3,7 @@ package gitstatus
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/marcus/sidecar/internal/mouse"
+	"github.com/marcus/sidecar/internal/state"
 )
 
 // Hit region IDs
@@ -32,7 +33,7 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 		return p.handleMouseDrag(action)
 
 	case mouse.ActionDragEnd:
-		return p, nil
+		return p.handleMouseDragEnd()
 	}
 
 	return p, nil
@@ -253,10 +254,13 @@ func (p *Plugin) handleMouseDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 		startValue := p.mouseHandler.DragStartValue()
 		newWidth := startValue + action.DragDX
 
-		// Clamp to reasonable bounds
+		// Clamp to reasonable bounds (match calculatePaneWidths logic)
+		available := p.width - 5 - dividerWidth
 		minWidth := 25
-		maxWidth := p.width * 50 / 100 // Max 50% of screen
-
+		maxWidth := available - 40 // Leave at least 40 for diff
+		if maxWidth < minWidth {
+			maxWidth = minWidth
+		}
 		if newWidth < minWidth {
 			newWidth = minWidth
 		}
@@ -265,9 +269,16 @@ func (p *Plugin) handleMouseDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 		}
 
 		p.sidebarWidth = newWidth
-		p.calculatePaneWidths()
+		p.diffPaneWidth = available - p.sidebarWidth
 		return p, nil
 	}
 
+	return p, nil
+}
+
+// handleMouseDragEnd handles the end of a drag operation (saves pane width).
+func (p *Plugin) handleMouseDragEnd() (*Plugin, tea.Cmd) {
+	// Save the current sidebar width to state
+	_ = state.SetGitStatusSidebarWidth(p.sidebarWidth)
 	return p, nil
 }

@@ -3,6 +3,7 @@ package filebrowser
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/marcus/sidecar/internal/mouse"
+	"github.com/marcus/sidecar/internal/state"
 )
 
 // Mouse region identifiers
@@ -32,6 +33,8 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 		return p.handleMouseScroll(action)
 	case mouse.ActionDrag:
 		return p.handleMouseDrag(action)
+	case mouse.ActionDragEnd:
+		return p.handleMouseDragEnd()
 	}
 	return p, nil
 }
@@ -155,9 +158,13 @@ func (p *Plugin) handleMouseDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 	startValue := p.mouseHandler.DragStartValue()
 	newWidth := startValue + action.DragDX
 
-	// Clamp to reasonable bounds (20% to 50% of total width)
-	minWidth := p.width / 5
-	maxWidth := p.width / 2
+	// Clamp to reasonable bounds (match calculatePaneWidths logic)
+	available := p.width - 6 - dividerWidth
+	minWidth := 20
+	maxWidth := available - 40 // Leave at least 40 for preview
+	if maxWidth < minWidth {
+		maxWidth = minWidth
+	}
 	if newWidth < minWidth {
 		newWidth = minWidth
 	} else if newWidth > maxWidth {
@@ -165,8 +172,15 @@ func (p *Plugin) handleMouseDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 	}
 
 	p.treeWidth = newWidth
-	p.previewWidth = p.width - p.treeWidth - 2 // Account for divider
+	p.previewWidth = available - p.treeWidth
 
+	return p, nil
+}
+
+// handleMouseDragEnd handles the end of a drag operation (saves pane width).
+func (p *Plugin) handleMouseDragEnd() (*Plugin, tea.Cmd) {
+	// Save the current tree width to state
+	_ = state.SetFileBrowserTreeWidth(p.treeWidth)
 	return p, nil
 }
 

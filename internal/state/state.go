@@ -10,6 +10,11 @@ import (
 // State holds persistent user preferences.
 type State struct {
 	GitDiffMode string `json:"gitDiffMode"` // "unified" or "side-by-side"
+
+	// Pane width preferences (percentage of total width, 0 = use default)
+	FileBrowserTreeWidth   int `json:"fileBrowserTreeWidth,omitempty"`
+	GitStatusSidebarWidth  int `json:"gitStatusSidebarWidth,omitempty"`
+	ConversationsSideWidth int `json:"conversationsSideWidth,omitempty"`
 }
 
 var (
@@ -88,6 +93,72 @@ func SetGitDiffMode(mode string) error {
 		current = &State{}
 	}
 	current.GitDiffMode = mode
+	mu.Unlock()
+	return Save()
+}
+
+// GetFileBrowserTreeWidth returns the saved file browser tree pane width.
+// Returns 0 if no preference is saved (use default).
+func GetFileBrowserTreeWidth() int {
+	mu.RLock()
+	defer mu.RUnlock()
+	if current == nil {
+		return 0
+	}
+	return current.FileBrowserTreeWidth
+}
+
+// SetFileBrowserTreeWidth saves the file browser tree pane width.
+func SetFileBrowserTreeWidth(width int) error {
+	mu.Lock()
+	if current == nil {
+		current = &State{}
+	}
+	current.FileBrowserTreeWidth = width
+	mu.Unlock()
+	return Save()
+}
+
+// GetGitStatusSidebarWidth returns the saved git status sidebar width.
+// Returns 0 if no preference is saved (use default).
+func GetGitStatusSidebarWidth() int {
+	mu.RLock()
+	defer mu.RUnlock()
+	if current == nil {
+		return 0
+	}
+	return current.GitStatusSidebarWidth
+}
+
+// SetGitStatusSidebarWidth saves the git status sidebar width.
+func SetGitStatusSidebarWidth(width int) error {
+	mu.Lock()
+	if current == nil {
+		current = &State{}
+	}
+	current.GitStatusSidebarWidth = width
+	mu.Unlock()
+	return Save()
+}
+
+// GetConversationsSideWidth returns the saved conversations sidebar width.
+// Returns 0 if no preference is saved (use default).
+func GetConversationsSideWidth() int {
+	mu.RLock()
+	defer mu.RUnlock()
+	if current == nil {
+		return 0
+	}
+	return current.ConversationsSideWidth
+}
+
+// SetConversationsSideWidth saves the conversations sidebar width.
+func SetConversationsSideWidth(width int) error {
+	mu.Lock()
+	if current == nil {
+		current = &State{}
+	}
+	current.ConversationsSideWidth = width
 	mu.Unlock()
 	return Save()
 }
