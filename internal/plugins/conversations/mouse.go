@@ -37,6 +37,19 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 	}
 
 	switch action.Region.ID {
+	case regionSessionItem:
+		// Click on a session item - select it
+		if idx, ok := action.Region.Data.(int); ok {
+			sessions := p.visibleSessions()
+			if idx >= 0 && idx < len(sessions) {
+				p.cursor = idx
+				p.activePane = PaneSidebar
+				p.setSelectedSession(sessions[idx].ID)
+				return p, p.schedulePreviewLoad(p.selectedSession)
+			}
+		}
+		return p, nil
+
 	case regionSidebar:
 		p.activePane = PaneSidebar
 		return p, nil
@@ -61,8 +74,24 @@ func (p *Plugin) handleMouseDoubleClick(action mouse.MouseAction) (*Plugin, tea.
 	}
 
 	switch action.Region.ID {
+	case regionSessionItem:
+		// Double-click on session item: select and focus messages pane
+		if idx, ok := action.Region.Data.(int); ok {
+			sessions := p.visibleSessions()
+			if idx >= 0 && idx < len(sessions) {
+				p.cursor = idx
+				p.setSelectedSession(sessions[idx].ID)
+				p.activePane = PaneMessages
+				return p, tea.Batch(
+					p.loadMessages(p.selectedSession),
+					p.loadUsage(p.selectedSession),
+				)
+			}
+		}
+		return p, nil
+
 	case regionSidebar:
-		// Double-click in sidebar: select and focus messages pane
+		// Double-click in sidebar (fallback): select and focus messages pane
 		sessions := p.visibleSessions()
 		if p.cursor < len(sessions) {
 			p.setSelectedSession(sessions[p.cursor].ID)

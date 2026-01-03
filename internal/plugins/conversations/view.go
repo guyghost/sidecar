@@ -114,7 +114,7 @@ func (p *Plugin) renderGroupedSessions(sb *strings.Builder, groups []SessionGrou
 				}
 			}
 			groupHeader := fmt.Sprintf(" %s (%s)", sessionGroup, groupStats)
-			sb.WriteString(styles.PanelHeader.Render(groupHeader))
+			sb.WriteString(styles.Code.Render(groupHeader))
 			sb.WriteString("\n")
 			lineCount++
 			if lineCount >= contentHeight {
@@ -965,14 +965,77 @@ func (p *Plugin) renderTwoPane() string {
 	// Main pane region (after divider) - medium priority
 	mainX := sidebarWidth + dividerWidth
 	p.mouseHandler.HitMap.AddRect(regionMainPane, mainX, 0, mainWidth, p.height, nil)
-	// Divider region - HIGH PRIORITY (registered last so it wins in overlap)
-	// Sidebar is Width(sidebarWidth), so occupies columns 0 to sidebarWidth-1
-	// Divider is at column sidebarWidth
+	// Divider region - HIGH PRIORITY (registered after panes so it wins in overlap)
 	dividerX := sidebarWidth
 	dividerHitWidth := 3
 	p.mouseHandler.HitMap.AddRect(regionPaneDivider, dividerX, 0, dividerHitWidth, p.height, nil)
 
+	// Session item regions - HIGHEST PRIORITY (registered last)
+	p.registerSessionHitRegions(sidebarWidth, innerHeight)
+
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, divider, rightPane)
+}
+
+// registerSessionHitRegions registers mouse hit regions for visible session items.
+// This mirrors the rendering logic in renderSidebarPane/renderGroupedCompactSessions.
+func (p *Plugin) registerSessionHitRegions(sidebarWidth, contentHeight int) {
+	if p.filterMode {
+		return // Filter menu is shown instead of sessions
+	}
+
+	sessions := p.visibleSessions()
+	if len(sessions) == 0 {
+		return
+	}
+
+	// Y offset: panel border (1) + title line (1) + optional search/filter line
+	headerY := 2 // border + title
+	if p.searchMode || p.filterActive {
+		headerY = 3 // border + title + search/filter line
+	}
+
+	// X offset: panel border (1) + padding (1) = 2
+	// The PanelActive/PanelInactive styles have Padding(0, 1) which adds horizontal padding
+	hitX := 2
+
+	// Hit region width: sidebarWidth - border(2) - padding(2) = sidebarWidth - 4
+	hitWidth := sidebarWidth - 4
+	if hitWidth < 10 {
+		hitWidth = 10
+	}
+
+	// Track visual line position and visible session count
+	lineCount := 0
+	currentGroup := ""
+
+	for i := p.scrollOff; i < len(sessions) && lineCount < contentHeight; i++ {
+		session := sessions[i]
+
+		// In grouped mode (not searching), account for group headers and spacers
+		if !p.searchMode {
+			sessionGroup := getSessionGroup(session.UpdatedAt)
+			if sessionGroup != currentGroup {
+				// Spacer before Yesterday/This Week (except first group)
+				if currentGroup != "" && (sessionGroup == "Yesterday" || sessionGroup == "This Week") {
+					lineCount++
+					if lineCount >= contentHeight {
+						break
+					}
+				}
+				// Group header line
+				currentGroup = sessionGroup
+				lineCount++
+				if lineCount >= contentHeight {
+					break
+				}
+			}
+		}
+
+		// Register hit region for this session
+		itemY := headerY + lineCount
+		p.mouseHandler.HitMap.AddRect(regionSessionItem, hitX, itemY, hitWidth, 1, i)
+		lineCount++
+	}
 }
 
 // renderDivider renders the visible divider between panes.
@@ -1113,7 +1176,7 @@ func (p *Plugin) renderGroupedCompactSessions(sb *strings.Builder, groups []Sess
 			if len(groupHeader) > contentWidth {
 				groupHeader = groupHeader[:contentWidth]
 			}
-			sb.WriteString(styles.Muted.Render(groupHeader))
+			sb.WriteString(styles.Code.Render(groupHeader))
 			sb.WriteString("\n")
 			lineCount++
 			if lineCount >= contentHeight {

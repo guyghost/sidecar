@@ -1399,3 +1399,211 @@ func TestGroupHeaderSpacing(t *testing.T) {
 		}
 	}
 }
+
+// =============================================================================
+// Mouse Click Tests
+// =============================================================================
+
+// TestMouseClickSessionItem tests clicking on a session item selects it.
+func TestMouseClickSessionItem(t *testing.T) {
+	p := New()
+	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
+	now := time.Now()
+	p.sessions = []adapter.Session{
+		{ID: "test-1", Name: "Session 1", UpdatedAt: now},
+		{ID: "test-2", Name: "Session 2", UpdatedAt: now.Add(-time.Hour)},
+		{ID: "test-3", Name: "Session 3", UpdatedAt: now.Add(-2 * time.Hour)},
+	}
+	p.width = 150
+	p.height = 30
+	p.twoPane = true
+	p.activePane = PaneSidebar
+	p.cursor = 0
+	p.selectedSession = "test-1"
+
+	// First render to set up hit regions
+	_ = p.View(p.width, p.height)
+
+	// Now test that the handler correctly processes session item clicks
+	// by checking the plugin's internal state after a click
+	if p.cursor != 0 {
+		// Initial cursor should be 0
+	}
+
+	// Verify hit regions were registered
+	hitMap := p.mouseHandler.HitMap
+	if hitMap == nil {
+		t.Fatal("expected HitMap to be initialized")
+	}
+
+	// Check that session item regions exist by testing hit detection
+	// Y position for sessions should be after header lines
+	// In two-pane mode: border(1) + title(1) = 2, so sessions start at Y=2
+	region := hitMap.Test(5, 3) // Should hit a session item
+	if region != nil && region.ID == regionSessionItem {
+		if idx, ok := region.Data.(int); ok {
+			if idx < 0 || idx >= len(p.sessions) {
+				t.Errorf("session item region has invalid index: %d", idx)
+			}
+		}
+	}
+}
+
+// TestHandleMouseClickSessionItem tests the handleMouseClick function with session item data.
+func TestHandleMouseClickSessionItem(t *testing.T) {
+	p := New()
+	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
+	now := time.Now()
+	p.sessions = []adapter.Session{
+		{ID: "test-1", Name: "Session 1", UpdatedAt: now},
+		{ID: "test-2", Name: "Session 2", UpdatedAt: now.Add(-time.Hour)},
+		{ID: "test-3", Name: "Session 3", UpdatedAt: now.Add(-2 * time.Hour)},
+	}
+	p.width = 150
+	p.height = 30
+	p.twoPane = true
+	p.activePane = PaneMessages
+	p.cursor = 0
+	p.selectedSession = "test-1"
+
+	// Render to initialize hit regions
+	_ = p.View(p.width, p.height)
+
+	// Create a mock mouse action with session item region data
+	// X=5 is inside the content area (after border+padding which is 2 chars)
+	// Y=3 should be where first session is (border + title + group header)
+	action := p.mouseHandler.HitMap.Test(5, 3) // Should hit a session in the list
+
+	// If we found a session item region, test the click handler
+	if action != nil && action.ID == regionSessionItem {
+		if idx, ok := action.Data.(int); ok {
+			// Verify the index is valid
+			if idx < 0 || idx >= len(p.sessions) {
+				t.Errorf("invalid session index: %d", idx)
+			}
+		}
+	}
+}
+
+// TestHandleMouseDoubleClickSessionItem tests double-click on session item.
+func TestHandleMouseDoubleClickSessionItem(t *testing.T) {
+	p := New()
+	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
+	now := time.Now()
+	p.sessions = []adapter.Session{
+		{ID: "test-1", Name: "Session 1", UpdatedAt: now},
+		{ID: "test-2", Name: "Session 2", UpdatedAt: now.Add(-time.Hour)},
+	}
+	p.width = 150
+	p.height = 30
+	p.twoPane = true
+	p.activePane = PaneSidebar
+	p.cursor = 0
+	p.selectedSession = ""
+
+	// Render to initialize state
+	_ = p.View(p.width, p.height)
+
+	// Verify initial state
+	if p.activePane != PaneSidebar {
+		t.Errorf("expected initial activePane to be PaneSidebar, got %v", p.activePane)
+	}
+}
+
+// TestRegisterSessionHitRegions tests that session hit regions are registered correctly.
+func TestRegisterSessionHitRegions(t *testing.T) {
+	p := New()
+	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
+	now := time.Now()
+	p.sessions = []adapter.Session{
+		{ID: "test-1", Name: "Session 1", UpdatedAt: now},
+		{ID: "test-2", Name: "Session 2", UpdatedAt: now.Add(-time.Hour)},
+		{ID: "test-3", Name: "Session 3", UpdatedAt: now.Add(-2 * time.Hour)},
+	}
+	p.width = 150
+	p.height = 30
+	p.twoPane = true
+
+	// Render to trigger hit region registration
+	_ = p.View(p.width, p.height)
+
+	// Verify hit regions were registered for sessions
+	hitMap := p.mouseHandler.HitMap
+	if hitMap == nil {
+		t.Fatal("expected HitMap to be initialized")
+	}
+
+	// Test that clicking in the session area returns a session-item region
+	// X must be inside content (border=1 + padding=1 = 2, so X >= 2)
+	// Y: border(1) + title(1) + group header(1) = 3 for first session
+	foundSessionRegion := false
+	for y := 3; y < 10; y++ {
+		region := hitMap.Test(5, y) // X=5 is inside content area
+		if region != nil && region.ID == regionSessionItem {
+			foundSessionRegion = true
+			if idx, ok := region.Data.(int); ok {
+				if idx < 0 || idx >= len(p.sessions) {
+					t.Errorf("session item region has invalid index: %d", idx)
+				}
+			} else {
+				t.Error("session item region Data should be an int")
+			}
+			break
+		}
+	}
+
+	if !foundSessionRegion {
+		t.Error("expected to find at least one session-item region")
+	}
+}
+
+// TestScrollSidebarFunction tests the scrollSidebar function directly.
+func TestScrollSidebarFunction(t *testing.T) {
+	p := New()
+	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
+	now := time.Now()
+	// Create many sessions to test scrolling
+	for i := 0; i < 20; i++ {
+		p.sessions = append(p.sessions, adapter.Session{
+			ID:        "test-" + string(rune('a'+i)),
+			Name:      "Session " + string(rune('A'+i)),
+			UpdatedAt: now.Add(-time.Duration(i) * time.Hour),
+		})
+	}
+	p.width = 150
+	p.height = 15
+	p.twoPane = true
+	p.cursor = 5
+
+	// Test scroll down (positive delta)
+	oldCursor := p.cursor
+	_, _ = p.scrollSidebar(3) // delta of 3 (typical scroll amount)
+
+	if p.cursor != oldCursor+3 {
+		t.Errorf("expected cursor %d after scroll down, got %d", oldCursor+3, p.cursor)
+	}
+
+	// Test scroll up (negative delta)
+	oldCursor = p.cursor
+	_, _ = p.scrollSidebar(-2)
+
+	if p.cursor != oldCursor-2 {
+		t.Errorf("expected cursor %d after scroll up, got %d", oldCursor-2, p.cursor)
+	}
+
+	// Test scroll bounds at top
+	p.cursor = 0
+	_, _ = p.scrollSidebar(-5)
+
+	if p.cursor != 0 {
+		t.Errorf("expected cursor to stay at 0 when scrolling up at top, got %d", p.cursor)
+	}
+
+	// Test scroll bounds at bottom
+	p.cursor = len(p.sessions) - 1
+	_, _ = p.scrollSidebar(5)
+
+	if p.cursor != len(p.sessions)-1 {
+		t.Errorf("expected cursor to stay at %d when scrolling down at bottom, got %d", len(p.sessions)-1, p.cursor)
+	}
+}

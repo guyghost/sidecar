@@ -35,6 +35,7 @@ const (
 	regionSidebar     = "sidebar"
 	regionMainPane    = "main-pane"
 	regionPaneDivider = "pane-divider"
+	regionSessionItem = "session-item" // Individual session row (Data: session index)
 )
 
 // View represents the current view mode.
