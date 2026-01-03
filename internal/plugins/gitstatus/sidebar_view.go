@@ -499,10 +499,21 @@ func (p *Plugin) renderCommitPreview(visibleHeight int) string {
 
 	maxWidth := p.diffPaneWidth - 4
 
+	// Track Y position for hit regions
+	// Y=0 is pane border, Y=1 is first content line
+	currentY := 1
+
+	// Calculate X offset for diff pane content
+	diffPaneX := 1 // Default when sidebar hidden (just pane border)
+	if p.sidebarVisible {
+		diffPaneX = p.sidebarWidth + dividerWidth + 1 // sidebar + divider + pane border
+	}
+
 	// Header with commit hash
 	header := fmt.Sprintf("Commit %s", c.ShortHash)
 	sb.WriteString(styles.Title.Render(header))
 	sb.WriteString("\n\n")
+	currentY += 2 // header line + blank line from \n\n
 
 	// Metadata
 	sb.WriteString(styles.Subtitle.Render("Author: "))
@@ -512,10 +523,12 @@ func (p *Plugin) renderCommitPreview(visibleHeight int) string {
 	}
 	sb.WriteString(styles.Body.Render(authorStr))
 	sb.WriteString("\n")
+	currentY++
 
 	sb.WriteString(styles.Subtitle.Render("Date:   "))
 	sb.WriteString(styles.Muted.Render(RelativeTime(c.Date)))
 	sb.WriteString("\n\n")
+	currentY += 2 // date + blank line
 
 	// Subject
 	subject := c.Subject
@@ -524,16 +537,19 @@ func (p *Plugin) renderCommitPreview(visibleHeight int) string {
 	}
 	sb.WriteString(styles.Body.Render(subject))
 	sb.WriteString("\n")
+	currentY++
 
 	// Body (if present, truncated)
 	if c.Body != "" {
 		sb.WriteString("\n")
+		currentY++
 		bodyLines := strings.Split(strings.TrimSpace(c.Body), "\n")
 		maxBodyLines := 3
 		for i, line := range bodyLines {
 			if i >= maxBodyLines {
 				sb.WriteString(styles.Muted.Render("..."))
 				sb.WriteString("\n")
+				currentY++
 				break
 			}
 			if len(line) > maxWidth-2 {
@@ -541,13 +557,16 @@ func (p *Plugin) renderCommitPreview(visibleHeight int) string {
 			}
 			sb.WriteString(styles.Muted.Render(line))
 			sb.WriteString("\n")
+			currentY++
 		}
 	}
 
 	// Separator
 	sb.WriteString("\n")
+	currentY++
 	sb.WriteString(styles.Muted.Render(strings.Repeat("─", maxWidth)))
 	sb.WriteString("\n")
+	currentY++
 
 	// Files header with stats
 	statsLine := fmt.Sprintf("Files (%d)", len(c.Files))
@@ -558,6 +577,7 @@ func (p *Plugin) renderCommitPreview(visibleHeight int) string {
 	}
 	sb.WriteString(styles.Subtitle.Render(statsLine))
 	sb.WriteString("\n")
+	currentY++
 
 	// Calculate remaining height for file list
 	linesUsed := 10 // header, metadata, subject, separator, files header
@@ -590,9 +610,13 @@ func (p *Plugin) renderCommitPreview(visibleHeight int) string {
 			file := c.Files[i]
 			selected := i == p.previewCommitCursor && p.activePane == PaneDiff
 
+			// Register hit region for this file (using absolute index into Files)
+			p.mouseHandler.HitMap.AddRect(regionCommitFile, diffPaneX, currentY, p.diffPaneWidth-2, 1, i)
+
 			line := p.renderCommitPreviewFile(file, selected, maxWidth-4)
 			sb.WriteString(line)
 			sb.WriteString("\n")
+			currentY++
 		}
 	}
 

@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/marcus/sidecar/internal/styles"
 )
 
-// renderProjectSearchModal renders the project search overlay.
-func (p *Plugin) renderProjectSearchModal() string {
+// renderProjectSearchModalContent renders the project search modal box content.
+func (p *Plugin) renderProjectSearchModalContent() string {
 	state := p.projectSearchState
 	if state == nil {
 		state = NewProjectSearchState()
@@ -78,18 +77,11 @@ func (p *Plugin) renderProjectSearchModal() string {
 	sb.WriteString("\n\n")
 	sb.WriteString(p.renderProjectSearchFooter())
 
-	// Wrap in modal box
+	// Wrap in modal box (centering handled by overlayModal)
 	content := sb.String()
-	modal := styles.ModalBox.
+	return styles.ModalBox.
 		Width(modalWidth).
 		Render(content)
-
-	centered := lipgloss.NewStyle().
-		PaddingLeft(hPad).
-		PaddingTop(1).
-		Render(modal)
-
-	return centered
 }
 
 // renderProjectSearchHeader renders the search input bar.

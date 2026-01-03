@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcus/sidecar/internal/styles"
+	"github.com/marcus/sidecar/internal/ui"
 )
 
 // ansiResetRe matches ANSI reset sequences (both \x1b[0m and \x1b[m)
@@ -73,15 +74,25 @@ func (p *Plugin) renderView() string {
 	// Clear mouse hit regions at start of each render
 	p.mouseHandler.Clear()
 
-	// Project search is a full overlay - render modal instead of normal panes
+	// Project search is a full overlay - render modal over dimmed background
 	if p.projectSearchMode {
-		return p.renderProjectSearchModal()
+		background := p.renderNormalPanes()
+		modal := p.renderProjectSearchModalContent()
+		return ui.OverlayModal(background, modal, p.width, p.height)
 	}
 
-	// Quick open is a full overlay - render modal instead of normal panes
+	// Quick open is a full overlay - render modal over dimmed background
 	if p.quickOpenMode {
-		return p.renderQuickOpenModal()
+		background := p.renderNormalPanes()
+		modal := p.renderQuickOpenModalContent()
+		return ui.OverlayModal(background, modal, p.width, p.height)
 	}
+
+	return p.renderNormalPanes()
+}
+
+// renderNormalPanes renders the standard 2-pane layout without modals.
+func (p *Plugin) renderNormalPanes() string {
 
 	p.calculatePaneWidths()
 
@@ -619,8 +630,8 @@ func formatSize(bytes int64) string {
 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-// renderQuickOpenModal renders the quick open overlay.
-func (p *Plugin) renderQuickOpenModal() string {
+// renderQuickOpenModalContent renders the quick open modal box content.
+func (p *Plugin) renderQuickOpenModalContent() string {
 	// Modal dimensions
 	modalWidth := p.width - 4
 	if modalWidth > 80 {
@@ -717,19 +728,11 @@ func (p *Plugin) renderQuickOpenModal() string {
 		sb.WriteString(fmt.Sprintf("\n\n%s", styles.Muted.Render(fmt.Sprintf("(%d files)", len(p.quickOpenFiles)))))
 	}
 
-	// Wrap in modal box and center horizontally
+	// Wrap in modal box (centering handled by overlayModal)
 	content := sb.String()
-	modal := styles.ModalBox.
+	return styles.ModalBox.
 		Width(modalWidth).
 		Render(content)
-
-	// Center horizontally, position near top (hPad already calculated above)
-	centered := lipgloss.NewStyle().
-		PaddingLeft(hPad).
-		PaddingTop(2).
-		Render(modal)
-
-	return centered
 }
 
 // renderQuickOpenMatch renders a single match with highlighted chars.

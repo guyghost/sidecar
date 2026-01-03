@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcus/sidecar/internal/styles"
+	"github.com/marcus/sidecar/internal/ui"
 )
 
 // commitModalWidth returns the width for the commit modal content.
@@ -141,6 +142,6 @@ func (p *Plugin) renderCommitModal() string {
 	// Get modal content
 	modalContent := p.renderCommit()
 
-	// Overlay on dimmed background (overlayModal handles centering)
-	return overlayModal(background, modalContent, p.width, p.height)
+	// Overlay on dimmed background
+	return ui.OverlayModal(background, modalContent, p.width, p.height)
 }

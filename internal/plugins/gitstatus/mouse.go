@@ -13,6 +13,7 @@ const (
 	regionPaneDivider = "pane-divider"
 	regionFile        = "file"
 	regionCommit      = "commit"
+	regionCommitFile  = "commit-file" // Files in commit preview pane
 )
 
 // handleMouse processes mouse events in the status view.
@@ -87,6 +88,16 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 			}
 		}
 		return p, nil
+
+	case regionCommitFile:
+		// Click on file in commit preview - select it
+		if idx, ok := action.Region.Data.(int); ok {
+			if p.previewCommit != nil && idx < len(p.previewCommit.Files) {
+				p.previewCommitCursor = idx
+				p.activePane = PaneDiff
+			}
+		}
+		return p, nil
 	}
 
 	return p, nil
@@ -147,6 +158,17 @@ func (p *Plugin) handleMouseDoubleClick(action mouse.MouseAction) (*Plugin, tea.
 			}
 		}
 		return p, nil
+
+	case regionCommitFile:
+		// Double-click on file in commit preview - open in editor
+		if idx, ok := action.Region.Data.(int); ok {
+			if p.previewCommit != nil && idx < len(p.previewCommit.Files) {
+				p.previewCommitCursor = idx
+				file := p.previewCommit.Files[idx]
+				return p, p.openFile(file.Path)
+			}
+		}
+		return p, nil
 	}
 
 	return p, nil
@@ -166,7 +188,7 @@ func (p *Plugin) handleMouseScroll(action mouse.MouseAction) (*Plugin, tea.Cmd) 
 	case regionSidebar, regionFile, regionCommit:
 		return p.scrollSidebar(action.Delta)
 
-	case regionDiffPane:
+	case regionDiffPane, regionCommitFile:
 		return p.scrollDiffPane(action.Delta)
 	}
 

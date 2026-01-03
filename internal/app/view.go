@@ -105,7 +105,13 @@ func (m Model) renderQuitConfirmOverlay(content string) string {
 	b.WriteString(" to cancel")
 
 	modal := styles.ModalBox.Render(b.String())
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
+	return lipgloss.Place(
+		m.width, m.height,
+		lipgloss.Center, lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("#000000")),
+	)
 }
 
 // renderHeader renders the top bar with title, tabs, and clock.
@@ -519,6 +525,8 @@ func (m Model) renderDiagnosticsOverlay(content string) string {
 		m.width, m.height,
 		lipgloss.Center, lipgloss.Center,
 		modal,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("#000000")),
 	)
 }
 
