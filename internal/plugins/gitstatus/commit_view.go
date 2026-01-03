@@ -141,13 +141,6 @@ func (p *Plugin) renderCommitModal() string {
 	// Get modal content
 	modalContent := p.renderCommit()
 
-	// Center modal over background
-	centered := lipgloss.Place(
-		p.width, p.height,
-		lipgloss.Center, lipgloss.Center,
-		modalContent,
-	)
-
-	// Overlay on background
-	return overlayMenu(background, centered, p.width, p.height)
+	// Overlay on dimmed background (overlayModal handles centering)
+	return overlayModal(background, modalContent, p.width, p.height)
 }

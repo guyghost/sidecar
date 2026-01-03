@@ -59,52 +59,56 @@ func (p *Plugin) renderPushMenu() string {
 		Width(menuWidth).
 		Render(title + "\n\n" + sb.String())
 
-	// Center menu over background
-	menu := lipgloss.Place(
-		p.width, p.height,
-		lipgloss.Center, lipgloss.Center,
-		menuContent,
-	)
-
-	// Overlay menu on dimmed background
-	return overlayMenu(background, menu, p.width, p.height)
+	// Overlay menu on dimmed background (overlayModal handles centering)
+	return overlayModal(background, menuContent, p.width, p.height)
 }
 
-// dimBackground dims the background content by stripping colors and applying a muted style.
-func dimBackground(background string, width, height int) string {
-	lines := strings.Split(background, "\n")
-	for i, line := range lines {
-		// Strip ANSI codes and re-render with dim style
-		stripped := ansi.Strip(line)
-		lines[i] = dimStyle.Render(stripped)
-	}
-	return strings.Join(lines, "\n")
-}
-
-// overlayMenu overlays the menu on top of the dimmed background.
-func overlayMenu(background, menu string, width, height int) string {
-	// Dim the background
-	background = dimBackground(background, width, height)
-
+// overlayModal composites a modal on top of a dimmed background.
+// The modal is centered, with dimmed background visible above and below.
+func overlayModal(background, modal string, width, height int) string {
 	bgLines := strings.Split(background, "\n")
-	menuLines := strings.Split(menu, "\n")
+	modalLines := strings.Split(modal, "\n")
 
-	// Ensure we have enough lines
+	// Dim background lines
+	for i, line := range bgLines {
+		stripped := ansi.Strip(line)
+		bgLines[i] = dimStyle.Render(stripped)
+	}
+
+	// Ensure we have enough bg lines
 	for len(bgLines) < height {
 		bgLines = append(bgLines, "")
 	}
 
-	// The menu is already positioned via lipgloss.Place, so just return it
-	// The menu's transparent areas will show the background
-	result := make([]string, height)
-	for i := 0; i < height; i++ {
-		if i < len(menuLines) {
-			result[i] = menuLines[i]
-		} else if i < len(bgLines) {
-			result[i] = bgLines[i]
-		} else {
-			result[i] = ""
+	// Calculate vertical center position
+	modalHeight := len(modalLines)
+	startY := (height - modalHeight) / 2
+	if startY < 0 {
+		startY = 0
+	}
+
+	// Build result: dimmed bg above, modal lines, dimmed bg below
+	result := make([]string, 0, height)
+
+	// Above modal: dimmed background
+	for y := 0; y < startY && y < len(bgLines); y++ {
+		result = append(result, bgLines[y])
+	}
+
+	// Modal lines (centered horizontally using lipgloss)
+	for _, line := range modalLines {
+		// Center each modal line
+		lineWidth := ansi.StringWidth(line)
+		leftPad := (width - lineWidth) / 2
+		if leftPad < 0 {
+			leftPad = 0
 		}
+		result = append(result, strings.Repeat(" ", leftPad)+line)
+	}
+
+	// Below modal: dimmed background
+	for y := startY + modalHeight; y < height && y < len(bgLines); y++ {
+		result = append(result, bgLines[y])
 	}
 
 	return strings.Join(result, "\n")
