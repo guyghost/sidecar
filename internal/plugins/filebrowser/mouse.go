@@ -13,6 +13,7 @@ const (
 	regionPaneDivider = "pane-divider" // Border between tree and preview
 	regionTreeItem    = "tree-item"    // Individual file/folder (Data: visible index)
 	regionQuickOpen   = "quick-open"   // Quick open modal item (Data: match index)
+	regionPreviewLine = "preview-line" // Individual preview line (Data: line index)
 
 	// Project search regions
 	regionSearchToggleRegex = "search-toggle-regex" // Regex toggle button
@@ -82,6 +83,20 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 
 	case regionPreviewPane:
 		p.activePane = PanePreview
+		p.clearTextSelection() // Clear selection when clicking empty area
+		return p, nil
+
+	case regionPreviewLine:
+		if lineIdx, ok := action.Region.Data.(int); ok {
+			p.activePane = PanePreview
+			// Initialize selection on this single line
+			p.textSelectionActive = false
+			p.textSelectionStart = lineIdx
+			p.textSelectionEnd = lineIdx
+			p.textSelectionAnchor = lineIdx
+			// Start drag tracking for potential drag-select
+			p.mouseHandler.StartDrag(action.X, action.Y, regionPreviewLine, lineIdx)
+		}
 		return p, nil
 
 	case regionPaneDivider:
@@ -169,12 +184,19 @@ func (p *Plugin) handleMouseScroll(action mouse.MouseAction) (*Plugin, tea.Cmd) 
 	return p, nil
 }
 
-// handleMouseDrag handles drag actions (pane resizing).
+// handleMouseDrag handles drag actions (pane resizing and text selection).
 func (p *Plugin) handleMouseDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
-	if p.mouseHandler.DragRegion() != regionPaneDivider {
-		return p, nil
+	switch p.mouseHandler.DragRegion() {
+	case regionPaneDivider:
+		return p.handlePaneDividerDrag(action)
+	case regionPreviewLine:
+		return p.handlePreviewSelectionDrag(action)
 	}
+	return p, nil
+}
 
+// handlePaneDividerDrag handles dragging the pane divider to resize.
+func (p *Plugin) handlePaneDividerDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 	startValue := p.mouseHandler.DragStartValue()
 	newWidth := startValue + action.DragDX
 
@@ -197,10 +219,57 @@ func (p *Plugin) handleMouseDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 	return p, nil
 }
 
-// handleMouseDragEnd handles the end of a drag operation (saves pane width).
+// handlePreviewSelectionDrag handles drag-to-select in the preview pane.
+func (p *Plugin) handlePreviewSelectionDrag(action mouse.MouseAction) (*Plugin, tea.Cmd) {
+	p.textSelectionActive = true
+
+	// Calculate Y offset to preview content
+	inputBarHeight := 0
+	if p.searchMode || p.contentSearchMode || p.fileOpMode != FileOpNone {
+		inputBarHeight = 1
+		if p.fileOpMode != FileOpNone && p.fileOpError != "" {
+			inputBarHeight = 2
+		}
+	}
+	previewContentStartY := inputBarHeight + 3 // border + header
+
+	// Map Y coordinate to line index
+	currentLine := (action.Y - previewContentStartY) + p.previewScroll
+
+	// Clamp to valid range
+	if currentLine < 0 {
+		currentLine = 0
+	}
+	maxLine := len(p.previewLines) - 1
+	if maxLine < 0 {
+		return p, nil
+	}
+	if currentLine > maxLine {
+		currentLine = maxLine
+	}
+
+	// Update selection based on anchor
+	if currentLine < p.textSelectionAnchor {
+		p.textSelectionStart = currentLine
+		p.textSelectionEnd = p.textSelectionAnchor
+	} else {
+		p.textSelectionStart = p.textSelectionAnchor
+		p.textSelectionEnd = currentLine
+	}
+
+	return p, nil
+}
+
+// handleMouseDragEnd handles the end of a drag operation.
 func (p *Plugin) handleMouseDragEnd() (*Plugin, tea.Cmd) {
-	// Save the current tree width to state
-	_ = state.SetFileBrowserTreeWidth(p.treeWidth)
+	switch p.mouseHandler.DragRegion() {
+	case regionPaneDivider:
+		// Save the current tree width to state
+		_ = state.SetFileBrowserTreeWidth(p.treeWidth)
+	case regionPreviewLine:
+		// Selection complete - keep selection visible but mark as inactive
+		p.textSelectionActive = false
+	}
 	return p, nil
 }
 

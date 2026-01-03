@@ -245,6 +245,11 @@ var (
 	QuickOpenItemSelected = lipgloss.NewStyle().
 				Foreground(TextPrimary).
 				Background(BgTertiary)
+
+	// Text selection for preview pane drag selection
+	TextSelection = lipgloss.NewStyle().
+			Background(BgTertiary).
+			Foreground(TextPrimary)
 )
 
 // Footer and header

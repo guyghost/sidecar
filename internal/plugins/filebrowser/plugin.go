@@ -143,6 +143,12 @@ type Plugin struct {
 	contentSearchMatches   []ContentMatch
 	contentSearchCursor    int // Index into contentSearchMatches
 
+	// Text selection state (preview pane)
+	textSelectionActive bool // True when user is actively dragging
+	textSelectionStart  int  // First line selected (0-indexed into previewLines)
+	textSelectionEnd    int  // Last line selected (0-indexed, inclusive)
+	textSelectionAnchor int  // Line where selection started (for drag direction)
+
 	// Quick open state
 	quickOpenMode    bool
 	quickOpenQuery   string
@@ -790,6 +796,7 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 
 	case PreviewLoadedMsg:
 		if msg.Path == p.previewFile {
+			p.clearTextSelection() // Clear selection when loading new file
 			p.previewLines = msg.Result.Lines
 			p.previewHighlighted = msg.Result.HighlightedLines
 			p.isBinary = msg.Result.IsBinary
@@ -1224,6 +1231,7 @@ func (p *Plugin) handlePreviewKey(key string) (plugin.Plugin, tea.Cmd) {
 	case "h", "left", "esc":
 		// Return to tree pane
 		p.activePane = PaneTree
+		p.clearTextSelection()
 
 	case "e":
 		// Open previewed file in editor
@@ -1234,6 +1242,7 @@ func (p *Plugin) handlePreviewKey(key string) (plugin.Plugin, tea.Cmd) {
 	case "/":
 		// Enter content search mode if we have content to search
 		if len(p.previewLines) > 0 && !p.isBinary {
+			p.clearTextSelection() // Clear selection before entering search
 			p.contentSearchMode = true
 			p.contentSearchCommitted = false
 			p.contentSearchQuery = ""
@@ -1245,6 +1254,12 @@ func (p *Plugin) handlePreviewKey(key string) (plugin.Plugin, tea.Cmd) {
 		// Reveal in file manager (Finder/Explorer/etc.)
 		if p.previewFile != "" {
 			return p, p.revealInFileManager(p.previewFile)
+		}
+
+	case "y":
+		// Copy selected text to clipboard
+		if p.hasTextSelection() {
+			return p, p.copySelectedTextToClipboard()
 		}
 	}
 
@@ -2192,4 +2207,65 @@ func (p *Plugin) FocusContext() string {
 		return "file-browser-preview"
 	}
 	return "file-browser-tree"
+}
+
+// clearTextSelection resets all text selection state.
+func (p *Plugin) clearTextSelection() {
+	p.textSelectionActive = false
+	p.textSelectionStart = 0
+	p.textSelectionEnd = 0
+	p.textSelectionAnchor = 0
+}
+
+// hasTextSelection returns true if there is an active or completed selection.
+func (p *Plugin) hasTextSelection() bool {
+	return p.textSelectionStart != p.textSelectionEnd ||
+		p.textSelectionActive ||
+		(p.textSelectionStart == 0 && p.textSelectionEnd > 0)
+}
+
+// isLineSelected returns true if the given line is within the selection range.
+func (p *Plugin) isLineSelected(lineNo int) bool {
+	if !p.hasTextSelection() {
+		return false
+	}
+	return lineNo >= p.textSelectionStart && lineNo <= p.textSelectionEnd
+}
+
+// copySelectedTextToClipboard copies the selected lines to the system clipboard.
+func (p *Plugin) copySelectedTextToClipboard() tea.Cmd {
+	return func() tea.Msg {
+		if !p.hasTextSelection() {
+			return nil
+		}
+
+		start := p.textSelectionStart
+		end := p.textSelectionEnd
+		if start > end {
+			start, end = end, start
+		}
+
+		// Build selected text from raw lines (not syntax-highlighted)
+		var sb strings.Builder
+		for i := start; i <= end; i++ {
+			if i < len(p.previewLines) {
+				sb.WriteString(p.previewLines[i])
+				if i < end {
+					sb.WriteString("\n")
+				}
+			}
+		}
+
+		text := sb.String()
+		if text == "" {
+			return nil
+		}
+
+		if err := clipboard.WriteAll(text); err != nil {
+			return msg.ShowToast("Copy failed: "+err.Error(), 2*time.Second)
+		}
+
+		lineCount := end - start + 1
+		return msg.ShowToast(fmt.Sprintf("Copied %d line(s)", lineCount), 2*time.Second)
+	}
 }

@@ -175,6 +175,21 @@ func (p *Plugin) renderView() string {
 		}
 	}
 
+	// Register individual preview lines for text selection (LAST for highest priority)
+	if p.previewFile != "" && !p.isBinary && len(p.previewLines) > 0 {
+		previewContentStartY := paneY + 3 // border(1) + header(2 lines: title + metadata)
+		contentStart := p.previewScroll
+		contentEnd := contentStart + innerHeight
+		if contentEnd > len(p.previewLines) {
+			contentEnd = len(p.previewLines)
+		}
+		for i := contentStart; i < contentEnd; i++ {
+			lineY := previewContentStartY + (i - contentStart)
+			// Region covers content area within preview pane
+			p.mouseHandler.HitMap.AddRect(regionPreviewLine, previewX+1, lineY, p.previewWidth-2, 1, i)
+		}
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Top, parts...)
 }
 
@@ -440,21 +455,41 @@ func (p *Plugin) renderPreviewPane(visibleHeight int) string {
 	}
 
 	for i := start; i < contentEnd; i++ {
-		lineNum := styles.FileBrowserLineNumber.Render(fmt.Sprintf("%4d ", i+1))
+		// Check if this line is selected for text selection highlighting
+		if p.isLineSelected(i) {
+			// Use raw content for selection (no syntax highlighting to interfere)
+			rawLineNum := fmt.Sprintf("%4d ", i+1)
+			rawContent := ""
+			if i < len(p.previewLines) {
+				rawContent = p.previewLines[i]
+			}
+			// Truncate if needed
+			if len(rawContent) > maxLineWidth {
+				rawContent = rawContent[:maxLineWidth]
+			}
+			fullLine := rawLineNum + rawContent
+			// Pad to full width for consistent highlight
+			if len(fullLine) < p.previewWidth-4 {
+				fullLine += strings.Repeat(" ", p.previewWidth-4-len(fullLine))
+			}
+			sb.WriteString(styles.TextSelection.Render(fullLine))
+		} else {
+			lineNum := styles.FileBrowserLineNumber.Render(fmt.Sprintf("%4d ", i+1))
 
-		// Get line content - apply match highlighting if in content search mode
-		var lineContent string
-		if p.contentSearchMode && len(p.contentSearchMatches) > 0 {
-			// Use raw lines for highlighting (loses syntax highlighting on matched lines)
-			lineContent = p.highlightLineMatches(i)
-		} else if i < len(lines) {
-			lineContent = lines[i]
+			// Get line content - apply match highlighting if in content search mode
+			var lineContent string
+			if p.contentSearchMode && len(p.contentSearchMatches) > 0 {
+				// Use raw lines for highlighting (loses syntax highlighting on matched lines)
+				lineContent = p.highlightLineMatches(i)
+			} else if i < len(lines) {
+				lineContent = lines[i]
+			}
+
+			line := lineStyle.Render(lineContent)
+			sb.WriteString(lineNum)
+			sb.WriteString(line)
 		}
 
-		line := lineStyle.Render(lineContent)
-
-		sb.WriteString(lineNum)
-		sb.WriteString(line)
 		// Don't add newline after last line
 		if i < contentEnd-1 || p.isTruncated {
 			sb.WriteString("\n")
