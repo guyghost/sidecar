@@ -219,14 +219,20 @@ func RenderSideBySide(diff *ParsedDiff, width, startLine, maxLines, horizontalOf
 				}
 			}
 
-			// Compose line
+			// Compose line - use MaxWidth to truncate, then pad manually for alignment
+			leftRendered := leftStyle.MaxWidth(contentWidth).Render(leftContent)
+			leftRendered = padToWidth(leftRendered, contentWidth)
+
+			rightRendered := rightStyle.MaxWidth(contentWidth).Render(rightContent)
+			rightRendered = padToWidth(rightRendered, contentWidth)
+
 			leftPanel := fmt.Sprintf("%s │%s",
 				lineNoStyle.Render(leftLineNo),
-				leftStyle.Render(padRight(leftContent, contentWidth)))
+				leftRendered)
 
 			rightPanel := fmt.Sprintf("%s │%s",
 				lineNoStyle.Render(rightLineNo),
-				rightStyle.Render(padRight(rightContent, contentWidth)))
+				rightRendered)
 
 			sb.WriteString(leftPanel)
 			sb.WriteString(sideBySideBorder.Render(" │ "))
@@ -354,42 +360,61 @@ func renderDiffContent(line DiffLine, maxWidth int) string {
 		}
 		content := sb.String()
 		// Truncate if needed (accounting for ANSI codes is complex, so just truncate raw)
-		runes := []rune(line.Content)
-		if len(runes) > maxWidth && maxWidth > 3 {
+		if lipgloss.Width(line.Content) > maxWidth && maxWidth > 3 {
 			// Re-render truncated
-			truncated := string(runes[:maxWidth-3]) + "..."
+			truncated := truncateLine(line.Content, maxWidth)
 			return style.Render(truncated)
 		}
 		return content
 	}
 
 	content := line.Content
-	runes := []rune(content)
-	if len(runes) > maxWidth && maxWidth > 3 {
-		content = string(runes[:maxWidth-3]) + "..."
+	if lipgloss.Width(content) > maxWidth && maxWidth > 3 {
+		content = truncateLine(content, maxWidth)
 	}
 	return style.Render(content)
 }
 
 // truncateLine truncates a line to fit within maxWidth using visual width.
 func truncateLine(s string, maxWidth int) string {
-	runes := []rune(s)
-	if len(runes) <= maxWidth {
+	if lipgloss.Width(s) <= maxWidth {
 		return s
 	}
 	if maxWidth <= 3 {
-		return string(runes[:maxWidth])
+		// Just take first few runes
+		runes := []rune(s)
+		if len(runes) > maxWidth {
+			return string(runes[:maxWidth])
+		}
+		return s
 	}
-	return string(runes[:maxWidth-3]) + "..."
+	// Truncate rune by rune until we fit
+	runes := []rune(s)
+	for i := len(runes); i > 0; i-- {
+		candidate := string(runes[:i]) + "..."
+		if lipgloss.Width(candidate) <= maxWidth {
+			return candidate
+		}
+	}
+	return "..."
 }
 
 // padRight pads a string with spaces to reach the desired visual width.
 func padRight(s string, width int) string {
-	runeLen := len([]rune(s))
-	if runeLen >= width {
+	visualWidth := lipgloss.Width(s)
+	if visualWidth >= width {
 		return s
 	}
-	return s + strings.Repeat(" ", width-runeLen)
+	return s + strings.Repeat(" ", width-visualWidth)
+}
+
+// padToWidth pads a styled string (with ANSI codes) to exact visual width.
+func padToWidth(s string, width int) string {
+	visualWidth := lipgloss.Width(s)
+	if visualWidth >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-visualWidth)
 }
 
 // applyHorizontalOffset removes the first n runes from a string.
