@@ -401,7 +401,15 @@ func renderDiffContent(line DiffLine, maxWidth int, highlighter *SyntaxHighlight
 	if lipgloss.Width(content) > maxWidth && maxWidth > 3 {
 		content = truncateLine(content, maxWidth)
 	}
-	return baseStyle.Render(content)
+	// Add background for add/remove lines even without syntax highlighting
+	style := baseStyle
+	switch line.Type {
+	case LineAdd:
+		style = style.Background(styles.DiffAddBg)
+	case LineRemove:
+		style = style.Background(styles.DiffRemoveBg)
+	}
+	return style.Render(content)
 }
 
 // renderSideBySideContent renders content for side-by-side view with syntax highlighting.
@@ -430,18 +438,26 @@ func renderSideBySideContent(content string, lineType LineType, maxWidth int, hi
 		return lipgloss.NewStyle().MaxWidth(maxWidth).Render(highlighted)
 	}
 
-	return baseStyle.MaxWidth(maxWidth).Render(content)
+	// Add background for add/remove lines even without syntax highlighting
+	style := baseStyle
+	switch lineType {
+	case LineAdd:
+		style = style.Background(styles.DiffAddBg)
+	case LineRemove:
+		style = style.Background(styles.DiffRemoveBg)
+	}
+	return style.MaxWidth(maxWidth).Render(content)
 }
 
 // renderSyntaxHighlighted renders content with syntax highlighting blended with diff style.
 func renderSyntaxHighlighted(content string, lineType LineType, highlighter *SyntaxHighlighter) string {
-	// Helper to get base diff style
+	// Helper to get base diff style with background for add/remove lines
 	getBaseStyle := func() lipgloss.Style {
 		switch lineType {
 		case LineAdd:
-			return styles.DiffAdd
+			return styles.DiffAdd.Background(styles.DiffAddBg)
 		case LineRemove:
-			return styles.DiffRemove
+			return styles.DiffRemove.Background(styles.DiffRemoveBg)
 		default:
 			return styles.DiffContext
 		}
@@ -453,7 +469,7 @@ func renderSyntaxHighlighted(content string, lineType LineType, highlighter *Syn
 
 	segments := highlighter.HighlightLine(content)
 	if len(segments) == 0 {
-		// Fallback to base diff style when no syntax segments
+		// Fallback to base diff style with background when no syntax segments
 		return getBaseStyle().Render(content)
 	}
 
@@ -466,16 +482,16 @@ func renderSyntaxHighlighted(content string, lineType LineType, highlighter *Syn
 }
 
 // blendSyntaxWithDiff blends syntax highlighting style with diff line style.
-// Add/remove lines always use diff colors (green/red) for clear visual diff indication.
+// Add/remove lines preserve syntax foreground colors with subtle diff backgrounds.
 // Context lines use syntax highlighting when available.
 func blendSyntaxWithDiff(syntaxStyle lipgloss.Style, lineType LineType) lipgloss.Style {
 	switch lineType {
 	case LineAdd:
-		// Always use green for added lines
-		return styles.DiffAdd
+		// Keep syntax foreground, add green background for diff indication
+		return syntaxStyle.Background(styles.DiffAddBg)
 	case LineRemove:
-		// Always use red for removed lines
-		return styles.DiffRemove
+		// Keep syntax foreground, add red background for diff indication
+		return syntaxStyle.Background(styles.DiffRemoveBg)
 	default:
 		// Context lines: use syntax color if available, otherwise muted
 		fg := syntaxStyle.GetForeground()

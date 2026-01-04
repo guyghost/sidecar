@@ -197,6 +197,10 @@ var (
 	DiffHeader = lipgloss.NewStyle().
 			Foreground(Info).
 			Bold(true)
+
+	// Subtle diff backgrounds for syntax-highlighted lines
+	DiffAddBg    = lipgloss.Color("#0D2818") // Very subtle dark green
+	DiffRemoveBg = lipgloss.Color("#2D1A1A") // Very subtle dark red
 )
 
 // File browser styles
