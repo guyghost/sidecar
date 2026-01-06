@@ -28,6 +28,9 @@ type Plugin struct {
 	// Embedded td monitor model
 	model *monitor.Model
 
+	// Not-installed view (shown when td database not found)
+	notInstalled *NotInstalledModel
+
 	// View dimensions (passed to model on each render)
 	width  int
 	height int
@@ -58,8 +61,9 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 	// Version is empty for embedded use (not displayed in this context)
 	model, err := monitor.NewEmbedded(ctx.WorkDir, pollInterval, "")
 	if err != nil {
-		// Database not initialized - plugin loads but is non-functional
+		// Database not initialized - show animated not-installed view
 		p.ctx.Logger.Debug("td monitor: database not found", "error", err)
+		p.notInstalled = NewNotInstalledModel()
 		return nil
 	}
 
@@ -78,6 +82,10 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 // Start begins plugin operation.
 func (p *Plugin) Start() tea.Cmd {
 	if p.model == nil {
+		// Start animation for not-installed view
+		if p.notInstalled != nil {
+			return p.notInstalled.Init()
+		}
 		return nil
 	}
 	// Delegate to monitor's Init which starts data fetch and tick
@@ -94,6 +102,11 @@ func (p *Plugin) Stop() {
 // Update handles messages by delegating to the embedded monitor.
 func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 	if p.model == nil {
+		// Handle not-installed animation
+		if p.notInstalled != nil {
+			cmd := p.notInstalled.Update(msg)
+			return p, cmd
+		}
 		return p, nil
 	}
 
@@ -169,7 +182,11 @@ func (p *Plugin) View(width, height int) string {
 
 	var content string
 	if p.model == nil {
-		content = renderNoDatabase()
+		if p.notInstalled != nil {
+			content = p.notInstalled.View(width, height)
+		} else {
+			content = "No td database found.\nRun 'td init' to initialize."
+		}
 	} else {
 		// Set dimensions on model before rendering
 		p.model.Width = width
@@ -269,11 +286,6 @@ func (p *Plugin) Diagnostics() []plugin.Diagnostic {
 	return []plugin.Diagnostic{
 		{ID: "td-monitor", Status: status, Detail: detail},
 	}
-}
-
-// renderNoDatabase returns a view when no td database is found.
-func renderNoDatabase() string {
-	return "No td database found.\nRun 'td init' to initialize."
 }
 
 // formatCount formats a count with singular/plural forms.

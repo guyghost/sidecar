@@ -3,6 +3,7 @@ package tdmonitor
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/marcus/sidecar/internal/plugin"
@@ -181,10 +182,21 @@ func TestDiagnosticsWithDatabase(t *testing.T) {
 	}
 }
 
-func TestRenderNoDatabase(t *testing.T) {
-	result := renderNoDatabase()
+func TestNotInstalledModel(t *testing.T) {
+	m := NewNotInstalledModel()
+	if m == nil {
+		t.Fatal("expected non-nil model")
+	}
+
+	// Test View renders content
+	result := m.View(80, 24)
 	if result == "" {
-		t.Error("expected non-empty string")
+		t.Error("expected non-empty view")
+	}
+
+	// Check it contains expected content
+	if !strings.Contains(result, "External memory") {
+		t.Error("expected view to contain pitch text")
 	}
 }
 
