@@ -95,6 +95,29 @@ func (p *Plugin) renderView() string {
 		return ui.OverlayModal(background, modal, p.width, p.height)
 	}
 
+	// File operation modals - render modal over dimmed background
+	if p.fileOpMode != FileOpNone {
+		background := p.renderNormalPanes()
+		var modal string
+		switch p.fileOpMode {
+		case FileOpRename:
+			modal = p.renderRenameModal()
+		case FileOpDelete:
+			modal = p.renderDeleteModal()
+		case FileOpMove:
+			if p.fileOpConfirmCreate {
+				modal = p.renderCreateDirConfirmModal()
+			} else {
+				modal = p.renderMoveModal()
+			}
+		case FileOpCreateDir:
+			modal = p.renderMkdirModal()
+		case FileOpCreateFile:
+			modal = p.renderCreateFileModal()
+		}
+		return ui.OverlayModal(background, modal, p.width, p.height)
+	}
+
 	return p.renderNormalPanes()
 }
 
@@ -112,15 +135,12 @@ func (p *Plugin) renderNormalPanes() string {
 		previewBorder = styles.PanelActive
 	}
 
-	// Account for input bar if active (content search or file op)
+	// Account for input bar if active (content search only)
 	// Note: tree search bar is rendered inside the tree pane, not here
+	// Note: file op uses modals now, not inline bar
 	inputBarHeight := 0
-	if p.contentSearchMode || p.fileOpMode != FileOpNone {
+	if p.contentSearchMode {
 		inputBarHeight = 1
-		// Add extra line for error message if present
-		if p.fileOpMode != FileOpNone && p.fileOpError != "" {
-			inputBarHeight = 2
-		}
 	}
 
 	// Calculate pane height for content (excluding borders)
@@ -167,10 +187,7 @@ func (p *Plugin) renderNormalPanes() string {
 		parts = append(parts, p.renderContentSearchBar())
 	}
 
-	// Add file operation bar if in file operation mode
-	if p.fileOpMode != FileOpNone {
-		parts = append(parts, p.renderFileOpBar())
-	}
+	// Note: file operations now use modals (see renderView), not inline bar
 
 	parts = append(parts, panes)
 
@@ -287,50 +304,6 @@ func (p *Plugin) renderTreeSearchBar() string {
 	searchLine := fmt.Sprintf("/%s%s%s", p.searchQuery, cursor, matchInfo)
 	// Use a subtle style that fits inside the pane
 	return styles.StatusInProgress.Render(searchLine)
-}
-
-// renderFileOpBar renders the file operation input bar (move/rename/create/delete).
-func (p *Plugin) renderFileOpBar() string {
-	// Handle delete confirmation mode
-	if p.fileOpConfirmDelete && p.fileOpTarget != nil {
-		itemType := "file"
-		if p.fileOpTarget.IsDir {
-			itemType = "directory"
-		}
-		confirmLine := fmt.Sprintf(" Delete %s '%s'? [y]es / [n]o", itemType, p.fileOpTarget.Name)
-		return styles.ModalTitle.Render(confirmLine)
-	}
-
-	// Handle confirmation mode for directory creation (during move)
-	if p.fileOpConfirmCreate {
-		confirmLine := fmt.Sprintf(" Create '%s'? [y]es / [n]o", p.fileOpConfirmPath)
-		return styles.ModalTitle.Render(confirmLine)
-	}
-
-	var prompt string
-	switch p.fileOpMode {
-	case FileOpRename:
-		prompt = "Rename: "
-	case FileOpMove:
-		prompt = "Move to: "
-	case FileOpCreateFile:
-		prompt = "New file: "
-	case FileOpCreateDir:
-		prompt = "New dir: "
-	default:
-		return ""
-	}
-
-	inputLine := fmt.Sprintf(" %s%s", prompt, p.fileOpTextInput.View())
-
-	if p.fileOpError != "" {
-		errorLine := styles.StatusDeleted.Render(" " + p.fileOpError)
-		return lipgloss.JoinVertical(lipgloss.Left,
-			styles.ModalTitle.Render(inputLine),
-			errorLine,
-		)
-	}
-	return styles.ModalTitle.Render(inputLine)
 }
 
 // renderTreePane renders the file tree in the left pane.
@@ -889,4 +862,259 @@ func (p *Plugin) highlightFuzzyMatch(text string, ranges []MatchRange) string {
 	}
 
 	return result.String()
+}
+
+// ============================================================================
+// File Operation Modals
+// ============================================================================
+
+// renderRenameModal renders the rename modal for file/directory renaming.
+func (p *Plugin) renderRenameModal() string {
+	modalWidth := 50
+
+	var sb strings.Builder
+
+	// Title
+	sb.WriteString(styles.ModalTitle.Render("Rename"))
+	sb.WriteString("\n\n")
+
+	// Current name
+	currentName := ""
+	if p.fileOpTarget != nil {
+		currentName = p.fileOpTarget.Name
+	}
+	sb.WriteString(styles.Muted.Render("Current: "))
+	sb.WriteString(currentName)
+	sb.WriteString("\n\n")
+
+	// Input field
+	sb.WriteString("New name: ")
+	sb.WriteString(p.fileOpTextInput.View())
+
+	// Error message if present
+	if p.fileOpError != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+	}
+
+	// Key hints
+	sb.WriteString("\n\n")
+	sb.WriteString(styles.KeyHint.Render("[Enter]"))
+	sb.WriteString(" Confirm   ")
+	sb.WriteString(styles.KeyHint.Render("[Esc]"))
+	sb.WriteString(" Cancel")
+
+	return styles.ModalBox.Width(modalWidth).Render(sb.String())
+}
+
+// renderDeleteModal renders the delete confirmation modal.
+func (p *Plugin) renderDeleteModal() string {
+	modalWidth := 50
+
+	var sb strings.Builder
+
+	// Title
+	sb.WriteString(styles.ModalTitle.Render("Delete"))
+	sb.WriteString("\n\n")
+
+	// Warning text
+	sb.WriteString("Are you sure you want to\n")
+	sb.WriteString("delete this ")
+
+	itemType := "file"
+	icon := "📄"
+	if p.fileOpTarget != nil && p.fileOpTarget.IsDir {
+		itemType = "directory"
+		icon = "📁"
+	}
+	sb.WriteString(itemType)
+	sb.WriteString("?")
+	sb.WriteString("\n\n")
+
+	// Item being deleted
+	name := ""
+	if p.fileOpTarget != nil {
+		name = p.fileOpTarget.Name
+	}
+	sb.WriteString(icon + " ")
+	sb.WriteString(name)
+
+	// Key hints
+	sb.WriteString("\n\n")
+	sb.WriteString(styles.KeyHint.Render("[y]"))
+	sb.WriteString(" Delete   ")
+	sb.WriteString(styles.KeyHint.Render("[n]"))
+	sb.WriteString(" Cancel")
+
+	// Use a red border for delete warning
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(styles.Error).
+		Padding(1, 2).
+		Width(modalWidth).
+		Render(sb.String())
+}
+
+// renderMoveModal renders the move modal for file/directory moving.
+func (p *Plugin) renderMoveModal() string {
+	modalWidth := 60 // Wider for paths
+
+	var sb strings.Builder
+
+	// Title
+	sb.WriteString(styles.ModalTitle.Render("Move"))
+	sb.WriteString("\n\n")
+
+	// Current name
+	currentName := ""
+	if p.fileOpTarget != nil {
+		currentName = p.fileOpTarget.Name
+	}
+	sb.WriteString(styles.Muted.Render("Moving: "))
+	sb.WriteString(currentName)
+	sb.WriteString("\n\n")
+
+	// Input field
+	sb.WriteString("To: ")
+	sb.WriteString(p.fileOpTextInput.View())
+
+	// Error message if present
+	if p.fileOpError != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+	}
+
+	// Key hints
+	sb.WriteString("\n\n")
+	sb.WriteString(styles.KeyHint.Render("[Enter]"))
+	sb.WriteString(" Confirm   ")
+	sb.WriteString(styles.KeyHint.Render("[Esc]"))
+	sb.WriteString(" Cancel")
+
+	return styles.ModalBox.Width(modalWidth).Render(sb.String())
+}
+
+// renderMkdirModal renders the create directory modal.
+func (p *Plugin) renderMkdirModal() string {
+	modalWidth := 50
+
+	var sb strings.Builder
+
+	// Title
+	sb.WriteString(styles.ModalTitle.Render("Create Directory"))
+	sb.WriteString("\n\n")
+
+	// Parent directory
+	parentPath := ""
+	if p.fileOpTarget != nil {
+		if p.fileOpTarget.IsDir {
+			parentPath = p.fileOpTarget.Path
+		} else if p.fileOpTarget.Parent != nil {
+			parentPath = p.fileOpTarget.Parent.Path
+		}
+	}
+	if parentPath == "" {
+		parentPath = "/"
+	}
+	sb.WriteString(styles.Muted.Render("Parent: "))
+	sb.WriteString(truncatePath(parentPath, modalWidth-12))
+	sb.WriteString("\n\n")
+
+	// Input field
+	sb.WriteString("Name: ")
+	sb.WriteString(p.fileOpTextInput.View())
+
+	// Error message if present
+	if p.fileOpError != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+	}
+
+	// Key hints
+	sb.WriteString("\n\n")
+	sb.WriteString(styles.KeyHint.Render("[Enter]"))
+	sb.WriteString(" Create   ")
+	sb.WriteString(styles.KeyHint.Render("[Esc]"))
+	sb.WriteString(" Cancel")
+
+	return styles.ModalBox.Width(modalWidth).Render(sb.String())
+}
+
+// renderCreateFileModal renders the create file modal.
+func (p *Plugin) renderCreateFileModal() string {
+	modalWidth := 50
+
+	var sb strings.Builder
+
+	// Title
+	sb.WriteString(styles.ModalTitle.Render("Create File"))
+	sb.WriteString("\n\n")
+
+	// Parent directory
+	parentPath := ""
+	if p.fileOpTarget != nil {
+		if p.fileOpTarget.IsDir {
+			parentPath = p.fileOpTarget.Path
+		} else if p.fileOpTarget.Parent != nil {
+			parentPath = p.fileOpTarget.Parent.Path
+		}
+	}
+	if parentPath == "" {
+		parentPath = "/"
+	}
+	sb.WriteString(styles.Muted.Render("Parent: "))
+	sb.WriteString(truncatePath(parentPath, modalWidth-12))
+	sb.WriteString("\n\n")
+
+	// Input field
+	sb.WriteString("Name: ")
+	sb.WriteString(p.fileOpTextInput.View())
+
+	// Error message if present
+	if p.fileOpError != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+	}
+
+	// Key hints
+	sb.WriteString("\n\n")
+	sb.WriteString(styles.KeyHint.Render("[Enter]"))
+	sb.WriteString(" Create   ")
+	sb.WriteString(styles.KeyHint.Render("[Esc]"))
+	sb.WriteString(" Cancel")
+
+	return styles.ModalBox.Width(modalWidth).Render(sb.String())
+}
+
+// renderCreateDirConfirmModal renders the directory creation confirmation modal (during move).
+func (p *Plugin) renderCreateDirConfirmModal() string {
+	// Adaptive width based on path length
+	modalWidth := len(p.fileOpConfirmPath) + 10
+	if modalWidth < 40 {
+		modalWidth = 40
+	}
+	if modalWidth > 70 {
+		modalWidth = 70
+	}
+
+	var sb strings.Builder
+
+	// Title
+	sb.WriteString(styles.ModalTitle.Render("Create Directory?"))
+	sb.WriteString("\n\n")
+
+	// Message
+	sb.WriteString("Directory does not exist:\n")
+	sb.WriteString(truncatePath(p.fileOpConfirmPath, modalWidth-4))
+	sb.WriteString("\n\n")
+	sb.WriteString("Create it?")
+
+	// Key hints
+	sb.WriteString("\n\n")
+	sb.WriteString(styles.KeyHint.Render("[y]"))
+	sb.WriteString(" Yes   ")
+	sb.WriteString(styles.KeyHint.Render("[n]"))
+	sb.WriteString(" No")
+
+	return styles.ModalBox.Width(modalWidth).Render(sb.String())
 }
