@@ -12,6 +12,7 @@ Adapters live in `internal/adapter/<name>` and implement the `adapter.Adapter` i
 type Adapter interface {
 	ID() string
 	Name() string
+	Icon() string
 	Detect(projectRoot string) (bool, error)
 	Capabilities() CapabilitySet
 	Sessions(projectRoot string) ([]Session, error)
@@ -45,6 +46,7 @@ adapter.Session{
 	Slug:        meta.SessionID, // optional: short display slug if you have one
 	AdapterID:   "<your-id>",
 	AdapterName: "<Your Name>",
+	AdapterIcon: a.Icon(),
 	// ... timestamps, tokens, counts
 }
 ```
@@ -64,14 +66,39 @@ const (
 
 Pick a stable `adapterID` (it becomes part of persisted UI state like filters).
 
-### 2) Implement Detect
+### 2) Define adapter icon
 
-Detect should return true only when sessions for `projectRoot` exist. Prefer:
+Choose a unique single-character icon for your adapter:
+
+```go
+func (a *Adapter) Icon() string { return "◆" }
+```
+
+Icon guidelines:
+- Use non-emoji Unicode symbols (◆ ▶ ★ ◇ ▲ ■ etc.)
+- Avoid emojis for terminal compatibility
+- Pick something visually distinct from existing adapters
+- Icon appears in conversation list badges
+
+Existing icons:
+
+| Adapter     | Icon |
+|-------------|------|
+| claude-code | ◆    |
+| codex       | ▶    |
+| gemini-cli  | ★    |
+| cursor-cli  | ▌    |
+| warp        | ⚡   |
+| opencode    | ◇    |
+
+### 3) Implement Detect
+
+Detect should return `true` only when sessions for `projectRoot` exist. Prefer:
 - `filepath.Abs` + `filepath.Rel` for stable path matching
 - `filepath.EvalSymlinks` to avoid false negatives
 - graceful handling when data directories do not exist
 
-### 3) Implement Sessions
+### 4) Implement Sessions
 
 Parse all session files, extract:
 - `SessionID`
@@ -81,7 +108,7 @@ Parse all session files, extract:
 
 Sort by `UpdatedAt` descending.
 
-### 4) Implement Messages
+### 5) Implement Messages
 
 Return ordered `adapter.Message` values with:
 - `Role`: user or assistant
@@ -91,18 +118,18 @@ Return ordered `adapter.Message` values with:
 - `TokenUsage`: map token_count events to the next assistant message
 - `Model`: from your session metadata
 
-### 5) Implement Usage
+### 6) Implement Usage
 
 Aggregate per-message token usage, and optionally fall back to totals from a session summary record.
 
-### 6) Implement Watch (optional but recommended)
+### 7) Implement Watch (optional but recommended)
 
 Use `fsnotify` and:
 - add watchers for nested directories (fsnotify is non-recursive)
 - debounce rapid writes
 - map file events to `adapter.Event` types
 
-### 7) Register the adapter
+### 8) Register the adapter
 
 Add a `register.go` with an init hook:
 
@@ -128,13 +155,14 @@ import (
 
 ## UI Integration Notes
 
-- Conversations view shows adapter badges using `AdapterID`/`AdapterName`.
+- Conversations view shows adapter badges using `AdapterIcon` + abbreviation.
 - `resumeCommand()` is adapter-specific; add a mapping in `internal/plugins/conversations/view.go` if your tool supports resuming sessions.
 - `modelShortName()` should be extended if your models are non-Claude.
 
 ## Testing Checklist
 
 - Detect() matches both absolute and relative project roots
+- Sessions() includes AdapterIcon from Icon()
 - Sessions() sorts by UpdatedAt
 - Messages() attaches tool uses and token usage correctly
 - Usage() matches message totals
@@ -152,6 +180,7 @@ type Adapter struct {
 func New() *Adapter { /* ... */ }
 func (a *Adapter) ID() string { return adapterID }
 func (a *Adapter) Name() string { return adapterName }
+func (a *Adapter) Icon() string { return "●" } // choose unique icon
 func (a *Adapter) Detect(projectRoot string) (bool, error) { /* ... */ }
 func (a *Adapter) Capabilities() adapter.CapabilitySet { /* ... */ }
 func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) { /* ... */ }

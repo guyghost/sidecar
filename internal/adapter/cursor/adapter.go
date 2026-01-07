@@ -143,6 +143,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 			Slug:         shortID(meta.AgentID),
 			AdapterID:    adapterID,
 			AdapterName:  adapterName,
+			AdapterIcon:  a.Icon(),
 			CreatedAt:    meta.CreatedTime(),
 			UpdatedAt:    updatedAt,
 			Duration:     updatedAt.Sub(meta.CreatedTime()),

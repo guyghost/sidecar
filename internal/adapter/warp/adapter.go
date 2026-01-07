@@ -187,6 +187,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 			Slug:         shortConversationID(convID),
 			AdapterID:    adapterID,
 			AdapterName:  adapterName,
+			AdapterIcon:  a.Icon(),
 			CreatedAt:    firstMsg,
 			UpdatedAt:    lastMsg,
 			Duration:     lastMsg.Sub(firstMsg),
