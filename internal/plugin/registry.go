@@ -33,7 +33,7 @@ func (r *Registry) Register(p Plugin) error {
 	if err := r.safeInit(p); err != nil {
 		r.unavailable[p.ID()] = err.Error()
 		if r.ctx != nil && r.ctx.Logger != nil {
-			r.ctx.Logger.Warn("plugin init failed", "id", p.ID(), "error", err)
+			r.ctx.Logger.Debug("plugin unavailable", "id", p.ID(), "reason", err)
 		}
 		return nil // Silent degradation - not an error
 	}
