@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/marcus/sidecar/internal/adapter"
@@ -22,6 +23,7 @@ const (
 type Adapter struct {
 	projectsDir  string
 	sessionIndex map[string]string // sessionID -> file path cache
+	mu           sync.RWMutex      // guards sessionIndex
 }
 
 // New creates a new Claude Code adapter.
@@ -84,7 +86,9 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 
 	sessions := make([]adapter.Session, 0, len(entries))
 	// Reset cache on full session enumeration
+	a.mu.Lock()
 	a.sessionIndex = make(map[string]string)
+	a.mu.Unlock()
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".jsonl") {
 			continue
@@ -112,7 +116,9 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		isSubAgent := strings.HasPrefix(e.Name(), "agent-")
 
 		// Cache session path for fast lookup
+		a.mu.Lock()
 		a.sessionIndex[meta.SessionID] = path
+		a.mu.Unlock()
 
 		sessions = append(sessions, adapter.Session{
 			ID:           meta.SessionID,
@@ -325,9 +331,12 @@ func (a *Adapter) projectDirPath(projectRoot string) string {
 // sessionFilePath finds the JSONL file for a given session ID.
 func (a *Adapter) sessionFilePath(sessionID string) string {
 	// Check cache first
+	a.mu.RLock()
 	if path, ok := a.sessionIndex[sessionID]; ok {
+		a.mu.RUnlock()
 		return path
 	}
+	a.mu.RUnlock()
 
 	// Fallback: scan all project directories
 	entries, err := os.ReadDir(a.projectsDir)
@@ -342,7 +351,9 @@ func (a *Adapter) sessionFilePath(sessionID string) string {
 		path := filepath.Join(a.projectsDir, projDir.Name(), sessionID+".jsonl")
 		if _, err := os.Stat(path); err == nil {
 			// Cache for future lookups
+			a.mu.Lock()
 			a.sessionIndex[sessionID] = path
+			a.mu.Unlock()
 			return path
 		}
 	}
