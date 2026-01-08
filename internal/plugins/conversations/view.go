@@ -3,6 +3,7 @@ package conversations
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -11,6 +12,14 @@ import (
 	"github.com/marcus/sidecar/internal/adapter"
 	"github.com/marcus/sidecar/internal/styles"
 )
+
+// ansiBackgroundRegex matches ANSI background color escape sequences
+var ansiBackgroundRegex = regexp.MustCompile(`\x1b\[4[0-9;]*m`)
+
+// stripANSIBackground removes ANSI background color codes from a string
+func stripANSIBackground(s string) string {
+	return ansiBackgroundRegex.ReplaceAllString(s, "")
+}
 
 // renderNoAdapter renders the view when no adapter is available.
 func renderNoAdapter() string {
@@ -402,6 +411,85 @@ func extractFilePath(input string) string {
 	return ""
 }
 
+// prettifyJSON attempts to format JSON output with indentation.
+// Returns the original string if it's not valid JSON.
+func prettifyJSON(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) == 0 {
+		return s
+	}
+
+	// Check if it looks like JSON (starts with { or [)
+	if s[0] != '{' && s[0] != '[' {
+		return s
+	}
+
+	var data interface{}
+	if err := json.Unmarshal([]byte(s), &data); err != nil {
+		return s
+	}
+
+	pretty, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return s
+	}
+
+	return string(pretty)
+}
+
+// extractToolCommand extracts a short command preview from tool input.
+// Returns a truncated command string for display in tool headers.
+func extractToolCommand(toolName, input string, maxLen int) string {
+	if input == "" {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal([]byte(input), &data); err != nil {
+		return ""
+	}
+
+	var cmd string
+	switch toolName {
+	case "Bash", "bash":
+		if c, ok := data["command"].(string); ok {
+			cmd = c
+		}
+	case "Read", "read":
+		if fp, ok := data["file_path"].(string); ok {
+			return fp // Already shown via extractFilePath
+		}
+	case "Edit", "edit":
+		if fp, ok := data["file_path"].(string); ok {
+			return fp
+		}
+	case "Write", "write":
+		if fp, ok := data["file_path"].(string); ok {
+			return fp
+		}
+	case "Glob", "glob":
+		if p, ok := data["pattern"].(string); ok {
+			cmd = p
+		}
+	case "Grep", "grep":
+		if p, ok := data["pattern"].(string); ok {
+			cmd = p
+		}
+	}
+
+	if cmd == "" {
+		return ""
+	}
+
+	// Clean up command: remove newlines, collapse whitespace
+	cmd = strings.ReplaceAll(cmd, "\n", " ")
+	cmd = strings.Join(strings.Fields(cmd), " ")
+
+	if len(cmd) > maxLen {
+		cmd = cmd[:maxLen-3] + "..."
+	}
+	return cmd
+}
+
 // renderTwoPane renders the two-pane layout with sessions on the left and messages on the right.
 func (p *Plugin) renderTwoPane() string {
 	// Clear hit regions for fresh registration
@@ -551,7 +639,7 @@ func (p *Plugin) registerSessionHitRegions(sidebarWidth, contentHeight int) {
 
 // registerTurnHitRegions registers mouse hit regions for visible turn items in the main pane.
 func (p *Plugin) registerTurnHitRegions(mainX, contentWidth, contentHeight int) {
-	if p.detailMode || len(p.turns) == 0 {
+	if p.detailMode {
 		return
 	}
 
@@ -559,18 +647,40 @@ func (p *Plugin) registerTurnHitRegions(mainX, contentWidth, contentHeight int) 
 	headerY := 5
 	currentY := headerY
 
-	// Track Y position for each visible turn
-	for i := p.turnScrollOff; i < len(p.turns); i++ {
-		turn := p.turns[i]
-		turnHeight := p.calculateTurnHeight(turn, contentWidth)
-
-		if currentY+turnHeight > contentHeight+headerY {
-			break
+	if p.turnViewMode {
+		// Turn view: register hit regions for turns
+		if len(p.turns) == 0 {
+			return
 		}
+		for i := p.turnScrollOff; i < len(p.turns); i++ {
+			turn := p.turns[i]
+			turnHeight := p.calculateTurnHeight(turn, contentWidth)
 
-		// Register hit region spanning all lines of this turn
-		p.mouseHandler.HitMap.AddRect(regionTurnItem, mainX, currentY, contentWidth, turnHeight, i)
-		currentY += turnHeight
+			if currentY+turnHeight > contentHeight+headerY {
+				break
+			}
+
+			p.mouseHandler.HitMap.AddRect(regionTurnItem, mainX, currentY, contentWidth, turnHeight, i)
+			currentY += turnHeight
+		}
+	} else {
+		// Conversation flow: register hit regions for messages
+		if len(p.messages) == 0 {
+			return
+		}
+		p.registerMessageHitRegions(mainX, contentWidth, contentHeight, headerY)
+	}
+}
+
+// registerMessageHitRegions registers mouse hit regions for visible messages in conversation flow.
+// Uses visibleMsgRanges populated during renderConversationFlow for accurate positioning.
+func (p *Plugin) registerMessageHitRegions(mainX, contentWidth, contentHeight, headerY int) {
+	for _, mr := range p.visibleMsgRanges {
+		// Convert relative line position to screen Y coordinate
+		screenY := headerY + mr.StartLine
+		if mr.LineCount > 0 && screenY < headerY+contentHeight {
+			p.mouseHandler.HitMap.AddRect(regionMessageItem, mainX, screenY, contentWidth, mr.LineCount, mr.MsgIdx)
+		}
 	}
 }
 
@@ -1335,6 +1445,10 @@ func (p *Plugin) renderCompactMessage(msg adapter.Message, msgIndex int, maxWidt
 
 // renderConversationFlow renders messages as a scrollable chat thread (Claude Code web UI style).
 func (p *Plugin) renderConversationFlow(contentWidth, height int) []string {
+	// Clear previous tracking data
+	p.visibleMsgRanges = p.visibleMsgRanges[:0]
+	p.msgLinePositions = p.msgLinePositions[:0]
+
 	if len(p.messages) == 0 {
 		return []string{styles.Muted.Render("No messages")}
 	}
@@ -1347,9 +1461,20 @@ func (p *Plugin) renderConversationFlow(contentWidth, height int) []string {
 			continue
 		}
 
+		// Track where this message starts
+		startLine := len(allLines)
+
 		// Render message bubble
 		msgLines := p.renderMessageBubble(msg, msgIdx, contentWidth)
 		allLines = append(allLines, msgLines...)
+
+		// Store position info for scroll calculations (all messages, before scroll window)
+		p.msgLinePositions = append(p.msgLinePositions, msgLinePos{
+			MsgIdx:    msgIdx,
+			StartLine: startLine,
+			LineCount: len(msgLines),
+		})
+
 		allLines = append(allLines, "") // Gap between messages
 	}
 
@@ -1375,20 +1500,38 @@ func (p *Plugin) renderConversationFlow(contentWidth, height int) []string {
 		return []string{}
 	}
 
-	return allLines[start:end]
-}
+	// Calculate visible ranges for hit region registration
+	// screenLine is relative to content area (0 = first visible line)
+	for _, mp := range p.msgLinePositions {
+		msgEnd := mp.StartLine + mp.LineCount
+		// Check if message is visible in the scroll window
+		if msgEnd <= start {
+			continue // Message is entirely before scroll window
+		}
+		if mp.StartLine >= end {
+			break // Message is entirely after scroll window
+		}
 
-// isToolResultOnlyMessage checks if a message contains only tool_result blocks.
-func (p *Plugin) isToolResultOnlyMessage(msg adapter.Message) bool {
-	if len(msg.ContentBlocks) == 0 {
-		return false
-	}
-	for _, block := range msg.ContentBlocks {
-		if block.Type != "tool_result" {
-			return false
+		// Calculate visible portion
+		visibleStart := mp.StartLine - start
+		if visibleStart < 0 {
+			visibleStart = 0
+		}
+		visibleEnd := msgEnd - start
+		if visibleEnd > height {
+			visibleEnd = height
+		}
+
+		if visibleEnd > visibleStart {
+			p.visibleMsgRanges = append(p.visibleMsgRanges, msgLineRange{
+				MsgIdx:    mp.MsgIdx,
+				StartLine: visibleStart,
+				LineCount: visibleEnd - visibleStart,
+			})
 		}
 	}
-	return true
+
+	return allLines[start:end]
 }
 
 // renderMessageBubble renders a single message as a chat bubble with content blocks.
@@ -1440,9 +1583,12 @@ func (p *Plugin) renderMessageBubble(msg adapter.Message, msgIndex int, maxWidth
 	if selected {
 		var styledLines []string
 		for _, line := range lines {
-			// Pad to width for proper background
-			if len(line) < maxWidth {
-				line += strings.Repeat(" ", maxWidth-len(line))
+			// Strip any existing background colors so selection bg shows through
+			line = stripANSIBackground(line)
+			// Use visible width (not byte length) for proper padding
+			visibleWidth := lipgloss.Width(line)
+			if visibleWidth < maxWidth {
+				line += strings.Repeat(" ", maxWidth-visibleWidth)
 			}
 			styledLines = append(styledLines, styles.ListItemSelected.Render(line))
 		}
@@ -1509,9 +1655,7 @@ func (p *Plugin) renderMessageContent(content string, msgID string, maxWidth int
 		preview += "..."
 	}
 
-	lines := wrapText(preview, maxWidth)
-	lines = append(lines, styles.Muted.Render("[press 'e' to expand]"))
-	return lines
+	return wrapText(preview, maxWidth)
 }
 
 // renderThinkingBlock renders a thinking block (collapsed by default).
@@ -1522,11 +1666,6 @@ func (p *Plugin) renderThinkingBlock(block adapter.ContentBlock, msgID string, m
 
 	// Header with token count
 	headerText := fmt.Sprintf("[thinking] %s tokens", formatK(block.TokenCount))
-	if expanded {
-		headerText += " [collapse: T]"
-	} else {
-		headerText += " [expand: T]"
-	}
 	lines = append(lines, styles.Code.Render(headerText))
 
 	if expanded {
@@ -1544,11 +1683,21 @@ func (p *Plugin) renderThinkingBlock(block adapter.ContentBlock, msgID string, m
 func (p *Plugin) renderToolUseBlock(block adapter.ContentBlock, maxWidth int) []string {
 	var lines []string
 
-	// Tool header: name and file path if available
+	// Tool header: name and command/file path if available
 	toolHeader := "⚙ " + block.ToolName
-	if filePath := extractFilePath(block.ToolInput); filePath != "" {
-		toolHeader += ": " + filePath
+
+	// Try to extract a meaningful command preview
+	cmdPreview := extractToolCommand(block.ToolName, block.ToolInput, maxWidth-len(toolHeader)-5)
+	if cmdPreview == "" {
+		// Fall back to file_path extraction
+		if filePath := extractFilePath(block.ToolInput); filePath != "" {
+			cmdPreview = filePath
+		}
 	}
+	if cmdPreview != "" {
+		toolHeader += ": " + cmdPreview
+	}
+
 	if len(toolHeader) > maxWidth-2 {
 		toolHeader = toolHeader[:maxWidth-5] + "..."
 	}
@@ -1566,9 +1715,12 @@ func (p *Plugin) renderToolUseBlock(block adapter.ContentBlock, maxWidth int) []
 
 	// Show result if expanded or if there's an error
 	if block.ToolOutput != "" && (expanded || block.IsError) {
-		// Truncate output for display
 		output := block.ToolOutput
-		maxOutputLines := 10
+
+		// Try to prettify JSON output
+		output = prettifyJSON(output)
+
+		maxOutputLines := 20
 		outputLines := strings.Split(output, "\n")
 		if len(outputLines) > maxOutputLines {
 			outputLines = outputLines[:maxOutputLines]
@@ -1581,8 +1733,23 @@ func (p *Plugin) renderToolUseBlock(block adapter.ContentBlock, maxWidth int) []
 			lines = append(lines, styles.Muted.Render("  "+line))
 		}
 	} else if block.ToolOutput != "" {
-		// Collapsed: show toggle hint
-		lines = append(lines, styles.Muted.Render("  [press 'o' to show output]"))
+		// Collapsed: show first line of output as preview
+		outputLines := strings.Split(block.ToolOutput, "\n")
+		preview := ""
+		for _, line := range outputLines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				preview = trimmed
+				break
+			}
+		}
+		if preview != "" {
+			// Show first meaningful line as preview
+			if len(preview) > maxWidth-6 {
+				preview = preview[:maxWidth-9] + "..."
+			}
+			lines = append(lines, styles.Muted.Render("  → "+preview))
+		}
 	}
 
 	return lines

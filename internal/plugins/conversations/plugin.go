@@ -31,9 +31,9 @@ const (
 	dividerWidth = 1
 
 	// Hybrid content display thresholds
-	ShortMessageCharLimit = 200 // Messages shorter than this display inline
-	ShortMessageLineLimit = 3   // Messages with fewer lines display inline
-	CollapsedPreviewChars = 150 // Preview length for collapsed messages
+	ShortMessageCharLimit = 500 // Messages shorter than this display inline
+	ShortMessageLineLimit = 13  // Messages with fewer lines display inline
+	CollapsedPreviewChars = 300 // Preview length for collapsed messages
 )
 
 // Mouse hit region identifiers
@@ -136,6 +136,27 @@ type Plugin struct {
 	expandedToolResults map[string]bool // tool_use_id -> result expanded
 	messageScroll       int             // global scroll offset for conversation view
 	messageCursor       int             // selected message index in conversation view
+
+	// Visible message line tracking (populated during render for accurate hit regions)
+	visibleMsgRanges []msgLineRange // message index -> visible line range (populated each render)
+
+	// Full message line positions (all rendered messages, before scroll window)
+	// Used for accurate scroll calculations in ensureMessageCursorVisible
+	msgLinePositions []msgLinePos
+}
+
+// msgLineRange tracks which screen lines a message occupies (after scroll).
+type msgLineRange struct {
+	MsgIdx    int // index in p.messages
+	StartLine int // first visible line (relative to content area)
+	LineCount int // number of visible lines
+}
+
+// msgLinePos tracks actual line position for each rendered message (before scroll).
+type msgLinePos struct {
+	MsgIdx    int // index in p.messages
+	StartLine int // starting line in full content (0 = first line)
+	LineCount int // number of lines this message takes
 }
 
 // New creates a new conversations plugin.
@@ -761,8 +782,27 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 				p.ensureTurnCursorVisible()
 			}
 		} else {
-			// Conversation flow scroll
-			p.messageScroll++
+			// Conversation flow cursor navigation
+			visibleIndices := p.visibleMessageIndices()
+			if len(visibleIndices) > 0 {
+				// Find current position and move to next
+				found := false
+				for i, idx := range visibleIndices {
+					if idx == p.messageCursor {
+						found = true
+						if i < len(visibleIndices)-1 {
+							p.messageCursor = visibleIndices[i+1]
+							p.ensureMessageCursorVisible()
+						}
+						break
+					}
+				}
+				// If cursor wasn't found (edge case), snap to first visible message
+				if !found && len(visibleIndices) > 0 {
+					p.messageCursor = visibleIndices[0]
+					p.ensureMessageCursorVisible()
+				}
+			}
 		}
 
 	case "k", "up":
@@ -772,8 +812,26 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 				p.ensureTurnCursorVisible()
 			}
 		} else {
-			if p.messageScroll > 0 {
-				p.messageScroll--
+			// Conversation flow cursor navigation
+			visibleIndices := p.visibleMessageIndices()
+			if len(visibleIndices) > 0 {
+				// Find current position and move to previous
+				found := false
+				for i, idx := range visibleIndices {
+					if idx == p.messageCursor {
+						found = true
+						if i > 0 {
+							p.messageCursor = visibleIndices[i-1]
+							p.ensureMessageCursorVisible()
+						}
+						break
+					}
+				}
+				// If cursor wasn't found (edge case), snap to first visible message
+				if !found && len(visibleIndices) > 0 {
+					p.messageCursor = visibleIndices[0]
+					p.ensureMessageCursorVisible()
+				}
 			}
 		}
 
@@ -782,7 +840,11 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			p.turnCursor = 0
 			p.turnScrollOff = 0
 		} else {
-			p.messageScroll = 0
+			visibleIndices := p.visibleMessageIndices()
+			if len(visibleIndices) > 0 {
+				p.messageCursor = visibleIndices[0]
+				p.messageScroll = 0
+			}
 		}
 
 	case "G":
@@ -792,7 +854,11 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 				p.ensureTurnCursorVisible()
 			}
 		} else {
-			p.messageScroll = 999999 // Will be clamped in renderer
+			visibleIndices := p.visibleMessageIndices()
+			if len(visibleIndices) > 0 {
+				p.messageCursor = visibleIndices[len(visibleIndices)-1]
+				p.messageScroll = 999999 // Will be clamped in renderer
+			}
 		}
 
 	case "ctrl+d":
@@ -805,7 +871,23 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			}
 			p.ensureTurnCursorVisible()
 		} else {
-			p.messageScroll += pageSize
+			// Page down in conversation flow - move cursor by pageSize messages
+			visibleIndices := p.visibleMessageIndices()
+			if len(visibleIndices) > 0 {
+				currentPos := 0
+				for i, idx := range visibleIndices {
+					if idx == p.messageCursor {
+						currentPos = i
+						break
+					}
+				}
+				newPos := currentPos + pageSize
+				if newPos >= len(visibleIndices) {
+					newPos = len(visibleIndices) - 1
+				}
+				p.messageCursor = visibleIndices[newPos]
+				p.ensureMessageCursorVisible()
+			}
 		}
 
 	case "ctrl+u":
@@ -818,20 +900,22 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			}
 			p.ensureTurnCursorVisible()
 		} else {
-			p.messageScroll -= pageSize
-			if p.messageScroll < 0 {
-				p.messageScroll = 0
-			}
-		}
-
-	case "T":
-		// Toggle thinking block expansion for current turn's messages
-		if p.turnCursor < len(p.turns) {
-			turn := &p.turns[p.turnCursor]
-			for _, m := range turn.Messages {
-				if len(m.ThinkingBlocks) > 0 {
-					p.expandedThinking[m.ID] = !p.expandedThinking[m.ID]
+			// Page up in conversation flow - move cursor by pageSize messages
+			visibleIndices := p.visibleMessageIndices()
+			if len(visibleIndices) > 0 {
+				currentPos := 0
+				for i, idx := range visibleIndices {
+					if idx == p.messageCursor {
+						currentPos = i
+						break
+					}
 				}
+				newPos := currentPos - pageSize
+				if newPos < 0 {
+					newPos = 0
+				}
+				p.messageCursor = visibleIndices[newPos]
+				p.ensureMessageCursorVisible()
 			}
 		}
 
@@ -844,33 +928,68 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 		p.turnViewMode = !p.turnViewMode
 		return p, nil
 
-	case "E":
-		// Toggle message content expand for current turn's first message
-		if p.turnCursor < len(p.turns) {
-			turn := &p.turns[p.turnCursor]
-			if len(turn.Messages) > 0 {
-				msg := &turn.Messages[0]
-				p.expandedMessages[msg.ID] = !p.expandedMessages[msg.ID]
+	case "e":
+		// Toggle expand for selected message (content, tools, and thinking)
+		if p.turnViewMode {
+			if p.turnCursor < len(p.turns) {
+				turn := &p.turns[p.turnCursor]
+				for _, msg := range turn.Messages {
+					// Toggle message content
+					p.expandedMessages[msg.ID] = !p.expandedMessages[msg.ID]
+					// Toggle thinking
+					if len(msg.ThinkingBlocks) > 0 {
+						p.expandedThinking[msg.ID] = !p.expandedThinking[msg.ID]
+					}
+					// Toggle tool outputs
+					for _, tu := range msg.ToolUses {
+						p.expandedToolResults[tu.ID] = !p.expandedToolResults[tu.ID]
+					}
+				}
 			}
-		}
-
-	case "O":
-		// Toggle tool output expand for current turn's tools
-		if p.turnCursor < len(p.turns) {
-			turn := &p.turns[p.turnCursor]
-			for _, msg := range turn.Messages {
-				for _, tu := range msg.ToolUses {
-					p.expandedToolResults[tu.ID] = !p.expandedToolResults[tu.ID]
+		} else {
+			// Conversation flow: toggle for current message
+			if msg := p.getSelectedMessage(); msg != nil {
+				// Toggle message content
+				p.expandedMessages[msg.ID] = !p.expandedMessages[msg.ID]
+				// Toggle thinking blocks
+				for _, block := range msg.ContentBlocks {
+					if block.Type == "thinking" {
+						p.expandedThinking[msg.ID] = !p.expandedThinking[msg.ID]
+						break
+					}
+				}
+				// Toggle tool outputs
+				for _, block := range msg.ContentBlocks {
+					if block.Type == "tool_use" && block.ToolUseID != "" {
+						p.expandedToolResults[block.ToolUseID] = !p.expandedToolResults[block.ToolUseID]
+					}
 				}
 			}
 		}
 
 	case "enter":
 		// Open turn detail view in right pane
-		if p.turnCursor < len(p.turns) {
-			p.detailTurn = &p.turns[p.turnCursor]
-			p.detailScroll = 0
-			p.detailMode = true
+		if p.turnViewMode {
+			// Turn view: use turnCursor
+			if p.turnCursor < len(p.turns) {
+				p.detailTurn = &p.turns[p.turnCursor]
+				p.detailScroll = 0
+				p.detailMode = true
+			}
+		} else {
+			// Conversation flow: find turn containing selected message
+			if msg := p.getSelectedMessage(); msg != nil {
+				for i := range p.turns {
+					for _, m := range p.turns[i].Messages {
+						if m.ID == msg.ID {
+							p.detailTurn = &p.turns[i]
+							p.detailScroll = 0
+							p.detailMode = true
+							return p, nil
+						}
+					}
+				}
+			}
 		}
 
 	case "c":
@@ -879,7 +998,7 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			return p, p.copySessionToClipboard()
 		}
 
-	case "e":
+	case "E":
 		// Export session to file
 		if p.selectedSession != "" {
 			return p, p.exportSessionToFile()
@@ -1006,9 +1125,11 @@ func (p *Plugin) Commands() []plugin.Command {
 	}
 	if p.activePane == PaneMessages {
 		return []plugin.Command{
-			{ID: "detail", Name: "Detail", Description: "View turn details", Category: plugin.CategoryView, Context: "conversations-main", Priority: 1},
-			{ID: "back", Name: "Back", Description: "Return to sidebar", Category: plugin.CategoryNavigation, Context: "conversations-main", Priority: 2},
-			{ID: "yank", Name: "Yank", Description: "Yank turn content", Category: plugin.CategoryActions, Context: "conversations-main", Priority: 3},
+			{ID: "toggle-view", Name: "View", Description: "Toggle conversation/turn view", Category: plugin.CategoryView, Context: "conversations-main", Priority: 1},
+			{ID: "detail", Name: "Detail", Description: "View turn details", Category: plugin.CategoryView, Context: "conversations-main", Priority: 2},
+			{ID: "expand", Name: "Expand", Description: "Expand selected item", Category: plugin.CategoryView, Context: "conversations-main", Priority: 3},
+			{ID: "back", Name: "Back", Description: "Return to sidebar", Category: plugin.CategoryNavigation, Context: "conversations-main", Priority: 4},
+			{ID: "yank", Name: "Yank", Description: "Yank turn content", Category: plugin.CategoryActions, Context: "conversations-main", Priority: 5},
 		}
 	}
 	if p.view == ViewAnalytics {
@@ -1495,6 +1616,99 @@ func (p *Plugin) getSelectedMessage() *adapter.Message {
 		idx = len(p.messages) - 1
 	}
 	return &p.messages[idx]
+}
+
+// visibleMessageIndices returns indices of messages shown in conversation flow
+// (excludes tool_result-only messages which are shown inline).
+func (p *Plugin) visibleMessageIndices() []int {
+	var indices []int
+	for i, msg := range p.messages {
+		if !p.isToolResultOnlyMessage(msg) {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
+// isToolResultOnlyMessage checks if a message contains only tool_result blocks.
+func (p *Plugin) isToolResultOnlyMessage(msg adapter.Message) bool {
+	if len(msg.ContentBlocks) == 0 {
+		return false
+	}
+	for _, block := range msg.ContentBlocks {
+		if block.Type != "tool_result" {
+			return false
+		}
+	}
+	return true
+}
+
+// ensureMessageCursorVisible scrolls to keep the message cursor in view.
+func (p *Plugin) ensureMessageCursorVisible() {
+	// Use actual line positions if available (populated during render)
+	// Otherwise fall back to estimation for initial render
+
+	// Get available height
+	viewHeight := p.height - 10 // Account for headers/margins
+	if viewHeight < 10 {
+		viewHeight = 10
+	}
+
+	// Try to use actual line positions from last render
+	if len(p.msgLinePositions) > 0 {
+		// Find cursor position in msgLinePositions
+		for _, pos := range p.msgLinePositions {
+			if pos.MsgIdx == p.messageCursor {
+				cursorLine := pos.StartLine
+				cursorEnd := cursorLine + pos.LineCount
+
+				// Scroll to keep cursor visible with margin
+				margin := 2
+
+				// If cursor is above viewport, scroll up
+				if cursorLine < p.messageScroll+margin {
+					p.messageScroll = cursorLine - margin
+				}
+				// If cursor is below viewport, scroll down
+				if cursorEnd > p.messageScroll+viewHeight-margin {
+					p.messageScroll = cursorEnd - viewHeight + margin
+				}
+
+				if p.messageScroll < 0 {
+					p.messageScroll = 0
+				}
+				return
+			}
+		}
+	}
+
+	// Fallback: estimate based on message count (for initial render)
+	visibleIndices := p.visibleMessageIndices()
+	if len(visibleIndices) == 0 {
+		return
+	}
+
+	cursorPos := 0
+	for i, idx := range visibleIndices {
+		if idx == p.messageCursor {
+			cursorPos = i
+			break
+		}
+	}
+
+	// Rough estimate of 5 lines per message
+	estimatedLine := cursorPos * 5
+
+	margin := viewHeight / 4
+	if estimatedLine < p.messageScroll+margin {
+		p.messageScroll = estimatedLine - margin
+	} else if estimatedLine > p.messageScroll+viewHeight-margin {
+		p.messageScroll = estimatedLine - viewHeight + margin
+	}
+
+	if p.messageScroll < 0 {
+		p.messageScroll = 0
+	}
 }
 
 // Message types

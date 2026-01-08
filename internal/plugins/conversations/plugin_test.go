@@ -976,6 +976,7 @@ func TestThinkingBlockTogglePersistence(t *testing.T) {
 	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
 	p.activePane = PaneMessages
 	p.height = 20
+	p.turnViewMode = true // Test turn-based behavior
 
 	// Create messages with thinking blocks - alternating roles to create separate turns
 	p.messages = []adapter.Message{
@@ -1008,7 +1009,7 @@ func TestThinkingBlockTogglePersistence(t *testing.T) {
 	}
 
 	// Toggle turn 0 thinking blocks (press 'T')
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T'}}
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}
 	_, _ = p.Update(msg)
 
 	if !p.expandedThinking["msg-1"] {
@@ -1055,6 +1056,7 @@ func TestThinkingBlockToggleNoThinkingBlocks(t *testing.T) {
 	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
 	p.activePane = PaneMessages
 	p.height = 20
+	p.turnViewMode = true // Test turn-based behavior
 
 	// Create message without thinking blocks
 	p.messages = []adapter.Message{
@@ -1067,7 +1069,7 @@ func TestThinkingBlockToggleNoThinkingBlocks(t *testing.T) {
 	p.turnCursor = 0
 
 	// Try to toggle (should do nothing)
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T'}}
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}
 	_, _ = p.Update(msg)
 
 	// Map should remain empty
@@ -1083,6 +1085,7 @@ func TestThinkingBlockResetOnSessionChange(t *testing.T) {
 	p.activePane = PaneMessages
 	p.height = 20
 	p.selectedSession = "session-1"
+	p.turnViewMode = true // Test turn-based behavior
 
 	// Create message with thinking block and expand it
 	p.messages = []adapter.Message{
@@ -1098,7 +1101,7 @@ func TestThinkingBlockResetOnSessionChange(t *testing.T) {
 	p.turnCursor = 0
 
 	// Toggle to expand
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T'}}
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}
 	_, _ = p.Update(msg)
 
 	if !p.expandedThinking["msg-1"] {
@@ -1120,6 +1123,7 @@ func TestThinkingBlockToggleMultipleIndependent(t *testing.T) {
 	p.adapters = map[string]adapter.Adapter{"mock": &mockAdapter{}}
 	p.activePane = PaneMessages
 	p.height = 20
+	p.turnViewMode = true // Test turn-based behavior
 
 	// Create 5 alternating messages to create 5 separate turns
 	p.messages = []adapter.Message{
@@ -1131,7 +1135,7 @@ func TestThinkingBlockToggleMultipleIndependent(t *testing.T) {
 	}
 	p.turns = GroupMessagesIntoTurns(p.messages)
 
-	toggleMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T'}}
+	toggleMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}
 
 	// Expand turns 0, 2, 4 (assistant turns with thinking blocks)
 	p.turnCursor = 0

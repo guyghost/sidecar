@@ -180,7 +180,7 @@ func (p *Plugin) handleMouseScroll(action mouse.MouseAction) (*Plugin, tea.Cmd) 
 	case regionSidebar, regionSessionItem:
 		return p.scrollSidebar(action.Delta)
 
-	case regionMainPane, regionTurnItem:
+	case regionMainPane, regionTurnItem, regionMessageItem:
 		if p.detailMode {
 			return p.scrollDetailPane(action.Delta)
 		}
@@ -218,22 +218,53 @@ func (p *Plugin) scrollSidebar(delta int) (*Plugin, tea.Cmd) {
 
 // scrollMainPane scrolls the main messages pane.
 func (p *Plugin) scrollMainPane(delta int) (*Plugin, tea.Cmd) {
-	if len(p.turns) == 0 {
-		return p, nil
-	}
+	if p.turnViewMode {
+		// Turn view: scroll by moving turn cursor
+		if len(p.turns) == 0 {
+			return p, nil
+		}
 
-	// Scroll by moving turn cursor
-	newCursor := p.turnCursor + delta
-	if newCursor < 0 {
-		newCursor = 0
-	}
-	if newCursor >= len(p.turns) {
-		newCursor = len(p.turns) - 1
-	}
+		newCursor := p.turnCursor + delta
+		if newCursor < 0 {
+			newCursor = 0
+		}
+		if newCursor >= len(p.turns) {
+			newCursor = len(p.turns) - 1
+		}
 
-	if newCursor != p.turnCursor {
-		p.turnCursor = newCursor
-		p.ensureTurnCursorVisible()
+		if newCursor != p.turnCursor {
+			p.turnCursor = newCursor
+			p.ensureTurnCursorVisible()
+		}
+	} else {
+		// Conversation flow: scroll by moving message cursor
+		visibleIndices := p.visibleMessageIndices()
+		if len(visibleIndices) == 0 {
+			return p, nil
+		}
+
+		// Find current position in visible indices
+		currentPos := 0
+		for i, idx := range visibleIndices {
+			if idx == p.messageCursor {
+				currentPos = i
+				break
+			}
+		}
+
+		// Apply delta
+		newPos := currentPos + delta
+		if newPos < 0 {
+			newPos = 0
+		}
+		if newPos >= len(visibleIndices) {
+			newPos = len(visibleIndices) - 1
+		}
+
+		if newPos != currentPos {
+			p.messageCursor = visibleIndices[newPos]
+			p.ensureMessageCursorVisible()
+		}
 	}
 
 	return p, nil

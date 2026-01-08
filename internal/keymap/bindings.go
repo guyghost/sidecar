@@ -149,6 +149,9 @@ func DefaultBindings() []Binding {
 		{Key: "G", Command: "cursor-bottom", Context: "conversations-main"},
 		{Key: "h", Command: "focus-left", Context: "conversations-main"},
 		{Key: "left", Command: "focus-left", Context: "conversations-main"},
+		{Key: "v", Command: "toggle-view", Context: "conversations-main"},
+		{Key: "e", Command: "expand", Context: "conversations-main"},
+		{Key: "enter", Command: "detail", Context: "conversations-main"},
 
 		// File browser tree context
 		{Key: "/", Command: "search", Context: "file-browser-tree"},
