@@ -172,6 +172,43 @@ case regionFileOpCancel:
     return p.cancelFileOp()
 ```
 
+### Hover State
+
+Add hover state for visual feedback when mouse moves over buttons:
+
+```go
+// In plugin struct:
+fileOpButtonHover int // 0=none, 1=confirm, 2=cancel
+
+// Handle hover in mouse handler:
+case mouse.ActionHover:
+    return p.handleMouseHover(action)
+
+func (p *Plugin) handleMouseHover(action mouse.MouseAction) (*Plugin, tea.Cmd) {
+    if p.fileOpMode == FileOpNone || action.Region == nil {
+        p.fileOpButtonHover = 0
+        return p, nil
+    }
+    switch action.Region.ID {
+    case regionFileOpConfirm:
+        p.fileOpButtonHover = 1
+    case regionFileOpCancel:
+        p.fileOpButtonHover = 2
+    default:
+        p.fileOpButtonHover = 0
+    }
+    return p, nil
+}
+
+// In modal render, focus takes precedence over hover:
+confirmStyle := styles.Button
+if p.fileOpButtonFocus == 1 {
+    confirmStyle = styles.ButtonFocused
+} else if p.fileOpButtonHover == 1 {
+    confirmStyle = styles.ButtonHover
+}
+```
+
 ## Path Auto-Complete (for path inputs)
 
 For modals accepting directory paths (like move), show fuzzy-matched suggestions.

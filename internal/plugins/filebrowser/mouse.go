@@ -60,6 +60,32 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 		return p.handleMouseDrag(action)
 	case mouse.ActionDragEnd:
 		return p.handleMouseDragEnd()
+	case mouse.ActionHover:
+		return p.handleMouseHover(action)
+	}
+	return p, nil
+}
+
+// handleMouseHover handles mouse hover for visual feedback.
+func (p *Plugin) handleMouseHover(action mouse.MouseAction) (*Plugin, tea.Cmd) {
+	// Only track hover for file operation modal buttons
+	if p.fileOpMode == FileOpNone {
+		p.fileOpButtonHover = 0
+		return p, nil
+	}
+
+	if action.Region == nil {
+		p.fileOpButtonHover = 0
+		return p, nil
+	}
+
+	switch action.Region.ID {
+	case regionFileOpConfirm:
+		p.fileOpButtonHover = 1
+	case regionFileOpCancel:
+		p.fileOpButtonHover = 2
+	default:
+		p.fileOpButtonHover = 0
 	}
 	return p, nil
 }
@@ -106,6 +132,27 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 	case regionPaneDivider:
 		// Start drag with current tree width
 		p.mouseHandler.StartDrag(action.X, action.Y, regionPaneDivider, p.treeWidth)
+		return p, nil
+
+	case regionFileOpConfirm:
+		// Click on confirm button in file op modal
+		if p.fileOpMode != FileOpNone {
+			plug, cmd := p.executeFileOp()
+			return plug.(*Plugin), cmd
+		}
+		return p, nil
+
+	case regionFileOpCancel:
+		// Click on cancel button in file op modal
+		if p.fileOpMode != FileOpNone {
+			p.fileOpMode = FileOpNone
+			p.fileOpTarget = nil
+			p.fileOpError = ""
+			p.fileOpShowSuggestions = false
+			p.fileOpConfirmDelete = false
+			p.fileOpConfirmCreate = false
+			return p, nil
+		}
 		return p, nil
 	}
 

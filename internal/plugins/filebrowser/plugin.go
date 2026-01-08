@@ -179,6 +179,7 @@ type Plugin struct {
 	fileOpConfirmPath   string          // The directory path to create
 	fileOpConfirmDelete bool            // True when waiting for delete confirmation
 	fileOpButtonFocus   int             // Button focus: 0=input, 1=confirm, 2=cancel
+	fileOpButtonHover   int             // Button hover: 0=none, 1=confirm, 2=cancel
 
 	// Path auto-complete state (for move modal)
 	dirCache              []string // Cached directory paths

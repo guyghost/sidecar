@@ -2,6 +2,17 @@
 
 All notable changes to sidecar are documented here.
 
+## [v0.12.0] - 2026-01-07
+
+### Features
+- **Interactive Modal Buttons**: File browser modals now have clickable Confirm/Cancel buttons
+- **Tab Navigation**: Tab key cycles focus between input field and modal buttons
+- **Mouse Hover**: Buttons highlight on mouse hover (dark pink)
+- **Path Auto-Complete**: Move modal shows fuzzy-matched directory suggestions
+
+### Improvements
+- Better visual feedback for modal button interactions (focus vs hover states)
+
 ## [v0.11.0] - 2026-01-07
 
 ### Bug Fixes

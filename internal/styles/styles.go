@@ -316,6 +316,11 @@ var (
 			Background(Primary).
 			Padding(0, 2).
 			Bold(true)
+
+	ButtonHover = lipgloss.NewStyle().
+			Foreground(TextPrimary).
+			Background(lipgloss.Color("#9D174D")). // Dark pink
+			Padding(0, 2)
 )
 
 // Theme represents a color theme configuration

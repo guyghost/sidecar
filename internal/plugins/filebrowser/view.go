@@ -868,6 +868,47 @@ func (p *Plugin) highlightFuzzyMatch(text string, ranges []MatchRange) string {
 // File Operation Modals
 // ============================================================================
 
+// registerFileOpButtonHitRegions registers mouse hit regions for modal buttons.
+// contentLineCount is the number of lines in the modal content (before ModalBox wrapping).
+// modalContentWidth is the content width passed to ModalBox.Width().
+// confirmLabel and cancelLabel are the button text (e.g., " Confirm ", " Cancel ").
+func (p *Plugin) registerFileOpButtonHitRegions(contentLineCount, modalContentWidth int, confirmLabel, cancelLabel string) {
+	// ModalBox adds: border(1) + padding(1) vertically on each side
+	// Total modal height = contentLineCount + 4 (top border + top padding + bottom padding + bottom border)
+	modalHeight := contentLineCount + 4
+
+	// ModalBox adds: border(1) + padding(2) horizontally on each side = 6 total
+	actualModalWidth := modalContentWidth + 6
+
+	// Calculate modal position (same as ui.OverlayModal)
+	startX := (p.width - actualModalWidth) / 2
+	startY := (p.height - modalHeight) / 2
+	if startX < 0 {
+		startX = 0
+	}
+	if startY < 0 {
+		startY = 0
+	}
+
+	// Button Y position: startY + border(1) + padding(1) + last content line index + 1
+	// Buttons are on the last line of content (index = contentLineCount - 1)
+	// The +1 accounts for 0-based vs 1-based indexing in the rendered output
+	buttonY := startY + 2 + (contentLineCount - 1) + 1
+
+	// Button X positions: startX + border(1) + padding(2) = content start
+	contentX := startX + 3
+
+	// styles.Button adds Padding(0, 2) = 4 extra chars (2 left + 2 right)
+	// So rendered button width = len(label) + 4
+	confirmRenderedWidth := len(confirmLabel) + 4
+	p.mouseHandler.HitMap.AddRect(regionFileOpConfirm, contentX, buttonY, confirmRenderedWidth, 1, nil)
+
+	// Cancel button after confirm + gap(2 spaces between buttons)
+	cancelX := contentX + confirmRenderedWidth + 2
+	cancelRenderedWidth := len(cancelLabel) + 4
+	p.mouseHandler.HitMap.AddRect(regionFileOpCancel, cancelX, buttonY, cancelRenderedWidth, 1, nil)
+}
+
 // renderRenameModal renders the rename modal for file/directory renaming.
 func (p *Plugin) renderRenameModal() string {
 	modalWidth := 50
@@ -891,26 +932,38 @@ func (p *Plugin) renderRenameModal() string {
 	sb.WriteString("New name: ")
 	sb.WriteString(p.fileOpTextInput.View())
 
+	// Track line count for hit region calculation
+	lineCount := 5 // title + blank + current + blank + input
+
 	// Error message if present
 	if p.fileOpError != "" {
 		sb.WriteString("\n\n")
 		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+		lineCount += 2 // blank + error
 	}
 
-	// Interactive buttons
+	// Interactive buttons (focus takes precedence over hover)
 	confirmStyle := styles.Button
 	cancelStyle := styles.Button
 	if p.fileOpButtonFocus == 1 {
 		confirmStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 1 {
+		confirmStyle = styles.ButtonHover
 	}
 	if p.fileOpButtonFocus == 2 {
 		cancelStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 2 {
+		cancelStyle = styles.ButtonHover
 	}
 
 	sb.WriteString("\n\n")
 	sb.WriteString(confirmStyle.Render(" Confirm "))
 	sb.WriteString("  ")
 	sb.WriteString(cancelStyle.Render(" Cancel "))
+	lineCount += 2 // blank + buttons
+
+	// Register button hit regions
+	p.registerFileOpButtonHitRegions(lineCount, modalWidth, " Confirm ", " Cancel ")
 
 	return styles.ModalBox.Width(modalWidth).Render(sb.String())
 }
@@ -947,20 +1000,30 @@ func (p *Plugin) renderDeleteModal() string {
 	sb.WriteString(icon + " ")
 	sb.WriteString(name)
 
-	// Interactive buttons
+	// Interactive buttons (focus takes precedence over hover)
 	confirmStyle := styles.Button
 	cancelStyle := styles.Button
 	if p.fileOpButtonFocus == 1 {
 		confirmStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 1 {
+		confirmStyle = styles.ButtonHover
 	}
 	if p.fileOpButtonFocus == 2 {
 		cancelStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 2 {
+		cancelStyle = styles.ButtonHover
 	}
 
 	sb.WriteString("\n\n")
 	sb.WriteString(confirmStyle.Render(" Delete "))
 	sb.WriteString("  ")
 	sb.WriteString(cancelStyle.Render(" Cancel "))
+
+	// Line count: title + blank + warning(2 lines) + blank + item + blank + buttons = 8
+	lineCount := 8
+
+	// Register button hit regions
+	p.registerFileOpButtonHitRegions(lineCount, modalWidth, " Delete ", " Cancel ")
 
 	// Use a red border for delete warning
 	return lipgloss.NewStyle().
@@ -994,6 +1057,9 @@ func (p *Plugin) renderMoveModal() string {
 	sb.WriteString("To: ")
 	sb.WriteString(p.fileOpTextInput.View())
 
+	// Track line count: title + blank + moving + blank + input = 5
+	lineCount := 5
+
 	// Path suggestions dropdown
 	if p.fileOpShowSuggestions && len(p.fileOpSuggestions) > 0 {
 		sb.WriteString("\n")
@@ -1007,28 +1073,38 @@ func (p *Plugin) renderMoveModal() string {
 				sb.WriteString("\n")
 			}
 		}
+		lineCount += len(p.fileOpSuggestions)
 	}
 
 	// Error message if present
 	if p.fileOpError != "" {
 		sb.WriteString("\n\n")
 		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+		lineCount += 2 // blank + error
 	}
 
-	// Interactive buttons
+	// Interactive buttons (focus takes precedence over hover)
 	confirmStyle := styles.Button
 	cancelStyle := styles.Button
 	if p.fileOpButtonFocus == 1 {
 		confirmStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 1 {
+		confirmStyle = styles.ButtonHover
 	}
 	if p.fileOpButtonFocus == 2 {
 		cancelStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 2 {
+		cancelStyle = styles.ButtonHover
 	}
 
 	sb.WriteString("\n\n")
 	sb.WriteString(confirmStyle.Render(" Confirm "))
 	sb.WriteString("  ")
 	sb.WriteString(cancelStyle.Render(" Cancel "))
+	lineCount += 2 // blank + buttons
+
+	// Register button hit regions
+	p.registerFileOpButtonHitRegions(lineCount, modalWidth, " Confirm ", " Cancel ")
 
 	return styles.ModalBox.Width(modalWidth).Render(sb.String())
 }
@@ -1063,26 +1139,38 @@ func (p *Plugin) renderMkdirModal() string {
 	sb.WriteString("Name: ")
 	sb.WriteString(p.fileOpTextInput.View())
 
+	// Track line count: title + blank + parent + blank + name = 5
+	lineCount := 5
+
 	// Error message if present
 	if p.fileOpError != "" {
 		sb.WriteString("\n\n")
 		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+		lineCount += 2 // blank + error
 	}
 
-	// Interactive buttons
+	// Interactive buttons (focus takes precedence over hover)
 	confirmStyle := styles.Button
 	cancelStyle := styles.Button
 	if p.fileOpButtonFocus == 1 {
 		confirmStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 1 {
+		confirmStyle = styles.ButtonHover
 	}
 	if p.fileOpButtonFocus == 2 {
 		cancelStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 2 {
+		cancelStyle = styles.ButtonHover
 	}
 
 	sb.WriteString("\n\n")
 	sb.WriteString(confirmStyle.Render(" Create "))
 	sb.WriteString("  ")
 	sb.WriteString(cancelStyle.Render(" Cancel "))
+	lineCount += 2 // blank + buttons
+
+	// Register button hit regions
+	p.registerFileOpButtonHitRegions(lineCount, modalWidth, " Create ", " Cancel ")
 
 	return styles.ModalBox.Width(modalWidth).Render(sb.String())
 }
@@ -1117,26 +1205,38 @@ func (p *Plugin) renderCreateFileModal() string {
 	sb.WriteString("Name: ")
 	sb.WriteString(p.fileOpTextInput.View())
 
+	// Track line count: title + blank + parent + blank + name = 5
+	lineCount := 5
+
 	// Error message if present
 	if p.fileOpError != "" {
 		sb.WriteString("\n\n")
 		sb.WriteString(styles.StatusDeleted.Render(p.fileOpError))
+		lineCount += 2 // blank + error
 	}
 
-	// Interactive buttons
+	// Interactive buttons (focus takes precedence over hover)
 	confirmStyle := styles.Button
 	cancelStyle := styles.Button
 	if p.fileOpButtonFocus == 1 {
 		confirmStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 1 {
+		confirmStyle = styles.ButtonHover
 	}
 	if p.fileOpButtonFocus == 2 {
 		cancelStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 2 {
+		cancelStyle = styles.ButtonHover
 	}
 
 	sb.WriteString("\n\n")
 	sb.WriteString(confirmStyle.Render(" Create "))
 	sb.WriteString("  ")
 	sb.WriteString(cancelStyle.Render(" Cancel "))
+	lineCount += 2 // blank + buttons
+
+	// Register button hit regions
+	p.registerFileOpButtonHitRegions(lineCount, modalWidth, " Create ", " Cancel ")
 
 	return styles.ModalBox.Width(modalWidth).Render(sb.String())
 }
@@ -1164,20 +1264,30 @@ func (p *Plugin) renderCreateDirConfirmModal() string {
 	sb.WriteString("\n\n")
 	sb.WriteString("Create it?")
 
-	// Interactive buttons
+	// Interactive buttons (focus takes precedence over hover)
 	confirmStyle := styles.Button
 	cancelStyle := styles.Button
 	if p.fileOpButtonFocus == 1 {
 		confirmStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 1 {
+		confirmStyle = styles.ButtonHover
 	}
 	if p.fileOpButtonFocus == 2 {
 		cancelStyle = styles.ButtonFocused
+	} else if p.fileOpButtonHover == 2 {
+		cancelStyle = styles.ButtonHover
 	}
 
 	sb.WriteString("\n\n")
 	sb.WriteString(confirmStyle.Render(" Yes "))
 	sb.WriteString("  ")
 	sb.WriteString(cancelStyle.Render(" No "))
+
+	// Line count: title + blank + message(2 lines) + blank + question + blank + buttons = 8
+	lineCount := 8
+
+	// Register button hit regions
+	p.registerFileOpButtonHitRegions(lineCount, modalWidth, " Yes ", " No ")
 
 	return styles.ModalBox.Width(modalWidth).Render(sb.String())
 }

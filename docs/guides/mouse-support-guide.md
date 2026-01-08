@@ -168,6 +168,34 @@ case mouse.ActionDrag:
     }
 ```
 
+### Hover State
+
+The mouse handler emits `ActionHover` on mouse motion (when not dragging). Use this for visual feedback like button highlighting:
+
+```go
+case mouse.ActionHover:
+    if action.Region != nil {
+        switch action.Region.ID {
+        case "button":
+            p.buttonHover = true
+        default:
+            p.buttonHover = false
+        }
+    } else {
+        p.buttonHover = false
+    }
+```
+
+Apply hover styling in render (focus takes precedence):
+```go
+style := styles.Button
+if p.buttonFocus {
+    style = styles.ButtonFocused
+} else if p.buttonHover {
+    style = styles.ButtonHover
+}
+```
+
 ## Hit Region Best Practices
 
 1. **Clear regions each render** - The layout may change, so rebuild the hit map
