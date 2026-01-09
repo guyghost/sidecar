@@ -9,16 +9,18 @@ import (
 
 // Commit represents a git commit.
 type Commit struct {
-	Hash        string
-	ShortHash   string
-	Author      string
-	AuthorEmail string
-	Date        time.Time
-	Subject     string
-	Body        string
-	Files       []CommitFile
-	Stats       CommitStats
-	Pushed      bool // Whether this commit has been pushed to upstream
+	Hash         string
+	ShortHash    string
+	Author       string
+	AuthorEmail  string
+	Date         time.Time
+	Subject      string
+	Body         string
+	Files        []CommitFile
+	Stats        CommitStats
+	Pushed       bool     // Whether this commit has been pushed to upstream
+	ParentHashes []string // Parent commit hashes (empty for root commits)
+	IsMerge      bool     // True if commit has multiple parents
 }
 
 // CommitFile represents a file changed in a commit.
@@ -39,8 +41,8 @@ type CommitStats struct {
 
 // GetCommitHistory fetches recent commits.
 func GetCommitHistory(workDir string, limit int) ([]*Commit, error) {
-	// Format: hash\x00shorthash\x00author\x00email\x00timestamp\x00subject
-	format := "%H%x00%h%x00%an%x00%ae%x00%at%x00%s"
+	// Format: hash\x00shorthash\x00author\x00email\x00timestamp\x00subject\x00parents
+	format := "%H%x00%h%x00%an%x00%ae%x00%at%x00%s%x00%P"
 	args := []string{"log", "--format=" + format, "-n", strconv.Itoa(limit)}
 
 	cmd := exec.Command("git", args...)
@@ -62,13 +64,22 @@ func GetCommitHistory(workDir string, limit int) ([]*Commit, error) {
 		}
 
 		timestamp, _ := strconv.ParseInt(parts[4], 10, 64)
+
+		// Parse parent hashes (space-separated in parts[6])
+		var parents []string
+		if len(parts) >= 7 && parts[6] != "" {
+			parents = strings.Split(parts[6], " ")
+		}
+
 		commits = append(commits, &Commit{
-			Hash:        parts[0],
-			ShortHash:   parts[1],
-			Author:      parts[2],
-			AuthorEmail: parts[3],
-			Date:        time.Unix(timestamp, 0),
-			Subject:     parts[5],
+			Hash:         parts[0],
+			ShortHash:    parts[1],
+			Author:       parts[2],
+			AuthorEmail:  parts[3],
+			Date:         time.Unix(timestamp, 0),
+			Subject:      parts[5],
+			ParentHashes: parents,
+			IsMerge:      len(parents) > 1,
 		})
 	}
 
@@ -224,7 +235,7 @@ func GetCommitHistoryWithPushStatus(workDir string, limit int) ([]*Commit, *Push
 // GetCommitHistoryWithOffset fetches commits starting from skip, up to limit.
 // Uses git log --skip=N to paginate through history.
 func GetCommitHistoryWithOffset(workDir string, limit, skip int) ([]*Commit, error) {
-	format := "%H%x00%h%x00%an%x00%ae%x00%at%x00%s"
+	format := "%H%x00%h%x00%an%x00%ae%x00%at%x00%s%x00%P"
 	args := []string{"log", "--format=" + format, "-n", strconv.Itoa(limit), "--skip", strconv.Itoa(skip)}
 
 	cmd := exec.Command("git", args...)
@@ -246,13 +257,22 @@ func GetCommitHistoryWithOffset(workDir string, limit, skip int) ([]*Commit, err
 		}
 
 		timestamp, _ := strconv.ParseInt(parts[4], 10, 64)
+
+		// Parse parent hashes (space-separated in parts[6])
+		var parents []string
+		if len(parts) >= 7 && parts[6] != "" {
+			parents = strings.Split(parts[6], " ")
+		}
+
 		commits = append(commits, &Commit{
-			Hash:        parts[0],
-			ShortHash:   parts[1],
-			Author:      parts[2],
-			AuthorEmail: parts[3],
-			Date:        time.Unix(timestamp, 0),
-			Subject:     parts[5],
+			Hash:         parts[0],
+			ShortHash:    parts[1],
+			Author:       parts[2],
+			AuthorEmail:  parts[3],
+			Date:         time.Unix(timestamp, 0),
+			Subject:      parts[5],
+			ParentHashes: parents,
+			IsMerge:      len(parents) > 1,
 		})
 	}
 
@@ -282,7 +302,7 @@ type HistoryFilterOpts struct {
 
 // GetCommitHistoryFiltered fetches commits with filters applied.
 func GetCommitHistoryFiltered(workDir string, opts HistoryFilterOpts) ([]*Commit, error) {
-	format := "%H%x00%h%x00%an%x00%ae%x00%at%x00%s"
+	format := "%H%x00%h%x00%an%x00%ae%x00%at%x00%s%x00%P"
 	args := []string{"log", "--format=" + format}
 
 	if opts.Author != "" {
@@ -319,13 +339,22 @@ func GetCommitHistoryFiltered(workDir string, opts HistoryFilterOpts) ([]*Commit
 		}
 
 		timestamp, _ := strconv.ParseInt(parts[4], 10, 64)
+
+		// Parse parent hashes (space-separated in parts[6])
+		var parents []string
+		if len(parts) >= 7 && parts[6] != "" {
+			parents = strings.Split(parts[6], " ")
+		}
+
 		commits = append(commits, &Commit{
-			Hash:        parts[0],
-			ShortHash:   parts[1],
-			Author:      parts[2],
-			AuthorEmail: parts[3],
-			Date:        time.Unix(timestamp, 0),
-			Subject:     parts[5],
+			Hash:         parts[0],
+			ShortHash:    parts[1],
+			Author:       parts[2],
+			AuthorEmail:  parts[3],
+			Date:         time.Unix(timestamp, 0),
+			Subject:      parts[5],
+			ParentHashes: parents,
+			IsMerge:      len(parents) > 1,
 		})
 	}
 

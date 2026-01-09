@@ -405,6 +405,10 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 			header = fmt.Sprintf("Recent Commits %s", styles.StatusModified.Render(status))
 		}
 	}
+	// Add graph indicator if enabled
+	if p.showCommitGraph {
+		header += " " + styles.Muted.Render("[graph]")
+	}
 	sb.WriteString(styles.Title.Render(header))
 	sb.WriteString("\n")
 	*currentY++
@@ -422,6 +426,19 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 			sb.WriteString(styles.Muted.Render("No commits"))
 		}
 		return sb.String()
+	}
+
+	// Calculate graph column width if graph is shown
+	graphWidth := 0
+	if p.showCommitGraph && len(p.commitGraphLines) > 0 {
+		for _, gl := range p.commitGraphLines {
+			if gl.Width > graphWidth {
+				graphWidth = gl.Width
+			}
+		}
+		if graphWidth > 12 {
+			graphWidth = 12 // Cap graph width to prevent overflow
+		}
 	}
 
 	// Cursor selection: cursor indexes files first, then commits
@@ -447,6 +464,14 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 		// Use absolute commit index for cursor comparison
 		selected := p.cursor == fileCount+i
 
+		// Graph column (if enabled)
+		var graphStr string
+		var graphVisualWidth int
+		if p.showCommitGraph && i < len(p.commitGraphLines) {
+			graphStr = p.renderGraphLine(p.commitGraphLines[i], graphWidth)
+			graphVisualWidth = graphWidth
+		}
+
 		// Push indicator: ↑ for unpushed, nothing for pushed
 		var indicator string
 		if !commit.Pushed {
@@ -463,9 +488,9 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 			statsWidth = len(statsStr) + 1 // +1 for space
 		}
 
-		// Format: "↑ abc1234 commit message... +N -M"
+		// Format: "[graph] ↑ abc1234 commit message... +N -M"
 		hash := styles.Code.Render(commit.Hash[:7])
-		msgWidth := maxWidth - 12 - statsWidth // indicator + hash + space + stats
+		msgWidth := maxWidth - 12 - statsWidth - graphVisualWidth // indicator + hash + space + stats + graph
 		if msgWidth < 10 {
 			msgWidth = 10
 			statsStr = "" // Not enough room for stats
@@ -484,7 +509,12 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 			if !commit.Pushed {
 				plainIndicator = "↑ "
 			}
-			plainLine := fmt.Sprintf("%s%s %s", plainIndicator, commit.Hash[:7], msg)
+			// For selected lines, include graph prefix without styling (will be styled by selection)
+			graphPlain := ""
+			if graphStr != "" {
+				graphPlain = p.renderGraphLinePlain(p.commitGraphLines[i], graphWidth)
+			}
+			plainLine := fmt.Sprintf("%s%s%s %s", graphPlain, plainIndicator, commit.Hash[:7], msg)
 			// Pad and add stats at end
 			if statsStr != "" {
 				padding := maxWidth - len(plainLine) - len(statsStr)
@@ -496,7 +526,7 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 			}
 			sb.WriteString(styles.ListItemSelected.Render(plainLine))
 		} else {
-			line := fmt.Sprintf("%s%s %s", indicator, hash, msg)
+			line := fmt.Sprintf("%s%s%s %s", graphStr, indicator, hash, msg)
 			if statsStr != "" {
 				// Add stats in muted style
 				padding := maxWidth - len(stripAnsi(line)) - len(statsStr)
@@ -513,6 +543,62 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 	}
 
 	return sb.String()
+}
+
+// renderGraphLine formats a GraphLine to a styled fixed-width string.
+func (p *Plugin) renderGraphLine(gl GraphLine, width int) string {
+	var sb strings.Builder
+	commitStyle := lipgloss.NewStyle().Foreground(styles.Accent)
+	for _, ch := range gl.Chars {
+		switch ch {
+		case '*':
+			sb.WriteString(commitStyle.Render("●"))
+		case '|':
+			sb.WriteString(styles.Muted.Render("│"))
+		case '\\':
+			sb.WriteString(styles.Muted.Render("╲"))
+		case '/':
+			sb.WriteString(styles.Muted.Render("╱"))
+		case '_':
+			sb.WriteString(styles.Muted.Render("─"))
+		default:
+			sb.WriteRune(ch)
+		}
+	}
+	// Pad to fixed width
+	result := sb.String()
+	visualWidth := lipgloss.Width(result)
+	if visualWidth < width {
+		result += strings.Repeat(" ", width-visualWidth)
+	}
+	return result
+}
+
+// renderGraphLinePlain formats a GraphLine to a plain fixed-width string (for selected items).
+func (p *Plugin) renderGraphLinePlain(gl GraphLine, width int) string {
+	var sb strings.Builder
+	for _, ch := range gl.Chars {
+		switch ch {
+		case '*':
+			sb.WriteRune('●')
+		case '|':
+			sb.WriteRune('│')
+		case '\\':
+			sb.WriteRune('╲')
+		case '/':
+			sb.WriteRune('╱')
+		case '_':
+			sb.WriteRune('─')
+		default:
+			sb.WriteRune(ch)
+		}
+	}
+	// Pad to fixed width
+	result := sb.String()
+	if len(result) < width {
+		result += strings.Repeat(" ", width-len(result))
+	}
+	return result
 }
 
 // renderDiffPane renders the right diff pane.

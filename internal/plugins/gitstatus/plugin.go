@@ -152,6 +152,10 @@ type Plugin struct {
 	// Path filter input state
 	pathFilterMode  bool   // True when path input modal is open
 	pathFilterInput string // Current path input
+
+	// Commit graph display state
+	showCommitGraph  bool        // True when graph column is displayed
+	commitGraphLines []GraphLine // Cached graph computation
 }
 
 // New creates a new git status plugin.
@@ -333,6 +337,10 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 	case RecentCommitsLoadedMsg:
 		p.recentCommits = msg.Commits
 		p.pushStatus = msg.PushStatus
+		// Recompute graph for new commits
+		if p.showCommitGraph && len(msg.Commits) > 0 {
+			p.commitGraphLines = ComputeGraphForCommits(msg.Commits)
+		}
 		// Clamp cursor to valid range if commits changed
 		maxCursor := p.totalSelectableItems() - 1
 		if maxCursor < 0 {
@@ -347,6 +355,11 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		p.loadingMoreCommits = false
 		if msg.Commits != nil && len(msg.Commits) > 0 {
 			p.recentCommits = append(p.recentCommits, msg.Commits...)
+			// Recompute entire graph when commits are added
+			if p.showCommitGraph {
+				commits := p.activeCommits()
+				p.commitGraphLines = ComputeGraphForCommits(commits)
+			}
 		}
 		return p, nil
 
@@ -354,6 +367,12 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		if msg.Commits != nil {
 			p.filteredCommits = msg.Commits
 			p.pushStatus = msg.PushStatus
+			// Recompute graph for filtered commits
+			if p.showCommitGraph && len(p.filteredCommits) > 0 {
+				p.commitGraphLines = ComputeGraphForCommits(p.filteredCommits)
+			} else if len(p.filteredCommits) == 0 {
+				p.commitGraphLines = nil // Clear graph cache
+			}
 			// Reset cursor to first commit when filter applied
 			entries := p.tree.AllEntries()
 			if len(p.filteredCommits) > 0 {
@@ -803,6 +822,10 @@ func (p *Plugin) updateStatus(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			p.historyFilterPath = ""
 			p.historyFilterActive = false
 			p.filteredCommits = nil
+			// Recompute graph for unfiltered commits
+			if p.showCommitGraph && len(p.recentCommits) > 0 {
+				p.commitGraphLines = ComputeGraphForCommits(p.recentCommits)
+			}
 		}
 
 	case "p":
@@ -857,6 +880,17 @@ func (p *Plugin) updateStatus(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 			p.clearSearchState()
 			return p, nil
 		}
+
+	case "v":
+		// Toggle commit graph display (only when on commits)
+		if p.cursorOnCommit() {
+			p.showCommitGraph = !p.showCommitGraph
+			if p.showCommitGraph {
+				commits := p.activeCommits()
+				p.commitGraphLines = ComputeGraphForCommits(commits)
+			}
+		}
+		return p, nil
 	}
 
 	return p, nil
@@ -1304,6 +1338,7 @@ func (p *Plugin) Commands() []plugin.Command {
 		{ID: "prev-match", Name: "Prev", Description: "Previous search match", Category: plugin.CategoryNavigation, Context: "git-status-commits", Priority: 4},
 		{ID: "yank-commit", Name: "Yank", Description: "Copy commit as markdown", Category: plugin.CategoryActions, Context: "git-status-commits", Priority: 3},
 		{ID: "yank-id", Name: "YankID", Description: "Copy commit ID", Category: plugin.CategoryActions, Context: "git-status-commits", Priority: 3},
+		{ID: "toggle-graph", Name: "Graph", Description: "Toggle commit graph display", Category: plugin.CategoryView, Context: "git-status-commits", Priority: 2},
 		// git-commit-preview context (commit preview in right pane)
 		{ID: "view-diff", Name: "Diff", Description: "View file diff", Category: plugin.CategoryView, Context: "git-commit-preview", Priority: 1},
 		{ID: "back", Name: "Back", Description: "Return to sidebar", Category: plugin.CategoryNavigation, Context: "git-commit-preview", Priority: 1},
