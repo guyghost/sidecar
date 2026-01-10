@@ -288,6 +288,67 @@ var DimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
 
 4. **Height constraints** - Ensure modal content respects available height to prevent overflow.
 
+## Hit Region Calculation for Modal Buttons
+
+Calculating mouse hit regions for modal buttons is error-prone. Common issues:
+
+### Off-by-One Errors
+
+Hit regions are calculated separately from rendering, so they can drift. Sources of off-by-one:
+
+1. **Newlines after components**: `sb.WriteString("\n")` after a multi-line component (like textarea) may add an extra blank line if the component's `View()` already includes a trailing newline.
+
+2. **Border vs padding confusion**: Modal border adds 1 row, padding adds more. Track separately:
+   ```go
+   // Modal with Border() + Padding(1, 2):
+   // - Row 0: Top border (1 row)
+   // - Row 1: Top padding (1 row)
+   // - Row 2+: Content starts here
+   offset := 2 // border(1) + padding(1)
+   ```
+
+3. **Content line counting**: Count actual rendered lines, not logical sections:
+   ```go
+   // Wrong: "header section" = 1
+   // Right: title line + separator line = 2
+   ```
+
+### Debugging Strategy
+
+When hit region is off:
+1. **+1 row above visual** → Y is too small, add to calculation
+2. **+1 row below visual** → Y is too large, subtract from calculation
+
+Test with increments of 1 until aligned. Document the empirical offset with a comment explaining why.
+
+### Example Calculation
+
+```go
+func (p *Plugin) registerButtonHitRegion() {
+    modalHeight := p.estimateModalHeight()
+    startX := (p.width - modalWidth) / 2
+    startY := (p.height - modalHeight) / 2
+
+    // Content lines from modal top:
+    // border(1) + padding(1) + header(2) + label(1) + items + blank(1) + input(4) + button
+    // The +1 at end accounts for trailing newline after input component
+    buttonY := startY + 2 + 2 + 1 + itemCount + 1 + 4 + 1
+
+    p.mouseHandler.HitMap.AddRect(regionButton, buttonX, buttonY, width, 1, nil)
+}
+```
+
+### Keep Height Estimate in Sync
+
+The modal height estimate and hit region calculation must use the same line counting logic. If you change one, update the other:
+
+```go
+// estimateModalHeight() and registerButtonHitRegion() must agree on:
+// - Number of header lines
+// - Number of content lines per item
+// - Padding/spacing between sections
+```
+
 ## File Locations
 
 - App-level modals: `internal/app/view.go`

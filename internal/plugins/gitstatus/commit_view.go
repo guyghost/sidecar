@@ -217,8 +217,9 @@ func (p *Plugin) registerCommitButtonHitRegion() {
 		displayedFiles = maxFiles + 1 // +1 for "... +N more" line
 	}
 
-	// Lines: header(2) + staged label(1) + files + blank(1) + textarea(4) + button
-	buttonLineY := startY + 2 + 2 + 1 + displayedFiles + 1 + 4
+	// Lines: header(2) + staged label(1) + files + blank(1) + textarea(4) + newline(1) + button
+	// The +1 at end accounts for newline after textarea creating a blank line
+	buttonLineY := startY + 2 + 2 + 1 + displayedFiles + 1 + 4 + 1
 
 	// Button X: startX + border(1) + padding(2) = content start
 	buttonX := startX + 3
