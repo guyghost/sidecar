@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to sidecar are documented here.
+## [v0.13.1] - 2026-01-10
+
+### Bug Fixes
+- Fixed off-by-one error in git sidebar commit click detection when working tree is clean
+
 ## [v0.13.0] - 2026-01-10
 
 ### Features
