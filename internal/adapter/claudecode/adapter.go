@@ -508,9 +508,10 @@ type sessionMetaCacheEntry struct {
 func (a *Adapter) sessionMetadata(path string, info os.FileInfo) (*SessionMetadata, error) {
 	a.metaMu.RLock()
 	if entry, ok := a.metaCache[path]; ok && entry.size == info.Size() && entry.modTime.Equal(info.ModTime()) {
-		meta := entry.meta
+		// Return a copy to prevent caller mutations affecting cache
+		metaCopy := *entry.meta
 		a.metaMu.RUnlock()
-		return meta, nil
+		return &metaCopy, nil
 	}
 	a.metaMu.RUnlock()
 

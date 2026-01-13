@@ -60,6 +60,7 @@ type Plugin struct {
 
 	// Three-pane layout state
 	activePane     FocusPane // Which pane is focused
+	sidebarRestore FocusPane // Pane to restore when showing sidebar
 	sidebarVisible bool      // Toggle sidebar with Tab
 	sidebarWidth   int       // Calculated width (~30%)
 	diffPaneWidth  int       // Calculated width (~70%)
@@ -174,6 +175,7 @@ func New() *Plugin {
 	return &Plugin{
 		sidebarVisible: true,
 		activePane:     PaneSidebar,
+		sidebarRestore: PaneSidebar,
 		mouseHandler:   mouse.NewHandler(),
 	}
 }
@@ -605,6 +607,24 @@ func (p *Plugin) selectedCommitIndex() int {
 	return p.cursor - len(entries)
 }
 
+func (p *Plugin) toggleSidebar() {
+	if p.sidebarVisible {
+		p.sidebarRestore = p.activePane
+		p.sidebarVisible = false
+		if p.activePane == PaneSidebar {
+			p.activePane = PaneDiff
+		}
+		return
+	}
+
+	p.sidebarVisible = true
+	if p.sidebarRestore == PaneSidebar {
+		p.activePane = PaneSidebar
+	} else {
+		p.activePane = PaneDiff
+	}
+}
+
 // updateStatus handles key events in the status view.
 func (p *Plugin) updateStatus(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 	// Handle diff pane keys when focused on diff
@@ -692,12 +712,7 @@ func (p *Plugin) updateStatus(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 
 	case "\\":
 		// Toggle sidebar visibility
-		p.sidebarVisible = !p.sidebarVisible
-		if !p.sidebarVisible {
-			p.activePane = PaneDiff
-		} else {
-			p.activePane = PaneSidebar
-		}
+		p.toggleSidebar()
 
 	case "s":
 		if len(entries) > 0 && p.cursor < len(entries) {
@@ -1038,10 +1053,7 @@ func (p *Plugin) updateStatusDiffPane(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 
 	case "\\":
 		// Toggle sidebar visibility
-		p.sidebarVisible = !p.sidebarVisible
-		if p.sidebarVisible {
-			p.activePane = PaneSidebar
-		}
+		p.toggleSidebar()
 
 	case "d":
 		// Open full-screen diff view for current file
@@ -1115,10 +1127,7 @@ func (p *Plugin) updateCommitPreviewPane(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd
 
 	case "\\":
 		// Toggle sidebar visibility
-		p.sidebarVisible = !p.sidebarVisible
-		if p.sidebarVisible {
-			p.activePane = PaneSidebar
-		}
+		p.toggleSidebar()
 
 	case "y":
 		// Yank commit as markdown
@@ -1282,6 +1291,9 @@ func (p *Plugin) updateDiff(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 
 	case "\\":
 		// Toggle sidebar visibility
+		if p.sidebarVisible {
+			p.sidebarRestore = p.activePane
+		}
 		p.sidebarVisible = !p.sidebarVisible
 
 	case "h", "left", "<", "H":

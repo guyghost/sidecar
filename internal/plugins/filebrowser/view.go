@@ -23,7 +23,10 @@ func getSelectionBgANSI() string {
 	hex := theme.Colors.BgTertiary
 	// Parse hex color (assumes #RRGGBB format)
 	var r, g, b int
-	fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b)
+	if _, err := fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b); err != nil {
+		// Fallback to default dark gray background if parsing fails
+		r, g, b = 55, 65, 81
+	}
 	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b)
 }
 

@@ -124,6 +124,7 @@ type Plugin struct {
 
 	// Layout state
 	activePane     FocusPane // Which pane is focused
+	sidebarRestore FocusPane // Pane to restore when showing sidebar
 	sidebarWidth   int       // Calculated width (~30%)
 	sidebarVisible bool      // Toggle sidebar visibility with \
 	previewToken       int       // monotonically increasing token for debounced preview loads
@@ -212,6 +213,7 @@ func New() *Plugin {
 		renderCache:         make(map[renderCacheKey]string),
 		hitRegionsDirty:     true, // Start dirty to ensure first render builds regions
 		sidebarVisible:      true, // Sidebar visible by default
+		sidebarRestore:      PaneSidebar,
 	}
 	p.coalescer = NewEventCoalescer(0, coalesceChan)
 	return p
@@ -640,11 +642,7 @@ func (p *Plugin) updateSessions(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 
 	case "\\":
 		// Toggle sidebar visibility
-		p.sidebarVisible = !p.sidebarVisible
-		if !p.sidebarVisible {
-			// When hiding sidebar, focus moves to messages pane
-			p.activePane = PaneMessages
-		}
+		p.toggleSidebar()
 
 	case "l", "right":
 		// Switch focus to messages pane
@@ -943,12 +941,7 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 
 	case "\\":
 		// Toggle sidebar visibility
-		p.sidebarVisible = !p.sidebarVisible
-		if !p.sidebarVisible {
-			p.activePane = PaneMessages
-		} else {
-			p.activePane = PaneSidebar
-		}
+		p.toggleSidebar()
 		return p, nil
 
 	case "j", "down":
@@ -1224,6 +1217,24 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 	}
 
 	return p, nil
+}
+
+func (p *Plugin) toggleSidebar() {
+	if p.sidebarVisible {
+		p.sidebarRestore = p.activePane
+		p.sidebarVisible = false
+		if p.activePane == PaneSidebar {
+			p.activePane = PaneMessages
+		}
+		return
+	}
+
+	p.sidebarVisible = true
+	if p.sidebarRestore == PaneSidebar {
+		p.activePane = PaneSidebar
+	} else {
+		p.activePane = PaneMessages
+	}
 }
 
 // updateDetailMode handles key events when in detail mode (two-pane).

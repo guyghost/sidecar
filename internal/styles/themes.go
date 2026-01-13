@@ -284,71 +284,11 @@ func ApplyThemeWithOverrides(name string, overrides map[string]string) {
 	themeMu.Unlock()
 }
 
-// applyOverrides applies color overrides to a palette
+// applyOverrides applies color overrides to a palette.
+// Delegates to applySingleOverride which validates hex colors.
 func applyOverrides(palette *ColorPalette, overrides map[string]string) {
 	for key, value := range overrides {
-		switch key {
-		case "primary":
-			palette.Primary = value
-		case "secondary":
-			palette.Secondary = value
-		case "accent":
-			palette.Accent = value
-		case "success":
-			palette.Success = value
-		case "warning":
-			palette.Warning = value
-		case "error":
-			palette.Error = value
-		case "info":
-			palette.Info = value
-		case "textPrimary":
-			palette.TextPrimary = value
-		case "textSecondary":
-			palette.TextSecondary = value
-		case "textMuted":
-			palette.TextMuted = value
-		case "textSubtle":
-			palette.TextSubtle = value
-		case "bgPrimary":
-			palette.BgPrimary = value
-		case "bgSecondary":
-			palette.BgSecondary = value
-		case "bgTertiary":
-			palette.BgTertiary = value
-		case "bgOverlay":
-			palette.BgOverlay = value
-		case "borderNormal":
-			palette.BorderNormal = value
-		case "borderActive":
-			palette.BorderActive = value
-		case "borderMuted":
-			palette.BorderMuted = value
-		case "diffAddFg":
-			palette.DiffAddFg = value
-		case "diffAddBg":
-			palette.DiffAddBg = value
-		case "diffRemoveFg":
-			palette.DiffRemoveFg = value
-		case "diffRemoveBg":
-			palette.DiffRemoveBg = value
-		case "textHighlight":
-			palette.TextHighlight = value
-		case "buttonHover":
-			palette.ButtonHover = value
-		case "tabTextInactive":
-			palette.TabTextInactive = value
-		case "link":
-			palette.Link = value
-		case "toastSuccessText":
-			palette.ToastSuccessText = value
-		case "toastErrorText":
-			palette.ToastErrorText = value
-		case "syntaxTheme":
-			palette.SyntaxTheme = value
-		case "markdownTheme":
-			palette.MarkdownTheme = value
-		}
+		applySingleOverride(palette, key, value)
 	}
 }
 
@@ -394,7 +334,14 @@ func applyGenericOverrides(palette *ColorPalette, overrides map[string]interface
 }
 
 // applySingleOverride applies a single string override.
+// Color values must be valid hex colors (#RRGGBB). Invalid colors are silently ignored.
 func applySingleOverride(palette *ColorPalette, key, value string) {
+	// syntaxTheme and markdownTheme are theme names, not colors
+	isThemeName := key == "syntaxTheme" || key == "markdownTheme"
+	if !isThemeName && !IsValidHexColor(value) {
+		return // Skip invalid hex color
+	}
+
 	switch key {
 	case "primary":
 		palette.Primary = value
@@ -460,7 +407,15 @@ func applySingleOverride(palette *ColorPalette, key, value string) {
 }
 
 // applyArrayOverride applies an array override (for gradient colors).
+// All colors must be valid hex colors. The entire array is rejected if any color is invalid.
 func applyArrayOverride(palette *ColorPalette, key string, colors []string) {
+	// Validate all colors in the array
+	for _, c := range colors {
+		if !IsValidHexColor(c) {
+			return // Reject entire array if any color is invalid
+		}
+	}
+
 	switch key {
 	case "gradientBorderActive":
 		palette.GradientBorderActive = colors
@@ -477,7 +432,11 @@ func applyFloatOverride(palette *ColorPalette, key string, value float64) {
 	}
 }
 
-// ApplyThemeColors updates all style package variables from a theme
+// ApplyThemeColors updates all style package variables from a theme.
+//
+// IMPORTANT: This function is NOT thread-safe for concurrent reads.
+// It must only be called during initialization, before the TUI starts.
+// The TUI's single-threaded Bubble Tea model ensures safe access after init.
 func ApplyThemeColors(theme Theme) {
 	c := theme.Colors
 
