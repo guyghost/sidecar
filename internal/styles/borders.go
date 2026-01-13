@@ -136,21 +136,74 @@ func renderGradientBorderBottom(width, height int, g Gradient) string {
 }
 
 // truncateString truncates a string to maxWidth visual characters.
+// ANSI escape sequences are preserved but don't count toward visual width.
 func truncateString(s string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
 	}
 
-	runes := []rune(s)
+	var result strings.Builder
 	width := 0
-	for i, r := range runes {
-		charWidth := runeWidth(r)
-		if width+charWidth > maxWidth {
-			return string(runes[:i])
+	i := 0
+
+	for i < len(s) {
+		// Check for ANSI escape sequence (ESC[...m pattern)
+		if i < len(s)-1 && s[i] == '\x1b' && s[i+1] == '[' {
+			// Find the end of the escape sequence (ends with a letter)
+			start := i
+			i += 2 // skip ESC[
+			for i < len(s) && !isTerminator(s[i]) {
+				i++
+			}
+			if i < len(s) {
+				i++ // include the terminating letter
+			}
+			// Copy the escape sequence without counting toward width
+			result.WriteString(s[start:i])
+			continue
 		}
+
+		// Regular character - decode rune for width calculation
+		r, size := decodeRune(s[i:])
+		charWidth := runeWidth(r)
+
+		if width+charWidth > maxWidth {
+			break
+		}
+
+		result.WriteString(s[i : i+size])
 		width += charWidth
+		i += size
 	}
-	return s
+
+	return result.String()
+}
+
+// isTerminator returns true if b is an ANSI sequence terminator (letter).
+func isTerminator(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
+}
+
+// decodeRune decodes the first rune in s and returns it with its byte size.
+func decodeRune(s string) (rune, int) {
+	if len(s) == 0 {
+		return 0, 0
+	}
+	r := rune(s[0])
+	if r < 0x80 {
+		return r, 1
+	}
+	// Multi-byte UTF-8 decoding
+	if r&0xE0 == 0xC0 && len(s) >= 2 {
+		return rune(s[0]&0x1F)<<6 | rune(s[1]&0x3F), 2
+	}
+	if r&0xF0 == 0xE0 && len(s) >= 3 {
+		return rune(s[0]&0x0F)<<12 | rune(s[1]&0x3F)<<6 | rune(s[2]&0x3F), 3
+	}
+	if r&0xF8 == 0xF0 && len(s) >= 4 {
+		return rune(s[0]&0x07)<<18 | rune(s[1]&0x3F)<<12 | rune(s[2]&0x3F)<<6 | rune(s[3]&0x3F), 4
+	}
+	return r, 1 // fallback for invalid UTF-8
 }
 
 // runeWidth returns the visual width of a rune (simplified).

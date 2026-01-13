@@ -9,6 +9,7 @@ import (
 	"github.com/marcus/td/pkg/monitor"
 	"github.com/marcus/sidecar/internal/app"
 	"github.com/marcus/sidecar/internal/plugin"
+	"github.com/marcus/sidecar/internal/styles"
 )
 
 const (
@@ -57,9 +58,16 @@ func (p *Plugin) Icon() string { return pluginIcon }
 func (p *Plugin) Init(ctx *plugin.Context) error {
 	p.ctx = ctx
 
-	// Try to create embedded monitor - silent degradation if database not found
-	// Version is empty for embedded use (not displayed in this context)
-	model, err := monitor.NewEmbedded(ctx.WorkDir, pollInterval, "")
+	// Try to create embedded monitor with custom renderers for gradient borders.
+	// Version is empty for embedded use (not displayed in this context).
+	opts := monitor.EmbeddedOptions{
+		BaseDir:       ctx.WorkDir,
+		Interval:      pollInterval,
+		Version:       "",
+		PanelRenderer: styles.CreateTDPanelRenderer(),
+		ModalRenderer: styles.CreateTDModalRenderer(),
+	}
+	model, err := monitor.NewEmbeddedWithOptions(opts)
 	if err != nil {
 		// Database not initialized - show animated not-installed view
 		p.ctx.Logger.Debug("td monitor: database not found", "error", err)
