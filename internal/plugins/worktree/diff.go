@@ -8,12 +8,21 @@ import (
 )
 
 // loadSelectedDiff returns a command to load diff for the selected worktree.
+// Also loads task details if Task tab is active.
 func (p *Plugin) loadSelectedDiff() tea.Cmd {
 	wt := p.selectedWorktree()
 	if wt == nil {
 		return nil
 	}
-	return p.loadDiff(wt.Path, wt.Name)
+
+	cmds := []tea.Cmd{p.loadDiff(wt.Path, wt.Name)}
+
+	// Also load task details if Task tab is active
+	if p.previewTab == PreviewTabTask && wt.TaskID != "" {
+		cmds = append(cmds, p.loadTaskDetailsIfNeeded())
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // loadDiff returns a command to load diff for a worktree.

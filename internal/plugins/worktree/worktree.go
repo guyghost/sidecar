@@ -2,7 +2,9 @@ package worktree
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -115,6 +117,27 @@ func (p *Plugin) doCreateWorktree(name, baseBranch, taskID string) (*Worktree, e
 		return nil, fmt.Errorf("git worktree add: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 
+	// Create .td-root file pointing to main repo for td database sharing
+	if err := p.setupTDRoot(wtPath); err != nil {
+		// Log but don't fail - td integration is optional
+		p.ctx.Logger.Warn("failed to setup .td-root", "path", wtPath, "error", err)
+	}
+
+	// If task is linked, create .sidecar-task file and start the task
+	if taskID != "" {
+		taskPath := filepath.Join(wtPath, sidecarTaskFile)
+		if err := os.WriteFile(taskPath, []byte(taskID+"\n"), 0644); err != nil {
+			p.ctx.Logger.Warn("failed to write .sidecar-task", "path", taskPath, "error", err)
+		}
+
+		// Auto-start the task in td (if td is available)
+		startCmd := exec.Command("td", "start", taskID)
+		startCmd.Dir = wtPath
+		if err := startCmd.Run(); err != nil {
+			p.ctx.Logger.Warn("failed to start td task", "task", taskID, "error", err)
+		}
+	}
+
 	// Determine actual base branch name
 	actualBase := baseBranch
 	if baseBranch == "HEAD" {
@@ -212,4 +235,180 @@ func getCurrentBranch(workdir string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+// setupTDRoot creates a .td-root file in the worktree pointing to the main repo.
+// This allows td commands in the worktree to use the main repo's database.
+func (p *Plugin) setupTDRoot(worktreePath string) error {
+	tdRootPath := filepath.Join(worktreePath, ".td-root")
+	return os.WriteFile(tdRootPath, []byte(p.ctx.WorkDir+"\n"), 0644)
+}
+
+const sidecarTaskFile = ".sidecar-task"
+
+// loadTaskLink reads the linked task ID from the .sidecar-task file.
+func loadTaskLink(worktreePath string) string {
+	taskPath := filepath.Join(worktreePath, sidecarTaskFile)
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(content))
+}
+
+// linkTask returns a command to link a td task to a worktree.
+func (p *Plugin) linkTask(wt *Worktree, taskID string) tea.Cmd {
+	return func() tea.Msg {
+		// Validate task exists by running td show
+		cmd := exec.Command("td", "show", taskID)
+		cmd.Dir = p.ctx.WorkDir
+		if err := cmd.Run(); err != nil {
+			return TaskLinkedMsg{
+				WorktreeName: wt.Name,
+				Err:          fmt.Errorf("task not found: %s", taskID),
+			}
+		}
+
+		// Write task link file
+		taskPath := filepath.Join(wt.Path, sidecarTaskFile)
+		if err := os.WriteFile(taskPath, []byte(taskID+"\n"), 0644); err != nil {
+			return TaskLinkedMsg{
+				WorktreeName: wt.Name,
+				Err:          fmt.Errorf("write .sidecar-task: %w", err),
+			}
+		}
+
+		return TaskLinkedMsg{
+			WorktreeName: wt.Name,
+			TaskID:       taskID,
+		}
+	}
+}
+
+// unlinkTask returns a command to unlink a td task from a worktree.
+func (p *Plugin) unlinkTask(wt *Worktree) tea.Cmd {
+	return func() tea.Msg {
+		taskPath := filepath.Join(wt.Path, sidecarTaskFile)
+		if err := os.Remove(taskPath); err != nil && !os.IsNotExist(err) {
+			return TaskLinkedMsg{
+				WorktreeName: wt.Name,
+				Err:          fmt.Errorf("remove .sidecar-task: %w", err),
+			}
+		}
+
+		return TaskLinkedMsg{
+			WorktreeName: wt.Name,
+			TaskID:       "", // Empty means unlinked
+		}
+	}
+}
+
+// loadOpenTasks fetches all open/in_progress tasks from td.
+func (p *Plugin) loadOpenTasks() tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("td", "list", "--json", "--status", "open,in_progress")
+		cmd.Dir = p.ctx.WorkDir
+		output, err := cmd.Output()
+		if err != nil {
+			return TaskSearchResultsMsg{Err: fmt.Errorf("td list: %w", err)}
+		}
+
+		tasks, err := parseTDJSON(output)
+		return TaskSearchResultsMsg{Tasks: tasks, Err: err}
+	}
+}
+
+// parseTDJSON parses JSON output from td list command.
+func parseTDJSON(data []byte) ([]Task, error) {
+	// Handle empty response
+	if len(data) == 0 {
+		return []Task{}, nil
+	}
+
+	// td outputs a JSON array of issues
+	type tdIssue struct {
+		ID          string `json:"id"`
+		Title       string `json:"title"`
+		Status      string `json:"status"`
+		Description string `json:"description"`
+	}
+
+	var issues []tdIssue
+	if err := json.Unmarshal(data, &issues); err != nil {
+		return nil, fmt.Errorf("parse td json: %w", err)
+	}
+
+	tasks := make([]Task, len(issues))
+	for i, issue := range issues {
+		tasks[i] = Task{
+			ID:          issue.ID,
+			Title:       issue.Title,
+			Status:      issue.Status,
+			Description: issue.Description,
+		}
+	}
+	return tasks, nil
+}
+
+// filterTasks filters tasks based on a search query.
+func filterTasks(query string, allTasks []Task) []Task {
+	if query == "" {
+		return allTasks
+	}
+
+	query = strings.ToLower(query)
+	var matches []Task
+
+	for _, task := range allTasks {
+		// Simple contains match on title and ID
+		if strings.Contains(strings.ToLower(task.Title), query) ||
+			strings.Contains(strings.ToLower(task.ID), query) {
+			matches = append(matches, task)
+		}
+	}
+
+	return matches
+}
+
+// loadTaskDetails fetches full task details from td.
+func (p *Plugin) loadTaskDetails(taskID string) tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("td", "show", taskID, "--json")
+		cmd.Dir = p.ctx.WorkDir
+		output, err := cmd.Output()
+		if err != nil {
+			return TaskDetailsLoadedMsg{TaskID: taskID, Err: fmt.Errorf("td show: %w", err)}
+		}
+
+		var details struct {
+			ID          string `json:"id"`
+			Title       string `json:"title"`
+			Status      string `json:"status"`
+			Priority    string `json:"priority"`
+			Type        string `json:"type"`
+			Description string `json:"description"`
+			Acceptance  string `json:"acceptance"`
+			CreatedAt   string `json:"created_at"`
+			UpdatedAt   string `json:"updated_at"`
+		}
+
+		if err := json.Unmarshal(output, &details); err != nil {
+			return TaskDetailsLoadedMsg{TaskID: taskID, Err: fmt.Errorf("parse task json: %w", err)}
+		}
+
+		return TaskDetailsLoadedMsg{
+			TaskID: taskID,
+			Details: &TaskDetails{
+				ID:          details.ID,
+				Title:       details.Title,
+				Status:      details.Status,
+				Priority:    details.Priority,
+				Type:        details.Type,
+				Description: details.Description,
+				Acceptance:  details.Acceptance,
+				CreatedAt:   details.CreatedAt,
+				UpdatedAt:   details.UpdatedAt,
+			},
+		}
+	}
 }

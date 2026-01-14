@@ -10,9 +10,10 @@ import (
 type ViewMode int
 
 const (
-	ViewModeList   ViewMode = iota // List view (default)
-	ViewModeKanban                 // Kanban board view
-	ViewModeCreate                 // New worktree modal
+	ViewModeList     ViewMode = iota // List view (default)
+	ViewModeKanban                   // Kanban board view
+	ViewModeCreate                   // New worktree modal
+	ViewModeTaskLink                 // Task link modal (for existing worktrees)
 )
 
 // FocusPane represents which pane is active in the split view.

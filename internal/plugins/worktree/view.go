@@ -82,6 +82,8 @@ func (p *Plugin) View(width, height int) string {
 		return p.renderCreateModal(width, height)
 	case ViewModeKanban:
 		return p.renderKanbanView(width, height)
+	case ViewModeTaskLink:
+		return p.renderTaskLinkModal(width, height)
 	default:
 		return p.renderListView(width, height)
 	}
@@ -380,8 +382,90 @@ func (p *Plugin) renderTaskContent(width, height int) string {
 		return dimText("No linked task\nPress 't' to link a task")
 	}
 
-	// TODO: Load and display task details from TD
-	return fmt.Sprintf("Task: %s\n\n(Task details will be shown here)", wt.TaskID)
+	// Check if we have cached details for this task
+	if p.cachedTask == nil || p.cachedTaskID != wt.TaskID {
+		return dimText(fmt.Sprintf("Loading task %s...", wt.TaskID))
+	}
+
+	task := p.cachedTask
+	var lines []string
+
+	// Header
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("Task: %s", task.ID)))
+
+	// Status and priority
+	statusLine := fmt.Sprintf("Status: %s", task.Status)
+	if task.Priority != "" {
+		statusLine += fmt.Sprintf("  Priority: %s", task.Priority)
+	}
+	if task.Type != "" {
+		statusLine += fmt.Sprintf("  Type: %s", task.Type)
+	}
+	lines = append(lines, statusLine)
+	lines = append(lines, strings.Repeat("─", min(width-4, 60)))
+	lines = append(lines, "")
+
+	// Title
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Render(task.Title))
+	lines = append(lines, "")
+
+	// Description (word wrap to width)
+	if task.Description != "" {
+		wrapped := wrapText(task.Description, width-4)
+		lines = append(lines, wrapped)
+		lines = append(lines, "")
+	}
+
+	// Acceptance criteria
+	if task.Acceptance != "" {
+		lines = append(lines, lipgloss.NewStyle().Bold(true).Render("Acceptance Criteria:"))
+		wrapped := wrapText(task.Acceptance, width-4)
+		lines = append(lines, wrapped)
+		lines = append(lines, "")
+	}
+
+	// Timestamps (dimmed)
+	if task.CreatedAt != "" {
+		lines = append(lines, dimText(fmt.Sprintf("Created: %s", task.CreatedAt)))
+	}
+	if task.UpdatedAt != "" {
+		lines = append(lines, dimText(fmt.Sprintf("Updated: %s", task.UpdatedAt)))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// wrapText wraps text to the specified width.
+func wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+
+	var lines []string
+	for _, para := range strings.Split(text, "\n") {
+		if len(para) <= width {
+			lines = append(lines, para)
+			continue
+		}
+
+		// Simple word wrapping
+		words := strings.Fields(para)
+		var currentLine string
+		for _, word := range words {
+			if currentLine == "" {
+				currentLine = word
+			} else if len(currentLine)+1+len(word) <= width {
+				currentLine += " " + word
+			} else {
+				lines = append(lines, currentLine)
+				currentLine = word
+			}
+		}
+		if currentLine != "" {
+			lines = append(lines, currentLine)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // renderCreateModal renders the new worktree modal.
@@ -424,18 +508,62 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	lines = append(lines, baseStyle.Width(modalW-4).Render(baseValue))
 	lines = append(lines, "")
 
-	// Task ID field
+	// Task ID field with search dropdown
 	taskLabel := "Link Task (optional):"
 	taskStyle := inputStyle
 	if p.createFocus == 2 {
 		taskStyle = inputFocusedStyle
 	}
+	// Show selected task ID or search query
 	taskValue := p.createTaskID
 	if taskValue == "" {
-		taskValue = " "
+		if p.taskSearchQuery != "" {
+			taskValue = p.taskSearchQuery
+		} else {
+			taskValue = " "
+		}
 	}
 	lines = append(lines, taskLabel)
 	lines = append(lines, taskStyle.Width(modalW-4).Render(taskValue))
+
+	// Show task dropdown when focused and has results
+	if p.createFocus == 2 {
+		if p.taskSearchLoading {
+			lines = append(lines, dimText("  Loading tasks..."))
+		} else if len(p.taskSearchFiltered) > 0 {
+			maxDropdown := 5
+			dropdownCount := min(maxDropdown, len(p.taskSearchFiltered))
+			for i := 0; i < dropdownCount; i++ {
+				task := p.taskSearchFiltered[i]
+				prefix := "  "
+				if i == p.taskSearchIdx {
+					prefix = "> "
+				}
+				// Truncate title to fit
+				title := task.Title
+				maxTitle := modalW - 18 // Account for prefix, ID, spacing
+				if len(title) > maxTitle {
+					title = title[:maxTitle-3] + "..."
+				}
+				line := fmt.Sprintf("%s%s  %s", prefix, task.ID, title)
+				if i == p.taskSearchIdx {
+					lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Render(line))
+				} else {
+					lines = append(lines, dimText(line))
+				}
+			}
+			if len(p.taskSearchFiltered) > maxDropdown {
+				lines = append(lines, dimText(fmt.Sprintf("  ... and %d more", len(p.taskSearchFiltered)-maxDropdown)))
+			}
+		} else if p.taskSearchQuery != "" {
+			lines = append(lines, dimText("  No matching tasks"))
+		} else if len(p.taskSearchAll) == 0 {
+			lines = append(lines, dimText("  No open tasks found"))
+		} else {
+			// Show hint when no query
+			lines = append(lines, dimText("  Type to search, ↑/↓ to navigate"))
+		}
+	}
 	lines = append(lines, "")
 
 	// Buttons
@@ -449,6 +577,100 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	modal := modalStyle.Width(modalW).Render(content)
 
 	// Center the modal
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, modal)
+}
+
+// renderTaskLinkModal renders the task link modal for existing worktrees.
+func (p *Plugin) renderTaskLinkModal(width, height int) string {
+	// Modal dimensions
+	modalW := 50
+	if modalW > width-4 {
+		modalW = width - 4
+	}
+
+	var lines []string
+	title := "Link Task"
+	if p.linkingWorktree != nil {
+		title = fmt.Sprintf("Link Task to %s", p.linkingWorktree.Name)
+	}
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Render(title))
+	lines = append(lines, "")
+
+	// Search field
+	searchLabel := "Search tasks:"
+	searchStyle := inputFocusedStyle
+	searchValue := p.taskSearchQuery
+	if searchValue == "" {
+		searchValue = " "
+	}
+	lines = append(lines, searchLabel)
+	lines = append(lines, searchStyle.Width(modalW-4).Render(searchValue))
+
+	// Task dropdown
+	if p.taskSearchLoading {
+		lines = append(lines, dimText("  Loading tasks..."))
+	} else if len(p.taskSearchFiltered) > 0 {
+		maxDropdown := 8
+		dropdownCount := min(maxDropdown, len(p.taskSearchFiltered))
+		for i := 0; i < dropdownCount; i++ {
+			task := p.taskSearchFiltered[i]
+			prefix := "  "
+			if i == p.taskSearchIdx {
+				prefix = "> "
+			}
+			// Truncate title to fit
+			title := task.Title
+			maxTitle := modalW - 18
+			if len(title) > maxTitle {
+				title = title[:maxTitle-3] + "..."
+			}
+			line := fmt.Sprintf("%s%s  %s", prefix, task.ID, title)
+			if i == p.taskSearchIdx {
+				lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Render(line))
+			} else {
+				lines = append(lines, dimText(line))
+			}
+		}
+		if len(p.taskSearchFiltered) > maxDropdown {
+			lines = append(lines, dimText(fmt.Sprintf("  ... and %d more", len(p.taskSearchFiltered)-maxDropdown)))
+		}
+	} else if p.taskSearchQuery != "" {
+		lines = append(lines, dimText("  No matching tasks"))
+	} else if len(p.taskSearchAll) == 0 {
+		lines = append(lines, dimText("  No open tasks found"))
+	} else {
+		// Show all tasks when no query
+		maxDropdown := 8
+		dropdownCount := min(maxDropdown, len(p.taskSearchAll))
+		for i := 0; i < dropdownCount; i++ {
+			task := p.taskSearchAll[i]
+			prefix := "  "
+			if i == p.taskSearchIdx {
+				prefix = "> "
+			}
+			title := task.Title
+			maxTitle := modalW - 18
+			if len(title) > maxTitle {
+				title = title[:maxTitle-3] + "..."
+			}
+			line := fmt.Sprintf("%s%s  %s", prefix, task.ID, title)
+			if i == p.taskSearchIdx {
+				lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Render(line))
+			} else {
+				lines = append(lines, dimText(line))
+			}
+		}
+		if len(p.taskSearchAll) > maxDropdown {
+			lines = append(lines, dimText(fmt.Sprintf("  ... and %d more", len(p.taskSearchAll)-maxDropdown)))
+		}
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, dimText("↑/↓ navigate  Enter select  Esc cancel"))
+
+	content := strings.Join(lines, "\n")
+	modal := modalStyle.Width(modalW).Render(content)
+
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, modal)
 }
 

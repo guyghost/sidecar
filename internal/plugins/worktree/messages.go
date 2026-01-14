@@ -125,3 +125,23 @@ type Task struct {
 	Status      string
 	Description string
 }
+
+// TaskDetails contains full task information for preview pane.
+type TaskDetails struct {
+	ID          string
+	Title       string
+	Status      string
+	Priority    string
+	Type        string
+	Description string
+	Acceptance  string
+	CreatedAt   string
+	UpdatedAt   string
+}
+
+// TaskDetailsLoadedMsg delivers task details for the preview pane.
+type TaskDetailsLoadedMsg struct {
+	TaskID  string
+	Details *TaskDetails
+	Err     error
+}

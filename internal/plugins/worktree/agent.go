@@ -1,6 +1,7 @@
 package worktree
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -87,8 +88,21 @@ func (p *Plugin) StartAgent(wt *Worktree, agentType AgentType) tea.Cmd {
 		exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
 			strconv.Itoa(tmuxHistoryLimit)).Run()
 
-		// Get the agent command
-		agentCmd := getAgentCommand(agentType)
+		// Set TD_SESSION_ID environment variable for td session tracking
+		envCmd := fmt.Sprintf("export TD_SESSION_ID=%s", sessionName)
+		exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
+
+		// If worktree has a linked task, start it in td
+		if wt.TaskID != "" {
+			tdStartCmd := fmt.Sprintf("td start %s", wt.TaskID)
+			exec.Command("tmux", "send-keys", "-t", sessionName, tdStartCmd, "Enter").Run()
+		}
+
+		// Small delay to ensure env is set
+		time.Sleep(100 * time.Millisecond)
+
+		// Get the agent command with optional task context
+		agentCmd := p.getAgentCommandWithContext(agentType, wt)
 
 		// Send the agent command to start it
 		sendCmd := exec.Command("tmux", "send-keys", "-t", sessionName, agentCmd, "Enter")
@@ -120,6 +134,50 @@ func getAgentCommand(agentType AgentType) string {
 	default:
 		return "claude" // Default to claude
 	}
+}
+
+// getAgentCommandWithContext returns the agent command with optional task context.
+func (p *Plugin) getAgentCommandWithContext(agentType AgentType, wt *Worktree) string {
+	baseCmd := getAgentCommand(agentType)
+
+	// Only add context for Claude if we have a linked task
+	if agentType != AgentClaude || wt.TaskID == "" {
+		return baseCmd
+	}
+
+	// Get task context
+	ctx := p.getTaskContext(wt.TaskID)
+	if ctx == "" {
+		return baseCmd
+	}
+
+	// Pass context as initial prompt to Claude
+	// Escape quotes for shell safety
+	escapedCtx := strings.ReplaceAll(ctx, "'", "'\"'\"'")
+	return fmt.Sprintf("%s '%s'", baseCmd, escapedCtx)
+}
+
+// getTaskContext fetches task title and description for agent context.
+func (p *Plugin) getTaskContext(taskID string) string {
+	cmd := exec.Command("td", "show", taskID, "--json")
+	cmd.Dir = p.ctx.WorkDir
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	var task struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal(output, &task); err != nil {
+		return ""
+	}
+
+	if task.Description != "" {
+		return fmt.Sprintf("Task: %s\n\n%s", task.Title, task.Description)
+	}
+	return fmt.Sprintf("Task: %s", task.Title)
 }
 
 // sanitizeName cleans a name for use in tmux session names.

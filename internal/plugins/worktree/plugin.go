@@ -76,6 +76,21 @@ type Plugin struct {
 	createBaseBranch string
 	createTaskID     string
 	createFocus      int // 0=name, 1=base, 2=task, 3=confirm
+
+	// Task search state for create modal
+	taskSearchQuery    string
+	taskSearchAll      []Task // All available tasks
+	taskSearchFiltered []Task // Filtered based on query
+	taskSearchIdx      int    // Selected index in dropdown
+	taskSearchLoading  bool
+
+	// Task link modal state (for linking to existing worktrees)
+	linkingWorktree *Worktree
+
+	// Cached task details for preview pane
+	cachedTaskID      string
+	cachedTask        *TaskDetails
+	cachedTaskFetched time.Time
 }
 
 // New creates a new worktree manager plugin.
@@ -124,6 +139,9 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 		ctx.Keymap.RegisterPluginBinding("right", "focus-right", "worktree-list")
 		ctx.Keymap.RegisterPluginBinding("\\", "toggle-sidebar", "worktree-list")
 
+		// Task linking
+		ctx.Keymap.RegisterPluginBinding("t", "link-task", "worktree-list")
+
 		// Agent control bindings
 		ctx.Keymap.RegisterPluginBinding("s", "start-agent", "worktree-list")
 		ctx.Keymap.RegisterPluginBinding("S", "stop-agent", "worktree-list")
@@ -144,6 +162,10 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 		ctx.Keymap.RegisterPluginBinding("enter", "confirm", "worktree-create")
 		ctx.Keymap.RegisterPluginBinding("tab", "next-field", "worktree-create")
 		ctx.Keymap.RegisterPluginBinding("shift+tab", "prev-field", "worktree-create")
+
+		// Task link modal context
+		ctx.Keymap.RegisterPluginBinding("esc", "cancel", "worktree-task-link")
+		ctx.Keymap.RegisterPluginBinding("enter", "select-task", "worktree-task-link")
 	}
 
 	return nil
@@ -178,9 +200,11 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		p.lastRefresh = time.Now()
 		if msg.Err == nil {
 			p.worktrees = msg.Worktrees
-			// Load stats for each worktree
+			// Load stats and task links for each worktree
 			for _, wt := range p.worktrees {
 				cmds = append(cmds, p.loadStats(wt.Path))
+				// Load linked task ID from .sidecar-task file
+				wt.TaskID = loadTaskLink(wt.Path)
 			}
 		}
 
@@ -299,6 +323,28 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 			cmds = append(cmds, p.scheduleAgentPoll(msg.WorktreeName, 0))
 		}
 
+	case TaskLinkedMsg:
+		if msg.Err == nil {
+			if wt := p.findWorktree(msg.WorktreeName); wt != nil {
+				wt.TaskID = msg.TaskID
+			}
+		}
+
+	case TaskSearchResultsMsg:
+		p.taskSearchLoading = false
+		if msg.Err == nil {
+			p.taskSearchAll = msg.Tasks
+			p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
+			p.taskSearchIdx = 0
+		}
+
+	case TaskDetailsLoadedMsg:
+		if msg.Err == nil && msg.Details != nil {
+			p.cachedTaskID = msg.TaskID
+			p.cachedTask = msg.Details
+			p.cachedTaskFetched = time.Now()
+		}
+
 	case reconnectedAgentsMsg:
 		return p, tea.Batch(msg.Cmds...)
 
@@ -342,6 +388,11 @@ func (p *Plugin) clearCreateModal() {
 	p.createBaseBranch = ""
 	p.createTaskID = ""
 	p.createFocus = 0
+	p.taskSearchQuery = ""
+	p.taskSearchAll = nil
+	p.taskSearchFiltered = nil
+	p.taskSearchIdx = 0
+	p.taskSearchLoading = false
 }
 
 // handleKeyPress processes key input based on current view mode.
@@ -351,6 +402,8 @@ func (p *Plugin) handleKeyPress(msg tea.KeyMsg) tea.Cmd {
 		return p.handleListKeys(msg)
 	case ViewModeCreate:
 		return p.handleCreateKeys(msg)
+	case ViewModeTaskLink:
+		return p.handleTaskLinkKeys(msg)
 	}
 	return nil
 }
@@ -387,6 +440,8 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 	case "n":
 		p.viewMode = ViewModeCreate
+		p.taskSearchLoading = true
+		return p.loadOpenTasks()
 	case "D":
 		return p.deleteSelected()
 	case "p":
@@ -410,9 +465,9 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 			p.activePane = PaneSidebar
 		}
 	case "tab":
-		p.cyclePreviewTab(1)
+		return p.cyclePreviewTab(1)
 	case "shift+tab":
-		p.cyclePreviewTab(-1)
+		return p.cyclePreviewTab(-1)
 	case "r":
 		return func() tea.Msg { return RefreshMsg{} }
 	case "v":
@@ -451,6 +506,22 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 		if wt != nil && wt.Status == StatusWaiting && wt.Agent != nil {
 			return p.Reject(wt)
 		}
+	case "t":
+		// Link/unlink td task
+		wt := p.selectedWorktree()
+		if wt != nil {
+			if wt.TaskID != "" {
+				// Already linked - unlink
+				return p.unlinkTask(wt)
+			}
+			// No task linked - show task link modal
+			p.viewMode = ViewModeTaskLink
+			p.linkingWorktree = wt
+			p.taskSearchQuery = ""
+			p.taskSearchIdx = 0
+			p.taskSearchLoading = true
+			return p.loadOpenTasks()
+		}
 	}
 	return nil
 }
@@ -465,7 +536,29 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 		p.createFocus = (p.createFocus + 1) % 4
 	case "shift+tab":
 		p.createFocus = (p.createFocus + 3) % 4
+	case "up":
+		// Navigate task dropdown
+		if p.createFocus == 2 && len(p.taskSearchFiltered) > 0 {
+			if p.taskSearchIdx > 0 {
+				p.taskSearchIdx--
+			}
+		}
+	case "down":
+		// Navigate task dropdown
+		if p.createFocus == 2 && len(p.taskSearchFiltered) > 0 {
+			if p.taskSearchIdx < len(p.taskSearchFiltered)-1 {
+				p.taskSearchIdx++
+			}
+		}
 	case "enter":
+		// Select task from dropdown if in task field
+		if p.createFocus == 2 && len(p.taskSearchFiltered) > 0 {
+			// Select task and move to next field
+			selectedTask := p.taskSearchFiltered[p.taskSearchIdx]
+			p.createTaskID = selectedTask.ID
+			p.createFocus = 3 // Move to confirm button
+			return nil
+		}
 		if p.createFocus == 3 {
 			return p.createWorktree()
 		}
@@ -481,8 +574,10 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 				p.createBaseBranch = p.createBaseBranch[:len(p.createBaseBranch)-1]
 			}
 		case 2:
-			if len(p.createTaskID) > 0 {
-				p.createTaskID = p.createTaskID[:len(p.createTaskID)-1]
+			if len(p.taskSearchQuery) > 0 {
+				p.taskSearchQuery = p.taskSearchQuery[:len(p.taskSearchQuery)-1]
+				p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
+				p.taskSearchIdx = 0
 			}
 		}
 	default:
@@ -493,8 +588,56 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 			case 1:
 				p.createBaseBranch += msg.String()
 			case 2:
-				p.createTaskID += msg.String()
+				p.taskSearchQuery += msg.String()
+				p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
+				p.taskSearchIdx = 0
 			}
+		}
+	}
+	return nil
+}
+
+// handleTaskLinkKeys handles keys in task link modal.
+func (p *Plugin) handleTaskLinkKeys(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "esc":
+		p.viewMode = ViewModeList
+		p.linkingWorktree = nil
+		p.taskSearchQuery = ""
+		p.taskSearchAll = nil
+		p.taskSearchFiltered = nil
+		p.taskSearchIdx = 0
+	case "up":
+		if len(p.taskSearchFiltered) > 0 && p.taskSearchIdx > 0 {
+			p.taskSearchIdx--
+		}
+	case "down":
+		if len(p.taskSearchFiltered) > 0 && p.taskSearchIdx < len(p.taskSearchFiltered)-1 {
+			p.taskSearchIdx++
+		}
+	case "enter":
+		if len(p.taskSearchFiltered) > 0 && p.linkingWorktree != nil {
+			selectedTask := p.taskSearchFiltered[p.taskSearchIdx]
+			wt := p.linkingWorktree
+			p.viewMode = ViewModeList
+			p.linkingWorktree = nil
+			p.taskSearchQuery = ""
+			p.taskSearchAll = nil
+			p.taskSearchFiltered = nil
+			p.taskSearchIdx = 0
+			return p.linkTask(wt, selectedTask.ID)
+		}
+	case "backspace":
+		if len(p.taskSearchQuery) > 0 {
+			p.taskSearchQuery = p.taskSearchQuery[:len(p.taskSearchQuery)-1]
+			p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
+			p.taskSearchIdx = 0
+		}
+	default:
+		if len(msg.String()) == 1 {
+			p.taskSearchQuery += msg.String()
+			p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
+			p.taskSearchIdx = 0
 		}
 	}
 	return nil
@@ -523,9 +666,29 @@ func (p *Plugin) ensureVisible() {
 }
 
 // cyclePreviewTab cycles through preview tabs.
-func (p *Plugin) cyclePreviewTab(delta int) {
+func (p *Plugin) cyclePreviewTab(delta int) tea.Cmd {
 	p.previewTab = PreviewTab((int(p.previewTab) + delta + 3) % 3)
 	p.previewOffset = 0
+
+	// Load task details if switching to Task tab
+	if p.previewTab == PreviewTabTask {
+		return p.loadTaskDetailsIfNeeded()
+	}
+	return nil
+}
+
+// loadTaskDetailsIfNeeded loads task details if not cached or stale.
+func (p *Plugin) loadTaskDetailsIfNeeded() tea.Cmd {
+	wt := p.selectedWorktree()
+	if wt == nil || wt.TaskID == "" {
+		return nil
+	}
+
+	// Check if we need to refresh (different task or cache is older than 30 seconds)
+	if p.cachedTaskID != wt.TaskID || time.Since(p.cachedTaskFetched) > 30*time.Second {
+		return p.loadTaskDetails(wt.TaskID)
+	}
+	return nil
 }
 
 // handleMouse processes mouse input.
@@ -702,6 +865,11 @@ func (p *Plugin) Commands() []plugin.Command {
 			{ID: "cancel", Name: "Cancel", Description: "Cancel worktree creation", Context: "worktree-create", Priority: 1},
 			{ID: "confirm", Name: "Create", Description: "Create the worktree", Context: "worktree-create", Priority: 2},
 		}
+	case ViewModeTaskLink:
+		return []plugin.Command{
+			{ID: "cancel", Name: "Cancel", Description: "Cancel task linking", Context: "worktree-task-link", Priority: 1},
+			{ID: "select-task", Name: "Select", Description: "Link selected task", Context: "worktree-task-link", Priority: 2},
+		}
 	default:
 		// View toggle label changes based on current mode
 		viewToggleName := "Kanban"
@@ -719,6 +887,16 @@ func (p *Plugin) Commands() []plugin.Command {
 				plugin.Command{ID: "delete-worktree", Name: "Delete", Description: "Delete selected worktree", Context: "worktree-list", Priority: 4},
 				plugin.Command{ID: "push", Name: "Push", Description: "Push branch to remote", Context: "worktree-list", Priority: 5},
 			)
+			// Task linking
+			if wt.TaskID != "" {
+				cmds = append(cmds,
+					plugin.Command{ID: "link-task", Name: "Unlink", Description: "Unlink task", Context: "worktree-list", Priority: 6},
+				)
+			} else {
+				cmds = append(cmds,
+					plugin.Command{ID: "link-task", Name: "Task", Description: "Link task", Context: "worktree-list", Priority: 6},
+				)
+			}
 			// Agent commands
 			if wt.Agent == nil {
 				cmds = append(cmds,
@@ -746,6 +924,8 @@ func (p *Plugin) FocusContext() string {
 	switch p.viewMode {
 	case ViewModeCreate:
 		return "worktree-create"
+	case ViewModeTaskLink:
+		return "worktree-task-link"
 	default:
 		if p.activePane == PanePreview {
 			return "worktree-preview"
