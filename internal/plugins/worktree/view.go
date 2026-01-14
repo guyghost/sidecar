@@ -11,39 +11,6 @@ import (
 )
 
 var (
-	// Sidebar styles
-	sidebarStyle = lipgloss.NewStyle().
-			BorderRight(true).
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("240"))
-
-	selectedStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("236")).
-			Foreground(lipgloss.Color("255"))
-
-	normalStyle = lipgloss.NewStyle()
-
-	// Status colors
-	statusActiveColor  = lipgloss.Color("42")  // Green
-	statusWaitingColor = lipgloss.Color("214") // Yellow/orange
-	statusDoneColor    = lipgloss.Color("42")  // Green
-	statusErrorColor   = lipgloss.Color("196") // Red
-	statusPausedColor  = lipgloss.Color("240") // Gray
-
-	// Preview pane styles
-	previewHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("255")).
-				Background(lipgloss.Color("236"))
-
-	tabActiveStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("255")).
-			Background(lipgloss.Color("62"))
-
-	tabInactiveStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("240"))
-
 	// Modal styles
 	modalStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -59,16 +26,6 @@ var (
 				Border(lipgloss.NormalBorder()).
 				BorderForeground(lipgloss.Color("62")).
 				Padding(0, 1)
-
-	buttonStyle = lipgloss.NewStyle().
-			Padding(0, 2).
-			Background(lipgloss.Color("240")).
-			Foreground(lipgloss.Color("255"))
-
-	buttonFocusedStyle = lipgloss.NewStyle().
-				Padding(0, 2).
-				Background(lipgloss.Color("62")).
-				Foreground(lipgloss.Color("255"))
 )
 
 // View renders the plugin UI.
@@ -96,41 +53,65 @@ func (p *Plugin) View(width, height int) string {
 // renderListView renders the main split-pane list view.
 func (p *Plugin) renderListView(width, height int) string {
 	// Calculate pane widths (sidebarWidth is percentage)
-	sidebarW := (width * p.sidebarWidth) / 100
+	// Account for borders (4 total: 2 per pane) and divider
+	available := width - 6 - dividerWidth // 6 for borders (2 per pane × 2 + padding)
+	sidebarW := (available * p.sidebarWidth) / 100
 	if sidebarW < 25 {
 		sidebarW = 25
 	}
-	if sidebarW > width-40 {
-		sidebarW = width - 40
+	if sidebarW > available-40 {
+		sidebarW = available - 40
 	}
-	previewW := width - sidebarW - dividerWidth
+	previewW := available - sidebarW
+	if previewW < 40 {
+		previewW = 40
+	}
+
+	// Pane height for panels (including borders)
+	paneHeight := height - 2
+	if paneHeight < 4 {
+		paneHeight = 4
+	}
+
+	// Inner content height (excluding borders and header lines)
+	innerHeight := paneHeight - 2
+	if innerHeight < 1 {
+		innerHeight = 1
+	}
+
+	// Determine pane focus state
+	sidebarActive := p.activePane == PaneSidebar
+	previewActive := p.activePane == PanePreview
 
 	// Register hit regions (order matters: last = highest priority)
 	// 1. Pane regions (lowest priority - fallback for scroll)
-	p.mouseHandler.HitMap.AddRect(regionSidebar, 0, 0, sidebarW, height, nil)
-	p.mouseHandler.HitMap.AddRect(regionPreviewPane, sidebarW+dividerWidth, 0, previewW, height, nil)
+	p.mouseHandler.HitMap.AddRect(regionSidebar, 0, 0, sidebarW, paneHeight, nil)
+	p.mouseHandler.HitMap.AddRect(regionPreviewPane, sidebarW+dividerWidth, 0, previewW, paneHeight, nil)
 
 	// 2. Divider region (high priority - for drag)
-	p.mouseHandler.HitMap.AddRect(regionPaneDivider, sidebarW, 0, dividerHitWidth, height, nil)
+	p.mouseHandler.HitMap.AddRect(regionPaneDivider, sidebarW, 0, dividerHitWidth, paneHeight, nil)
 
-	// Render each pane (item regions are registered during sidebar rendering)
-	sidebar := p.renderSidebar(sidebarW, height)
-	divider := p.renderDivider(height)
-	preview := p.renderPreview(previewW, height)
+	// Render content for each pane
+	sidebarContent := p.renderSidebarContent(sidebarW-2, innerHeight)
+	previewContent := p.renderPreviewContent(previewW-2, innerHeight)
+
+	// Apply gradient border styles
+	leftPane := styles.RenderPanel(sidebarContent, sidebarW, paneHeight, sidebarActive)
+	rightPane := styles.RenderPanel(previewContent, previewW, paneHeight, previewActive)
+
+	// Render visible divider between panes
+	divider := p.renderDivider(paneHeight)
 
 	// Join horizontally
-	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, divider, preview)
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, divider, rightPane)
 }
 
-// renderSidebar renders the worktree list sidebar.
-func (p *Plugin) renderSidebar(width, height int) string {
+// renderSidebarContent renders the worktree list sidebar content (no borders).
+func (p *Plugin) renderSidebarContent(width, height int) string {
 	var lines []string
 
 	// Header with view mode toggle
-	header := "Worktrees"
-	if p.activePane == PaneSidebar {
-		header = selectedStyle.Render(header)
-	}
+	header := styles.Title.Render("Worktrees")
 	// View mode toggle tabs
 	listTab := "[List]"
 	kanbanTab := "Kanban"
@@ -138,16 +119,16 @@ func (p *Plugin) renderSidebar(width, height int) string {
 		listTab = "List"
 		kanbanTab = "[Kanban]"
 	}
-	viewToggle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(listTab + "|" + kanbanTab)
-	headerLine := header + strings.Repeat(" ", max(1, width-2-len(header)-len(listTab)-len(kanbanTab)-1)) + viewToggle
+	viewToggle := styles.Muted.Render(listTab + "|" + kanbanTab)
+	headerLine := header + strings.Repeat(" ", max(1, width-len("Worktrees")-len(listTab)-len(kanbanTab)-1)) + viewToggle
 	lines = append(lines, headerLine)
-	lines = append(lines, strings.Repeat("─", width-2))
+	lines = append(lines, "") // Empty line after header
 
-	// Track Y position for hit regions
-	currentY := 2 // After header + separator
+	// Track Y position for hit regions (add 3 for border + header + empty line)
+	currentY := 3
 
 	// Calculate visible items (each item is 2 lines)
-	contentHeight := height - 2 // header + separator
+	contentHeight := height - 2 // header + empty line
 	itemHeight := 2             // Each worktree item takes 2 lines
 	p.visibleCount = contentHeight / itemHeight
 
@@ -168,8 +149,8 @@ func (p *Plugin) renderSidebar(width, height int) string {
 		// Center the text horizontally
 		msg1 := "No worktrees"
 		msg2 := "Press 'n' to create one"
-		pad1 := (width - 2 - len(msg1)) / 2
-		pad2 := (width - 2 - len(msg2)) / 2
+		pad1 := (width - len(msg1)) / 2
+		pad2 := (width - len(msg2)) / 2
 		if pad1 < 0 {
 			pad1 = 0
 		}
@@ -177,12 +158,12 @@ func (p *Plugin) renderSidebar(width, height int) string {
 			pad2 = 0
 		}
 
-		lines = append(lines, dimText(strings.Repeat(" ", pad1)+msg1))
-		lines = append(lines, dimText(strings.Repeat(" ", pad2)+msg2))
+		lines = append(lines, styles.Muted.Render(strings.Repeat(" ", pad1)+msg1))
+		lines = append(lines, styles.Muted.Render(strings.Repeat(" ", pad2)+msg2))
 	} else {
 		for i := p.scrollOffset; i < len(p.worktrees) && i < p.scrollOffset+p.visibleCount; i++ {
 			wt := p.worktrees[i]
-			line := p.renderWorktreeItem(wt, i == p.selectedIdx, width-2)
+			line := p.renderWorktreeItem(wt, i == p.selectedIdx, width)
 
 			// Register hit region with ABSOLUTE index
 			p.mouseHandler.HitMap.AddRect(regionWorktreeItem, 0, currentY, width, itemHeight, i)
@@ -192,38 +173,34 @@ func (p *Plugin) renderSidebar(width, height int) string {
 		}
 	}
 
-	// Pad to fill height
-	for len(lines) < height {
-		lines = append(lines, "")
-	}
-
-	content := strings.Join(lines[:height], "\n")
-	return sidebarStyle.Width(width).Height(height).Render(content)
+	return strings.Join(lines, "\n")
 }
 
 // renderWorktreeItem renders a single worktree list item.
 func (p *Plugin) renderWorktreeItem(wt *Worktree, selected bool, width int) string {
-	// Status indicator
+	// Status indicator - use theme colors
 	statusIcon := wt.Status.Icon()
-	statusColor := statusPausedColor
+	var statusStyle lipgloss.Style
 	switch wt.Status {
 	case StatusActive:
-		statusColor = statusActiveColor
+		statusStyle = styles.StatusCompleted // Green
 	case StatusWaiting:
-		statusColor = statusWaitingColor
+		statusStyle = styles.StatusModified // Yellow/orange (warning)
 	case StatusDone:
-		statusColor = statusDoneColor
+		statusStyle = styles.StatusCompleted // Green
 	case StatusError:
-		statusColor = statusErrorColor
+		statusStyle = styles.StatusDeleted // Red
+	default:
+		statusStyle = styles.Muted // Gray for paused
 	}
 
-	icon := lipgloss.NewStyle().Foreground(statusColor).Render(statusIcon)
+	icon := statusStyle.Render(statusIcon)
 
 	// Check for conflicts
 	hasConflict := p.hasConflict(wt.Name, p.conflicts)
 	conflictIcon := ""
 	if hasConflict {
-		conflictIcon = lipgloss.NewStyle().Foreground(statusWaitingColor).Render(" ⚠")
+		conflictIcon = styles.StatusModified.Render(" ⚠")
 	}
 
 	// Name and time
@@ -260,7 +237,7 @@ func (p *Plugin) renderWorktreeItem(wt *Worktree, selected bool, width int) stri
 		conflictFiles := p.getConflictingFiles(wt.Name, p.conflicts)
 		if len(conflictFiles) > 0 {
 			conflictStr := fmt.Sprintf("⚠ %d conflicts", len(conflictFiles))
-			parts = append(parts, lipgloss.NewStyle().Foreground(statusWaitingColor).Render(conflictStr))
+			parts = append(parts, styles.StatusModified.Render(conflictStr))
 		}
 	}
 	line2 := "   " + strings.Join(parts, "  ")
@@ -269,21 +246,21 @@ func (p *Plugin) renderWorktreeItem(wt *Worktree, selected bool, width int) stri
 	content := line1 + "\n" + line2
 
 	if selected && p.activePane == PaneSidebar {
-		return selectedStyle.Width(width).Render(content)
+		return styles.ListItemSelected.Width(width).Render(content)
 	}
-	return normalStyle.Width(width).Render(content)
+	return styles.ListItemNormal.Width(width).Render(content)
 }
 
-// renderPreview renders the preview pane.
-func (p *Plugin) renderPreview(width, height int) string {
+// renderPreviewContent renders the preview pane content (no borders).
+func (p *Plugin) renderPreviewContent(width, height int) string {
 	var lines []string
 
 	// Tab header
 	tabs := p.renderTabs(width)
 	lines = append(lines, tabs)
-	lines = append(lines, strings.Repeat("─", width))
+	lines = append(lines, "") // Empty line after header
 
-	contentHeight := height - 2
+	contentHeight := height - 2 // header + empty line
 
 	// Render content based on active tab
 	var content string
@@ -298,9 +275,7 @@ func (p *Plugin) renderPreview(width, height int) string {
 
 	lines = append(lines, content)
 
-	// Pad to fill height
-	result := strings.Join(lines, "\n")
-	return lipgloss.NewStyle().Width(width).Height(height).Render(result)
+	return strings.Join(lines, "\n")
 }
 
 // renderTabs renders the preview pane tab header.
@@ -309,11 +284,11 @@ func (p *Plugin) renderTabs(width int) string {
 	var rendered []string
 
 	for i, tab := range tabs {
-		style := tabInactiveStyle
 		if PreviewTab(i) == p.previewTab {
-			style = tabActiveStyle
+			rendered = append(rendered, styles.BarChipActive.Render(" "+tab+" "))
+		} else {
+			rendered = append(rendered, styles.BarChip.Render(" "+tab+" "))
 		}
-		rendered = append(rendered, style.Render(" "+tab+" "))
 	}
 
 	return strings.Join(rendered, " ")
@@ -389,7 +364,7 @@ func (p *Plugin) renderDiffContent(width, height int) string {
 	return strings.Join(rendered, "\n")
 }
 
-// colorDiffLine applies basic diff coloring.
+// colorDiffLine applies basic diff coloring using theme styles.
 func colorDiffLine(line string, width int) string {
 	if len(line) == 0 {
 		return line
@@ -402,13 +377,13 @@ func colorDiffLine(line string, width int) string {
 
 	switch {
 	case strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---"):
-		return lipgloss.NewStyle().Bold(true).Render(line)
+		return styles.DiffHeader.Render(line)
 	case strings.HasPrefix(line, "@@"):
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("cyan")).Render(line)
+		return lipgloss.NewStyle().Foreground(styles.Info).Render(line)
 	case strings.HasPrefix(line, "+"):
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render(line)
+		return styles.DiffAdd.Render(line)
 	case strings.HasPrefix(line, "-"):
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(line)
+		return styles.DiffRemove.Render(line)
 	default:
 		return line
 	}
@@ -747,9 +722,9 @@ func (p *Plugin) renderTaskLinkModal(width, height int) string {
 	return ui.OverlayModal(background, modal, width, height)
 }
 
-// dimText renders dim placeholder text.
+// dimText renders dim placeholder text using theme style.
 func dimText(s string) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(s)
+	return styles.Muted.Render(s)
 }
 
 // renderMergeModal renders the merge workflow modal with dimmed background.
@@ -915,8 +890,11 @@ func formatRelativeTime(t time.Time) string {
 
 // renderDivider renders the vertical divider between panes.
 func (p *Plugin) renderDivider(height int) string {
+	// Use a subtle vertical bar as the divider with theme color
+	// MarginTop(1) shifts it down to align with pane content (below top border)
 	dividerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240"))
+		Foreground(styles.BorderNormal).
+		MarginTop(1)
 
 	var sb strings.Builder
 	for i := 0; i < height; i++ {
@@ -940,11 +918,11 @@ func (p *Plugin) renderKanbanView(width, height int) string {
 	var lines []string
 
 	// Header with view mode toggle
-	header := "Worktrees"
+	header := styles.Title.Render("Worktrees")
 	listTab := "List"
 	kanbanTab := "[Kanban]"
-	viewToggle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(listTab + "|" + kanbanTab)
-	headerLine := header + strings.Repeat(" ", max(1, width-len(header)-len(listTab)-len(kanbanTab)-1)) + viewToggle
+	viewToggle := styles.Muted.Render(listTab + "|" + kanbanTab)
+	headerLine := header + strings.Repeat(" ", max(1, width-len("Worktrees")-len(listTab)-len(kanbanTab)-1)) + viewToggle
 	lines = append(lines, headerLine)
 	lines = append(lines, strings.Repeat("─", width))
 
@@ -982,7 +960,7 @@ func (p *Plugin) renderKanbanView(width, height int) string {
 	for _, status := range columnOrder {
 		items := columns[status]
 		title := fmt.Sprintf("%s (%d)", columnTitles[status], len(items))
-		colHeaders = append(colHeaders, lipgloss.NewStyle().Bold(true).Width(colWidth).Render(title))
+		colHeaders = append(colHeaders, styles.Title.Width(colWidth).Render(title))
 	}
 	lines = append(lines, strings.Join(colHeaders, "│"))
 	lines = append(lines, strings.Repeat("─", width))
@@ -1008,7 +986,7 @@ func (p *Plugin) renderKanbanView(width, height int) string {
 				}
 				cell = fmt.Sprintf(" %s %s", wt.Status.Icon(), name)
 			}
-			rowCells = append(rowCells, lipgloss.NewStyle().Width(colWidth).Render(cell))
+			rowCells = append(rowCells, styles.ListItemNormal.Width(colWidth).Render(cell))
 		}
 		lines = append(lines, strings.Join(rowCells, "│"))
 	}
