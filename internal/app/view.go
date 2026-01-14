@@ -293,7 +293,7 @@ func (m Model) globalFooterHints() []footerHint {
 	var hints []footerHint
 
 	// Plugin switching hints (consolidated for brevity)
-	hints = append(hints, footerHint{keys: "1-4", label: "plugins"})
+	hints = append(hints, footerHint{keys: "1-5", label: "plugins"})
 
 	for _, spec := range specs {
 		keys := keysByCmd[spec.id]

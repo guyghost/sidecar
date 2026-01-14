@@ -392,7 +392,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			break
 		}
 		return m, m.PrevPlugin()
-	case "1", "2", "3", "4":
+	case "1", "2", "3", "4", "5":
 		// Number keys for direct plugin switching
 		// Block in text input contexts (user is typing numbers)
 		if isTextInputContext(m.activeContext) {
@@ -502,6 +502,8 @@ func isRootContext(ctx string) bool {
 		return true
 	case "file-browser-tree", "file-browser-preview":
 		return true
+	case "worktree-list", "worktree-preview":
+		return true
 	case "td-monitor", "td-board":
 		return true
 	default:
@@ -518,7 +520,8 @@ func isTextInputContext(ctx string) bool {
 		"file-browser-search", "file-browser-content-search",
 		"file-browser-quick-open", "file-browser-file-op",
 		"file-browser-project-search",
-		"td-search":
+		"td-search",
+		"worktree-create", "worktree-task-link":
 		return true
 	default:
 		return false

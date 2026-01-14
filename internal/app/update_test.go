@@ -61,11 +61,16 @@ func TestIsRootContext(t *testing.T) {
 		{"git-status-diff", true},
 		{"file-browser-tree", true},
 		{"file-browser-preview", true},
+		{"worktree-list", true},
+		{"worktree-preview", true},
 		{"td-monitor", true},
 
 		// Non-root contexts (sub-views)
 		{"git-commit", false},
 		{"conversation-detail", false},
+		{"worktree-create", false},
+		{"worktree-task-link", false},
+		{"worktree-merge", false},
 	}
 
 	for _, tt := range tests {
@@ -93,6 +98,8 @@ func TestIsTextInputContext(t *testing.T) {
 		{"file-browser-file-op", true},
 		{"file-browser-project-search", true},
 		{"td-search", true},
+		{"worktree-create", true},
+		{"worktree-task-link", true},
 
 		// Non-text-input contexts - allow `, ~, 1-4 for navigation
 		{"global", false},

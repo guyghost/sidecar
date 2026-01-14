@@ -177,7 +177,7 @@ func (m Model) globalFooterHints() []footerHint {
     var hints []footerHint
 
     // Custom consolidated hints (not tied to single binding)
-    hints = append(hints, footerHint{keys: "1-4", label: "plugins"})
+    hints = append(hints, footerHint{keys: "1-5", label: "plugins"})
 
     // Binding-based hints
     for _, spec := range specs {
@@ -312,6 +312,35 @@ All plugins with two-pane layouts (Git, Conversations, Files) share consistent s
 | `R` | reveal | Reveal in system file manager |
 | `\` | toggle-sidebar | Collapse/expand tree pane |
 
+### Worktrees Plugin
+| Context | View | Description |
+|---------|------|-------------|
+| `worktree-list` | Worktree list | Root view, 'q' quits |
+| `worktree-preview` | Preview pane | Preview pane focused |
+| `worktree-create` | Create form | Create worktree input |
+| `worktree-task-link` | Task linking | Task selection modal |
+| `worktree-merge` | Merge workflow | Merge workflow modal |
+
+#### Worktree List Shortcuts
+| Key | Command | Description |
+|-----|---------|-------------|
+| `n` | new-worktree | Create new worktree |
+| `v` | toggle-view | Toggle list/kanban view |
+| `r` | refresh | Refresh worktree list |
+| `D` | delete-worktree | Delete selected worktree |
+| `p` | push | Push branch to remote |
+| `m` | merge-workflow | Start merge workflow |
+| `t` | link-task | Link/unlink task |
+| `s` | start-agent | Start agent |
+| `enter` | attach | Attach to agent session |
+| `S` | stop-agent | Stop agent |
+| `y` | approve | Approve agent prompt |
+| `N` | reject | Reject agent prompt |
+| `Tab` | switch-pane | Switch focus between sidebar and preview |
+| `\` | toggle-sidebar | Collapse/expand sidebar |
+| `[` | prev-tab | Previous preview tab (Output/Diff/Task) |
+| `]` | next-tab | Next preview tab (Output/Diff/Task) |
+
 ### TD Monitor Plugin
 
 **Note:** TD shortcuts are dynamically exported from TD itself. The TD plugin consumes
@@ -339,12 +368,14 @@ In root contexts, pressing 'q' shows the quit confirmation. In non-root contexts
 - `conversations`, `conversations-sidebar`
 - `git-status`, `git-status-commits`, `git-status-diff`
 - `file-browser-tree`
+- `worktree-list`
 - `td-monitor`
 
 **Non-root contexts** (q = back):
 - `conversation-detail`, `message-detail`, `analytics`
 - `git-diff`, `git-commit`, `git-history`, etc.
 - `file-browser-preview`, etc.
+- `worktree-create`, `worktree-task-link`, `worktree-merge`, `worktree-preview`
 - `td-modal`, `td-stats`, `td-search`, `td-confirm`, `td-epic-tasks`, `td-parent-epic`, `td-handoffs`
 
 ## Complete Example: Adding "edit" to File Browser
