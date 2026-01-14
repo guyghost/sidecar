@@ -505,8 +505,8 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	// Render the background (list view)
 	background := p.renderListView(width, height)
 
-	// Modal dimensions
-	modalW := 50
+	// Modal dimensions - increased for better task suggestion display
+	modalW := 70
 	if modalW > width-4 {
 		modalW = width - 4
 	}
@@ -514,29 +514,33 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	// Calculate input field width:
 	// - modalStyle has border (2) + padding (4) = 6 chars
 	// - inputStyle has border (2) + padding (2) = 4 chars
-	// - So input content width = modalW - 6 (modal chrome) - 4 (input chrome) = modalW - 10
+	// - So textinput content width = modalW - 6 (modal) - 4 (input style)
 	inputW := modalW - 10
 	if inputW < 20 {
 		inputW = 20
 	}
 
+	// Set textinput widths and remove default prompt
+	p.createNameInput.Width = inputW
+	p.createNameInput.Prompt = ""
+	p.createBaseBranchInput.Width = inputW
+	p.createBaseBranchInput.Prompt = ""
+	p.taskSearchInput.Width = inputW
+	p.taskSearchInput.Prompt = ""
+
 	var sb strings.Builder
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Create New Worktree"))
 	sb.WriteString("\n\n")
 
-	// Name field
+	// Name field - use textinput.View() for proper cursor rendering
 	nameLabel := "Name:"
 	nameStyle := inputStyle
 	if p.createFocus == 0 {
 		nameStyle = inputFocusedStyle
 	}
-	nameValue := p.createName
-	if nameValue == "" {
-		nameValue = " "
-	}
 	sb.WriteString(nameLabel)
 	sb.WriteString("\n")
-	sb.WriteString(nameStyle.Width(inputW).Render(nameValue))
+	sb.WriteString(nameStyle.Render(p.createNameInput.View()))
 	sb.WriteString("\n\n")
 
 	// Base branch field
@@ -545,13 +549,9 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	if p.createFocus == 1 {
 		baseStyle = inputFocusedStyle
 	}
-	baseValue := p.createBaseBranch
-	if baseValue == "" {
-		baseValue = " "
-	}
 	sb.WriteString(baseLabel)
 	sb.WriteString("\n")
-	sb.WriteString(baseStyle.Width(inputW).Render(baseValue))
+	sb.WriteString(baseStyle.Render(p.createBaseBranchInput.View()))
 	sb.WriteString("\n\n")
 
 	// Task ID field with search dropdown
@@ -560,21 +560,35 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	if p.createFocus == 2 {
 		taskStyle = inputFocusedStyle
 	}
-	// Show selected task ID or search query
-	taskValue := p.createTaskID
-	if taskValue == "" {
-		if p.taskSearchQuery != "" {
-			taskValue = p.taskSearchQuery
-		} else {
-			taskValue = " "
-		}
-	}
 	sb.WriteString(taskLabel)
 	sb.WriteString("\n")
-	sb.WriteString(taskStyle.Width(inputW).Render(taskValue))
+	// If task already selected, show ID and title; otherwise show the search input
+	if p.createTaskID != "" {
+		// Show task ID and title, truncate title if needed
+		display := p.createTaskID
+		if p.createTaskTitle != "" {
+			title := p.createTaskTitle
+			maxTitle := inputW - len(p.createTaskID) - 3 // Account for ": " separator
+			if maxTitle > 10 && len(title) > maxTitle {
+				title = title[:maxTitle-3] + "..."
+			}
+			if maxTitle > 10 {
+				display = fmt.Sprintf("%s: %s", p.createTaskID, title)
+			}
+		}
+		sb.WriteString(taskStyle.Render(display))
+	} else {
+		sb.WriteString(taskStyle.Render(p.taskSearchInput.View()))
+	}
+
+	// Show hint when task is selected and focused
+	if p.createFocus == 2 && p.createTaskID != "" {
+		sb.WriteString("\n")
+		sb.WriteString(dimText("  Backspace to clear"))
+	}
 
 	// Show task dropdown when focused and has results
-	if p.createFocus == 2 {
+	if p.createFocus == 2 && p.createTaskID == "" {
 		if p.taskSearchLoading {
 			sb.WriteString("\n")
 			sb.WriteString(dimText("  Loading tasks..."))
@@ -587,9 +601,14 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 				if i == p.taskSearchIdx {
 					prefix = "> "
 				}
-				// Truncate title to fit
+				// Truncate title based on available width
+				// Account for: prefix(2) + task.ID(~12) + spacing(2) + modal padding(6)
 				title := task.Title
-				maxTitle := modalW - 18 // Account for prefix, ID, spacing
+				idWidth := len(task.ID)
+				maxTitle := modalW - idWidth - 10
+				if maxTitle < 10 {
+					maxTitle = 10
+				}
 				if len(title) > maxTitle {
 					title = title[:maxTitle-3] + "..."
 				}
@@ -605,7 +624,7 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 				sb.WriteString("\n")
 				sb.WriteString(dimText(fmt.Sprintf("  ... and %d more", len(p.taskSearchFiltered)-maxDropdown)))
 			}
-		} else if p.taskSearchQuery != "" {
+		} else if p.taskSearchInput.Value() != "" {
 			sb.WriteString("\n")
 			sb.WriteString(dimText("  No matching tasks"))
 		} else if len(p.taskSearchAll) == 0 {
@@ -644,17 +663,23 @@ func (p *Plugin) renderTaskLinkModal(width, height int) string {
 	// Render the background (list view)
 	background := p.renderListView(width, height)
 
-	// Modal dimensions
-	modalW := 50
+	// Modal dimensions - increased for better task display
+	modalW := 70
 	if modalW > width-4 {
 		modalW = width - 4
 	}
 
-	// Calculate input field width (same as renderCreateModal)
+	// Calculate input field width
+	// - modalStyle has border (2) + padding (4) = 6 chars
+	// - inputStyle has border (2) + padding (2) = 4 chars
 	inputW := modalW - 10
 	if inputW < 20 {
 		inputW = 20
 	}
+
+	// Set textinput width and remove default prompt
+	p.taskSearchInput.Width = inputW
+	p.taskSearchInput.Prompt = ""
 
 	var sb strings.Builder
 	title := "Link Task"
@@ -664,16 +689,12 @@ func (p *Plugin) renderTaskLinkModal(width, height int) string {
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Render(title))
 	sb.WriteString("\n\n")
 
-	// Search field
+	// Search field - use textinput.View() for proper cursor rendering
 	searchLabel := "Search tasks:"
 	searchStyle := inputFocusedStyle
-	searchValue := p.taskSearchQuery
-	if searchValue == "" {
-		searchValue = " "
-	}
 	sb.WriteString(searchLabel)
 	sb.WriteString("\n")
-	sb.WriteString(searchStyle.Width(inputW).Render(searchValue))
+	sb.WriteString(searchStyle.Render(p.taskSearchInput.View()))
 
 	// Task dropdown
 	if p.taskSearchLoading {
@@ -688,9 +709,13 @@ func (p *Plugin) renderTaskLinkModal(width, height int) string {
 			if i == p.taskSearchIdx {
 				prefix = "> "
 			}
-			// Truncate title to fit
+			// Truncate title based on available width
 			taskTitle := task.Title
-			maxTitle := modalW - 18
+			idWidth := len(task.ID)
+			maxTitle := modalW - idWidth - 10
+			if maxTitle < 10 {
+				maxTitle = 10
+			}
 			if len(taskTitle) > maxTitle {
 				taskTitle = taskTitle[:maxTitle-3] + "..."
 			}
@@ -706,7 +731,7 @@ func (p *Plugin) renderTaskLinkModal(width, height int) string {
 			sb.WriteString("\n")
 			sb.WriteString(dimText(fmt.Sprintf("  ... and %d more", len(p.taskSearchFiltered)-maxDropdown)))
 		}
-	} else if p.taskSearchQuery != "" {
+	} else if p.taskSearchInput.Value() != "" {
 		sb.WriteString("\n")
 		sb.WriteString(dimText("  No matching tasks"))
 	} else if len(p.taskSearchAll) == 0 {
@@ -723,7 +748,11 @@ func (p *Plugin) renderTaskLinkModal(width, height int) string {
 				prefix = "> "
 			}
 			taskTitle := task.Title
-			maxTitle := modalW - 18
+			idWidth := len(task.ID)
+			maxTitle := modalW - idWidth - 10
+			if maxTitle < 10 {
+				maxTitle = 10
+			}
 			if len(taskTitle) > maxTitle {
 				taskTitle = taskTitle[:maxTitle-3] + "..."
 			}

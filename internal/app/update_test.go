@@ -98,6 +98,8 @@ func TestIsTextInputContext(t *testing.T) {
 		{"file-browser-file-op", true},
 		{"file-browser-project-search", true},
 		{"td-search", true},
+		{"worktree-create", true},
+		{"worktree-task-link", true},
 
 		// Non-text-input contexts - allow `, ~, 1-4 for navigation
 		{"global", false},

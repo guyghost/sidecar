@@ -124,6 +124,7 @@ type Task struct {
 	Title       string
 	Status      string
 	Description string
+	EpicTitle   string // Parent epic title for search
 }
 
 // TaskDetails contains full task information for preview pane.

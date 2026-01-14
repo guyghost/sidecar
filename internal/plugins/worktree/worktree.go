@@ -82,8 +82,8 @@ func parseWorktreeList(output, mainWorkdir string) ([]*Worktree, error) {
 
 // createWorktree returns a command to create a new worktree.
 func (p *Plugin) createWorktree() tea.Cmd {
-	name := p.createName
-	baseBranch := p.createBaseBranch
+	name := p.createNameInput.Value()
+	baseBranch := p.createBaseBranchInput.Value()
 	taskID := p.createTaskID
 
 	if name == "" {
@@ -337,11 +337,21 @@ func parseTDJSON(data []byte) ([]Task, error) {
 		Title       string `json:"title"`
 		Status      string `json:"status"`
 		Description string `json:"description"`
+		Type        string `json:"type"`
+		ParentID    string `json:"parent_id"`
 	}
 
 	var issues []tdIssue
 	if err := json.Unmarshal(data, &issues); err != nil {
 		return nil, fmt.Errorf("parse td json: %w", err)
+	}
+
+	// Build map of epic IDs to titles for lookup
+	epicTitles := make(map[string]string)
+	for _, issue := range issues {
+		if issue.Type == "epic" {
+			epicTitles[issue.ID] = issue.Title
+		}
 	}
 
 	tasks := make([]Task, len(issues))
@@ -351,6 +361,7 @@ func parseTDJSON(data []byte) ([]Task, error) {
 			Title:       issue.Title,
 			Status:      issue.Status,
 			Description: issue.Description,
+			EpicTitle:   epicTitles[issue.ParentID], // Populate epic title if task has parent
 		}
 	}
 	return tasks, nil
@@ -366,9 +377,10 @@ func filterTasks(query string, allTasks []Task) []Task {
 	var matches []Task
 
 	for _, task := range allTasks {
-		// Simple contains match on title and ID
+		// Match on title, ID, or parent epic title
 		if strings.Contains(strings.ToLower(task.Title), query) ||
-			strings.Contains(strings.ToLower(task.ID), query) {
+			strings.Contains(strings.ToLower(task.ID), query) ||
+			strings.Contains(strings.ToLower(task.EpicTitle), query) {
 			matches = append(matches, task)
 		}
 	}

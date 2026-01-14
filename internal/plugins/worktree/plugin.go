@@ -3,6 +3,7 @@ package worktree
 import (
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/plugin"
@@ -76,13 +77,14 @@ type Plugin struct {
 	conflicts []Conflict
 
 	// Create modal state
-	createName       string
-	createBaseBranch string
-	createTaskID     string
-	createFocus      int // 0=name, 1=base, 2=task, 3=confirm
+	createNameInput       textinput.Model
+	createBaseBranchInput textinput.Model
+	createTaskID          string
+	createTaskTitle       string // Title of selected task for display
+	createFocus           int    // 0=name, 1=base, 2=task, 3=confirm, 4=cancel
 
 	// Task search state for create modal
-	taskSearchQuery    string
+	taskSearchInput    textinput.Model
 	taskSearchAll      []Task // All available tasks
 	taskSearchFiltered []Task // Filtered based on query
 	taskSearchIdx      int    // Selected index in dropdown
@@ -361,7 +363,7 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		p.taskSearchLoading = false
 		if msg.Err == nil {
 			p.taskSearchAll = msg.Tasks
-			p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
+			p.taskSearchFiltered = filterTasks(p.taskSearchInput.Value(), p.taskSearchAll)
 			p.taskSearchIdx = 0
 		}
 
@@ -454,11 +456,12 @@ func (p *Plugin) removeWorktreeByName(name string) {
 
 // clearCreateModal resets create modal state.
 func (p *Plugin) clearCreateModal() {
-	p.createName = ""
-	p.createBaseBranch = ""
+	p.createNameInput = textinput.Model{}
+	p.createBaseBranchInput = textinput.Model{}
 	p.createTaskID = ""
+	p.createTaskTitle = ""
 	p.createFocus = 0
-	p.taskSearchQuery = ""
+	p.taskSearchInput = textinput.Model{}
 	p.taskSearchAll = nil
 	p.taskSearchFiltered = nil
 	p.taskSearchIdx = 0
@@ -512,6 +515,18 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 	case "n":
 		p.viewMode = ViewModeCreate
+		// Initialize textinputs for create modal
+		p.createNameInput = textinput.New()
+		p.createNameInput.Placeholder = "feature-name"
+		p.createNameInput.Focus()
+		p.createNameInput.CharLimit = 100
+		p.createBaseBranchInput = textinput.New()
+		p.createBaseBranchInput.Placeholder = "main"
+		p.createBaseBranchInput.CharLimit = 100
+		p.taskSearchInput = textinput.New()
+		p.taskSearchInput.Placeholder = "Search tasks..."
+		p.taskSearchInput.CharLimit = 100
+		p.createFocus = 0
 		p.taskSearchLoading = true
 		return p.loadOpenTasks()
 	case "D":
@@ -598,7 +613,10 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 			// No task linked - show task link modal
 			p.viewMode = ViewModeTaskLink
 			p.linkingWorktree = wt
-			p.taskSearchQuery = ""
+			p.taskSearchInput = textinput.New()
+			p.taskSearchInput.Placeholder = "Search tasks..."
+			p.taskSearchInput.Focus()
+			p.taskSearchInput.CharLimit = 100
 			p.taskSearchIdx = 0
 			p.taskSearchLoading = true
 			return p.loadOpenTasks()
@@ -620,16 +638,36 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 	case "esc":
 		p.viewMode = ViewModeList
 		p.clearCreateModal()
+		return nil
 	case "tab":
+		// Blur current, move focus, focus new
+		p.blurCreateInputs()
 		p.createFocus = (p.createFocus + 1) % 5
+		p.focusCreateInput()
+		return nil
 	case "shift+tab":
+		p.blurCreateInputs()
 		p.createFocus = (p.createFocus + 4) % 5
+		p.focusCreateInput()
+		return nil
+	case "backspace":
+		// Clear selected task and allow searching again
+		if p.createFocus == 2 && p.createTaskID != "" {
+			p.createTaskID = ""
+			p.createTaskTitle = ""
+			p.taskSearchInput.SetValue("")
+			p.taskSearchInput.Focus()
+			p.taskSearchFiltered = filterTasks("", p.taskSearchAll)
+			p.taskSearchIdx = 0
+			return nil
+		}
 	case "up":
 		// Navigate task dropdown
 		if p.createFocus == 2 && len(p.taskSearchFiltered) > 0 {
 			if p.taskSearchIdx > 0 {
 				p.taskSearchIdx--
 			}
+			return nil
 		}
 	case "down":
 		// Navigate task dropdown
@@ -637,6 +675,7 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 			if p.taskSearchIdx < len(p.taskSearchFiltered)-1 {
 				p.taskSearchIdx++
 			}
+			return nil
 		}
 	case "enter":
 		// Select task from dropdown if in task field
@@ -644,6 +683,8 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 			// Select task and move to next field
 			selectedTask := p.taskSearchFiltered[p.taskSearchIdx]
 			p.createTaskID = selectedTask.ID
+			p.createTaskTitle = selectedTask.Title
+			p.taskSearchInput.Blur()
 			p.createFocus = 3 // Move to create button
 			return nil
 		}
@@ -659,40 +700,46 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 		// From input fields, move to next field
 		if p.createFocus < 3 {
+			p.blurCreateInputs()
 			p.createFocus++
+			p.focusCreateInput()
 		}
-	case "backspace":
-		switch p.createFocus {
-		case 0:
-			if len(p.createName) > 0 {
-				p.createName = p.createName[:len(p.createName)-1]
-			}
-		case 1:
-			if len(p.createBaseBranch) > 0 {
-				p.createBaseBranch = p.createBaseBranch[:len(p.createBaseBranch)-1]
-			}
-		case 2:
-			if len(p.taskSearchQuery) > 0 {
-				p.taskSearchQuery = p.taskSearchQuery[:len(p.taskSearchQuery)-1]
-				p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
-				p.taskSearchIdx = 0
-			}
-		}
-	default:
-		if len(msg.String()) == 1 {
-			switch p.createFocus {
-			case 0:
-				p.createName += msg.String()
-			case 1:
-				p.createBaseBranch += msg.String()
-			case 2:
-				p.taskSearchQuery += msg.String()
-				p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
-				p.taskSearchIdx = 0
-			}
-		}
+		return nil
 	}
-	return nil
+
+	// Delegate to focused textinput for all other keys
+	var cmd tea.Cmd
+	switch p.createFocus {
+	case 0:
+		p.createNameInput, cmd = p.createNameInput.Update(msg)
+	case 1:
+		p.createBaseBranchInput, cmd = p.createBaseBranchInput.Update(msg)
+	case 2:
+		p.taskSearchInput, cmd = p.taskSearchInput.Update(msg)
+		// Update filtered results on input change
+		p.taskSearchFiltered = filterTasks(p.taskSearchInput.Value(), p.taskSearchAll)
+		p.taskSearchIdx = 0
+	}
+	return cmd
+}
+
+// blurCreateInputs blurs all create modal textinputs.
+func (p *Plugin) blurCreateInputs() {
+	p.createNameInput.Blur()
+	p.createBaseBranchInput.Blur()
+	p.taskSearchInput.Blur()
+}
+
+// focusCreateInput focuses the appropriate textinput based on createFocus.
+func (p *Plugin) focusCreateInput() {
+	switch p.createFocus {
+	case 0:
+		p.createNameInput.Focus()
+	case 1:
+		p.createBaseBranchInput.Focus()
+	case 2:
+		p.taskSearchInput.Focus()
+	}
 }
 
 // handleTaskLinkKeys handles keys in task link modal.
@@ -701,44 +748,43 @@ func (p *Plugin) handleTaskLinkKeys(msg tea.KeyMsg) tea.Cmd {
 	case "esc":
 		p.viewMode = ViewModeList
 		p.linkingWorktree = nil
-		p.taskSearchQuery = ""
+		p.taskSearchInput = textinput.Model{}
 		p.taskSearchAll = nil
 		p.taskSearchFiltered = nil
 		p.taskSearchIdx = 0
+		return nil
 	case "up":
 		if len(p.taskSearchFiltered) > 0 && p.taskSearchIdx > 0 {
 			p.taskSearchIdx--
 		}
+		return nil
 	case "down":
 		if len(p.taskSearchFiltered) > 0 && p.taskSearchIdx < len(p.taskSearchFiltered)-1 {
 			p.taskSearchIdx++
 		}
+		return nil
 	case "enter":
 		if len(p.taskSearchFiltered) > 0 && p.linkingWorktree != nil {
 			selectedTask := p.taskSearchFiltered[p.taskSearchIdx]
 			wt := p.linkingWorktree
 			p.viewMode = ViewModeList
 			p.linkingWorktree = nil
-			p.taskSearchQuery = ""
+			p.taskSearchInput = textinput.Model{}
 			p.taskSearchAll = nil
 			p.taskSearchFiltered = nil
 			p.taskSearchIdx = 0
 			return p.linkTask(wt, selectedTask.ID)
 		}
-	case "backspace":
-		if len(p.taskSearchQuery) > 0 {
-			p.taskSearchQuery = p.taskSearchQuery[:len(p.taskSearchQuery)-1]
-			p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
-			p.taskSearchIdx = 0
-		}
-	default:
-		if len(msg.String()) == 1 {
-			p.taskSearchQuery += msg.String()
-			p.taskSearchFiltered = filterTasks(p.taskSearchQuery, p.taskSearchAll)
-			p.taskSearchIdx = 0
-		}
+		return nil
 	}
-	return nil
+
+	// Delegate to textinput for all other keys (typing, backspace, paste, etc.)
+	var cmd tea.Cmd
+	p.taskSearchInput, cmd = p.taskSearchInput.Update(msg)
+	// Update filtered results on input change
+	p.taskSearchFiltered = filterTasks(p.taskSearchInput.Value(), p.taskSearchAll)
+	p.taskSearchIdx = 0
+	return cmd
 }
 
 // handleMergeKeys handles keys in merge workflow modal.
