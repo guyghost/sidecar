@@ -344,8 +344,17 @@ get_shell_rc() {
                 echo "$HOME/.bash_profile"
             fi
             ;;
+        fish)
+            local fish_config="$HOME/.config/fish/config.fish"
+            mkdir -p "$(dirname "$fish_config")"
+            echo "$fish_config"
+            ;;
         *) echo "$HOME/.profile" ;;
     esac
+}
+
+is_fish_shell() {
+    [[ "$(basename "$SHELL")" == "fish" ]]
 }
 
 get_go_bin() {
@@ -508,21 +517,31 @@ main() {
         local shell_rc
         shell_rc=$(get_shell_rc)
 
+        local path_cmd
+        local source_cmd
+        if is_fish_shell; then
+            path_cmd="fish_add_path -gm $go_bin"
+            source_cmd="source $shell_rc"
+        else
+            path_cmd="export PATH=\"$go_bin:\$PATH\""
+            source_cmd="source $shell_rc"
+        fi
+
         echo "Will add to $shell_rc:"
-        echo "  export PATH=\"$go_bin:\$PATH\""
+        echo "  $path_cmd"
         echo ""
 
         if confirm "Add to PATH?"; then
             echo "" >> "$shell_rc"
-            echo "export PATH=\"$go_bin:\$PATH\"" >> "$shell_rc"
+            echo "$path_cmd" >> "$shell_rc"
             export PATH="$go_bin:$PATH"
             style_success "Added to $shell_rc"
             echo ""
-            echo "Note: Run 'source $shell_rc' to apply in current shell."
+            echo "Note: Run '$source_cmd' to apply in current shell."
         else
             echo ""
             echo "Please add $go_bin to your PATH manually."
-            echo "  export PATH=\"$go_bin:\$PATH\""
+            echo "  $path_cmd"
         fi
     fi
 
