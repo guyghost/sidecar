@@ -130,14 +130,13 @@ func (p *Plugin) handleMouseDoubleClick(action mouse.MouseAction) (*Plugin, tea.
 
 	switch action.Region.ID {
 	case regionFile:
-		// Double-click on file - open it or toggle folder
+		// Double-click on file - open it in editor (folders handled by single-click)
 		entries := p.tree.AllEntries()
 		if idx, ok := action.Region.Data.(int); ok && idx < len(entries) {
 			entry := entries[idx]
 			if entry.IsFolder {
-				// Toggle folder expansion
-				entry.IsExpanded = !entry.IsExpanded
-				return p, p.autoLoadDiff()
+				// Folder expansion is handled by single-click, ignore double-click
+				return p, nil
 			}
 			// Open file in editor
 			return p, p.openFile(entry.Path)

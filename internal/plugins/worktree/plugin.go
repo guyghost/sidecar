@@ -901,7 +901,7 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 	case "\\":
 		p.toggleSidebar()
-	case "tab":
+	case "tab", "shift+tab":
 		// Switch focus between panes (consistent with other plugins)
 		if p.activePane == PaneSidebar && p.sidebarVisible {
 			p.activePane = PanePreview

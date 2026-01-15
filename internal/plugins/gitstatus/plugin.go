@@ -491,6 +491,7 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 	case PushErrorMsg:
 		p.pushInProgress = false
 		p.pushError = msg.Err.Error()
+		p.pushPreservedCommitHash = "" // Clear stale hash on error
 		// Reload recent commits to update push status in case of partial push
 		return p, p.loadRecentCommits()
 
