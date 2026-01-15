@@ -86,9 +86,10 @@ type OpenSessionReturnedMsg struct {
 	Err error
 }
 
-// openInClaudeCode opens the selected session in Claude Code terminal.
+// openSessionInCLI opens the selected session in its native CLI tool.
+// Supports: claude, codex, opencode, gemini, cursor-agent.
 // Uses tea.ExecProcess to suspend Bubble Tea and run the CLI resume command.
-func (p *Plugin) openInClaudeCode() tea.Cmd {
+func (p *Plugin) openSessionInCLI() tea.Cmd {
 	var session *adapter.Session
 
 	// If in message view, find session by selectedSession ID
@@ -188,8 +189,23 @@ func (p *Plugin) getCurrentTurn() *Turn {
 	}
 	// When in messages pane, return the selected turn
 	if p.activePane == PaneMessages {
-		if p.turnCursor >= 0 && p.turnCursor < len(p.turns) {
-			return &p.turns[p.turnCursor]
+		if p.turnViewMode {
+			// Turn view: use turnCursor
+			if p.turnCursor >= 0 && p.turnCursor < len(p.turns) {
+				return &p.turns[p.turnCursor]
+			}
+		} else {
+			// Conversation flow: find turn containing selected message
+			if p.messageCursor >= 0 && p.messageCursor < len(p.messages) {
+				msgID := p.messages[p.messageCursor].ID
+				for i := range p.turns {
+					for _, m := range p.turns[i].Messages {
+						if m.ID == msgID {
+							return &p.turns[i]
+						}
+					}
+				}
+			}
 		}
 	}
 	return nil

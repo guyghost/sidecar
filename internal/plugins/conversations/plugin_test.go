@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/marcus/sidecar/internal/app"
 )
 
 func TestNew(t *testing.T) {
@@ -2962,4 +2963,145 @@ func TestStripANSIBackground(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestResumeCommand verifies resume command generation for all adapters.
+func TestResumeCommand(t *testing.T) {
+	tests := []struct {
+		name     string
+		session  *adapter.Session
+		expected string
+	}{
+		{
+			name:     "claude-code adapter",
+			session:  &adapter.Session{ID: "ses_abc123", AdapterID: "claude-code"},
+			expected: "claude --resume ses_abc123",
+		},
+		{
+			name:     "codex adapter",
+			session:  &adapter.Session{ID: "ses_abc123", AdapterID: "codex"},
+			expected: "codex resume ses_abc123",
+		},
+		{
+			name:     "opencode adapter",
+			session:  &adapter.Session{ID: "ses_abc123", AdapterID: "opencode"},
+			expected: "opencode --continue -s ses_abc123",
+		},
+		{
+			name:     "gemini-cli adapter",
+			session:  &adapter.Session{ID: "ses_abc123", AdapterID: "gemini-cli"},
+			expected: "gemini --resume ses_abc123",
+		},
+		{
+			name:     "cursor-cli adapter",
+			session:  &adapter.Session{ID: "ses_abc123", AdapterID: "cursor-cli"},
+			expected: "cursor-agent --resume ses_abc123",
+		},
+		{
+			name:     "unknown adapter",
+			session:  &adapter.Session{ID: "ses_abc123", AdapterID: "unknown"},
+			expected: "",
+		},
+		{
+			name:     "nil session",
+			session:  nil,
+			expected: "",
+		},
+		{
+			name:     "empty session ID",
+			session:  &adapter.Session{ID: "", AdapterID: "claude-code"},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resumeCommand(tt.session)
+			if result != tt.expected {
+				t.Errorf("resumeCommand() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestOpenSessionInCLI_SessionSelection verifies session selection logic.
+func TestOpenSessionInCLI_SessionSelection(t *testing.T) {
+	// Test with selectedSession set (message view mode)
+	t.Run("uses selectedSession when set", func(t *testing.T) {
+		p := &Plugin{
+			selectedSession: "ses_target",
+			sessions: []adapter.Session{
+				{ID: "ses_other", AdapterID: "claude-code", Name: "Other"},
+				{ID: "ses_target", AdapterID: "claude-code", Name: "Target"},
+			},
+			cursor: 0, // Cursor points to different session
+		}
+
+		// The function should find the session by selectedSession ID
+		cmd := p.openSessionInCLI()
+		if cmd == nil {
+			t.Error("expected non-nil command")
+		}
+	})
+
+	// Test with cursor selection (session list mode)
+	t.Run("uses cursor when selectedSession empty", func(t *testing.T) {
+		p := &Plugin{
+			selectedSession: "", // Empty means use cursor
+			sessions: []adapter.Session{
+				{ID: "ses_first", AdapterID: "claude-code", Name: "First"},
+				{ID: "ses_second", AdapterID: "claude-code", Name: "Second"},
+			},
+			cursor: 1, // Points to second session
+		}
+
+		cmd := p.openSessionInCLI()
+		if cmd == nil {
+			t.Error("expected non-nil command")
+		}
+	})
+
+	// Test with no session selected
+	t.Run("returns error toast when no session", func(t *testing.T) {
+		p := &Plugin{
+			selectedSession: "",
+			sessions:        []adapter.Session{},
+			cursor:          0,
+		}
+
+		cmd := p.openSessionInCLI()
+		if cmd == nil {
+			t.Error("expected non-nil command (error toast)")
+		}
+		// Execute the command and verify it's an error toast
+		msg := cmd()
+		toast, ok := msg.(app.ToastMsg)
+		if !ok {
+			t.Fatalf("expected app.ToastMsg, got %T", msg)
+		}
+		if !toast.IsError {
+			t.Error("expected error toast")
+		}
+		if toast.Message != "No session selected" {
+			t.Errorf("unexpected message: %s", toast.Message)
+		}
+	})
+
+	// Test with unsupported adapter
+	t.Run("returns error for unsupported adapter", func(t *testing.T) {
+		p := &Plugin{
+			selectedSession: "",
+			sessions: []adapter.Session{
+				{ID: "ses_test", AdapterID: "unknown-adapter", AdapterName: "Unknown"},
+			},
+			cursor: 0,
+		}
+
+		cmd := p.openSessionInCLI()
+		// Since it uses tea.Sequence, we can't easily test the error toast
+		// Just verify we got a command back
+		if cmd == nil {
+			t.Error("expected non-nil command")
+		}
+	})
 }

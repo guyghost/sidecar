@@ -704,8 +704,8 @@ func (p *Plugin) updateSessions(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 		return p, p.yankResumeCommand()
 
 	case "o":
-		// Open session in Claude Code terminal
-		return p, p.openInClaudeCode()
+		// Open session in native CLI tool
+		return p, p.openSessionInCLI()
 	}
 
 	return p, nil
@@ -1236,8 +1236,8 @@ func (p *Plugin) updateMessages(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 		return p, p.yankResumeCommand()
 
 	case "o":
-		// Open session in Claude Code terminal
-		return p, p.openInClaudeCode()
+		// Open session in native CLI tool
+		return p, p.openSessionInCLI()
 	}
 
 	return p, nil
