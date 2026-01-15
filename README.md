@@ -41,7 +41,7 @@ Split your terminal horizontally: run your coding agent (Claude Code, Cursor, et
 │   Claude Code / Cursor      │      Sidecar        │
 │                             │                     │
 │   $ claude                  │   [Git] [Files]     │
-│   > fix the auth bug...     │   [Tasks] [Convos]  │
+│   > fix the auth bug...     │   [Tasks] [Worktrees]│
 │                             │                     │
 └─────────────────────────────┴─────────────────────┘
 ```
@@ -133,6 +133,19 @@ Navigate project files with a tree view and syntax-highlighted preview.
 - Code preview with syntax highlighting
 - Auto-refresh on file changes
 
+### Worktrees
+
+Manage git worktrees for parallel development with integrated agent support. Create isolated branches as sibling directories, link tasks from TD, and launch coding agents directly from sidecar.
+
+**Features:**
+
+- Create and delete git worktrees with `n`/`D`
+- Link TD tasks to worktrees for context tracking
+- Launch Claude Code, Cursor, or OpenRouter agents with `a`
+- Merge workflow: commit, push, create PR, and cleanup with `m`
+- Auto-adds sidecar state files to .gitignore
+- Preview diffs and task details in split-pane view
+
 ## Keyboard Shortcuts
 
 | Key                 | Action                           |
@@ -159,6 +172,18 @@ Navigate project files with a tree view and syntax-highlighted preview.
 | `h/l` | Switch sidebar/diff focus |
 | `c`   | Commit staged changes     |
 
+### Worktree Shortcuts
+
+| Key   | Action                    |
+| ----- | ------------------------- |
+| `n`   | Create new worktree       |
+| `D`   | Delete worktree           |
+| `a`   | Launch/attach agent       |
+| `t`   | Link/unlink TD task       |
+| `m`   | Start merge workflow      |
+| `p`   | Push branch               |
+| `o`   | Open in finder/terminal   |
+
 ## Configuration
 
 Config file: `~/.config/sidecar/config.json`
@@ -169,7 +194,8 @@ Config file: `~/.config/sidecar/config.json`
     "git-status": { "enabled": true, "refreshInterval": "1s" },
     "td-monitor": { "enabled": true, "refreshInterval": "2s" },
     "conversations": { "enabled": true },
-    "file-browser": { "enabled": true }
+    "file-browser": { "enabled": true },
+    "worktrees": { "enabled": true }
   },
   "ui": {
     "showFooter": true,
