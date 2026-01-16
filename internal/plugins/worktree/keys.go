@@ -3,6 +3,7 @@ package worktree
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -437,6 +438,14 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 			return p.loadOpenTasks()
 		}
 	case "m":
+		// In preview pane on task tab: toggle markdown render mode
+		// Otherwise: start merge workflow
+		if p.activePane == PanePreview && p.previewTab == PreviewTabTask {
+			p.taskMarkdownMode = !p.taskMarkdownMode
+			// Clear cached render to force re-render on mode change
+			p.taskMarkdownRendered = nil
+			return nil
+		}
 		// Start merge workflow
 		wt := p.selectedWorktree()
 		if wt != nil {
@@ -572,6 +581,16 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 		// Create button (now focus 6)
 		if p.createFocus == 6 {
+			// Validate name before creating
+			name := p.createNameInput.Value()
+			if name == "" {
+				p.createError = "Name is required"
+				return nil
+			}
+			if !p.branchNameValid {
+				p.createError = "Invalid branch name: " + strings.Join(p.branchNameErrors, ", ")
+				return nil
+			}
 			return p.createWorktree()
 		}
 		// Cancel button (now focus 7)
@@ -596,6 +615,9 @@ func (p *Plugin) handleCreateKeys(msg tea.KeyMsg) tea.Cmd {
 	switch p.createFocus {
 	case 0:
 		p.createNameInput, cmd = p.createNameInput.Update(msg)
+		// Validate branch name in real-time
+		name := p.createNameInput.Value()
+		p.branchNameValid, p.branchNameErrors, p.branchNameSanitized = ValidateBranchName(name)
 	case 1:
 		p.createBaseBranchInput, cmd = p.createBaseBranchInput.Update(msg)
 		// Update filtered branches on input change

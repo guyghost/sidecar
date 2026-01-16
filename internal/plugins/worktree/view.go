@@ -211,7 +211,9 @@ func (p *Plugin) renderSidebarContent(width, height int) string {
 
 // renderWorktreeItem renders a single worktree list item.
 func (p *Plugin) renderWorktreeItem(wt *Worktree, selected bool, width int) string {
-	isSelected := selected && p.activePane == PaneSidebar
+	// Keep selection visible even when preview pane is active (dimmed style)
+	isSelected := selected
+	isActiveFocus := selected && p.activePane == PaneSidebar
 
 	// Status indicator
 	statusIcon := wt.Status.Icon()
@@ -278,7 +280,17 @@ func (p *Plugin) renderWorktreeItem(wt *Worktree, selected bool, width int) stri
 			line2 = line2 + strings.Repeat(" ", width-line2Width)
 		}
 		content := line1 + "\n" + line2
-		return styles.ListItemSelected.Width(width).Render(content)
+
+		// Use bright style when sidebar is focused, dimmed when preview is focused
+		if isActiveFocus {
+			return styles.ListItemSelected.Width(width).Render(content)
+		}
+		// Dimmed selection style (when preview pane is active)
+		dimmedSelectedStyle := lipgloss.NewStyle().
+			Background(lipgloss.Color("237")). // Darker background
+			Foreground(lipgloss.Color("252")). // Slightly dimmed text
+			Width(width)
+		return dimmedSelectedStyle.Render(content)
 	}
 
 	// Not selected - use colored styles for visual interest
@@ -550,6 +562,71 @@ func (p *Plugin) renderOutputContent(width, height int) string {
 	return hint + "\n" + strings.Join(displayLines, "\n")
 }
 
+// renderCommitStatusHeader renders the commit status header for diff view.
+func (p *Plugin) renderCommitStatusHeader(width int) string {
+	if len(p.commitStatusList) == 0 {
+		return ""
+	}
+
+	// Box style for header
+	headerStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(0, 1).
+		Width(width - 2)
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
+	hashStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	pushedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	localStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	var sb strings.Builder
+	sb.WriteString(titleStyle.Render(fmt.Sprintf("Commits (%d)", len(p.commitStatusList))))
+	sb.WriteString("\n")
+
+	// Show up to 5 commits
+	maxCommits := 5
+	displayCount := len(p.commitStatusList)
+	if displayCount > maxCommits {
+		displayCount = maxCommits
+	}
+
+	for i := 0; i < displayCount; i++ {
+		commit := p.commitStatusList[i]
+
+		// Status icon
+		var statusIcon string
+		if commit.Pushed {
+			statusIcon = pushedStyle.Render("↑")
+		} else {
+			statusIcon = localStyle.Render("○")
+		}
+
+		// Truncate subject to fit
+		subject := commit.Subject
+		maxSubjectLen := width - 15 // hash(7) + icon(2) + spaces(6)
+		if maxSubjectLen < 10 {
+			maxSubjectLen = 10
+		}
+		if len(subject) > maxSubjectLen {
+			subject = subject[:maxSubjectLen-3] + "..."
+		}
+
+		line := fmt.Sprintf("%s %s %s", statusIcon, hashStyle.Render(commit.Hash), subject)
+		sb.WriteString(line)
+		if i < displayCount-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	if len(p.commitStatusList) > maxCommits {
+		sb.WriteString("\n")
+		sb.WriteString(dimText(fmt.Sprintf("  ... and %d more", len(p.commitStatusList)-maxCommits)))
+	}
+
+	return headerStyle.Render(sb.String())
+}
+
 // renderDiffContent renders git diff using the shared diff renderer.
 func (p *Plugin) renderDiffContent(width, height int) string {
 	if p.diffRaw == "" {
@@ -560,11 +637,28 @@ func (p *Plugin) renderDiffContent(width, height int) string {
 		return dimText("No changes")
 	}
 
+	// Render commit status header
+	header := p.renderCommitStatusHeader(width)
+	headerHeight := 0
+	if header != "" {
+		headerHeight = lipgloss.Height(header) + 1 // +1 for blank line
+	}
+
+	// Adjust available height for diff content
+	contentHeight := height - headerHeight
+	if contentHeight < 5 {
+		contentHeight = 5
+	}
+
 	// Parse the raw diff into structured format
 	parsed, err := gitstatus.ParseUnifiedDiff(p.diffRaw)
 	if err != nil || parsed == nil {
 		// Fallback to basic rendering
-		return p.renderDiffContentBasic(width, height)
+		diffContent := p.renderDiffContentBasicWithHeight(width, contentHeight)
+		if header != "" {
+			return header + "\n" + diffContent
+		}
+		return diffContent
 	}
 
 	// Create syntax highlighter if we have file info
@@ -574,18 +668,26 @@ func (p *Plugin) renderDiffContent(width, height int) string {
 	}
 
 	// Render based on view mode
-	var content string
+	var diffContent string
 	if p.diffViewMode == DiffViewSideBySide {
-		content = gitstatus.RenderSideBySide(parsed, width, p.previewOffset, height, p.previewHorizOffset, highlighter)
+		diffContent = gitstatus.RenderSideBySide(parsed, width, p.previewOffset, contentHeight, p.previewHorizOffset, highlighter)
 	} else {
-		content = gitstatus.RenderLineDiff(parsed, width, p.previewOffset, height, p.previewHorizOffset, highlighter)
+		diffContent = gitstatus.RenderLineDiff(parsed, width, p.previewOffset, contentHeight, p.previewHorizOffset, highlighter)
 	}
 
-	return content
+	if header != "" {
+		return header + "\n" + diffContent
+	}
+	return diffContent
 }
 
 // renderDiffContentBasic renders git diff with basic highlighting (fallback).
 func (p *Plugin) renderDiffContentBasic(width, height int) string {
+	return p.renderDiffContentBasicWithHeight(width, height)
+}
+
+// renderDiffContentBasicWithHeight renders git diff with basic highlighting with explicit height.
+func (p *Plugin) renderDiffContentBasicWithHeight(width, height int) string {
 	lines := splitLines(p.diffContent)
 
 	// Apply scroll offset
@@ -676,8 +778,14 @@ func (p *Plugin) renderTaskContent(width, height int) string {
 	task := p.cachedTask
 	var lines []string
 
+	// Mode indicator
+	modeHint := dimText("[m] raw")
+	if p.taskMarkdownMode {
+		modeHint = dimText("[m] rendered")
+	}
+
 	// Header
-	lines = append(lines, lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("Task: %s", task.ID)))
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("Task: %s", task.ID))+"  "+modeHint)
 
 	// Status and priority
 	statusLine := fmt.Sprintf("Status: %s", task.Status)
@@ -695,22 +803,45 @@ func (p *Plugin) renderTaskContent(width, height int) string {
 	lines = append(lines, lipgloss.NewStyle().Bold(true).Render(task.Title))
 	lines = append(lines, "")
 
-	// Description (word wrap to width)
-	if task.Description != "" {
-		wrapped := wrapText(task.Description, width-4)
-		lines = append(lines, wrapped)
-		lines = append(lines, "")
-	}
+	// Markdown rendering for description and acceptance
+	if p.taskMarkdownMode && p.markdownRenderer != nil {
+		// Build markdown content
+		var mdContent strings.Builder
+		if task.Description != "" {
+			mdContent.WriteString(task.Description)
+			mdContent.WriteString("\n\n")
+		}
+		if task.Acceptance != "" {
+			mdContent.WriteString("## Acceptance Criteria\n\n")
+			mdContent.WriteString(task.Acceptance)
+		}
 
-	// Acceptance criteria
-	if task.Acceptance != "" {
-		lines = append(lines, lipgloss.NewStyle().Bold(true).Render("Acceptance Criteria:"))
-		wrapped := wrapText(task.Acceptance, width-4)
-		lines = append(lines, wrapped)
-		lines = append(lines, "")
+		// Check if we need to re-render (width changed or cache empty)
+		if p.taskMarkdownWidth != width || len(p.taskMarkdownRendered) == 0 {
+			p.taskMarkdownRendered = p.markdownRenderer.RenderContent(mdContent.String(), width-4)
+			p.taskMarkdownWidth = width
+		}
+
+		// Append rendered lines
+		lines = append(lines, p.taskMarkdownRendered...)
+	} else {
+		// Plain text fallback
+		if task.Description != "" {
+			wrapped := wrapText(task.Description, width-4)
+			lines = append(lines, wrapped)
+			lines = append(lines, "")
+		}
+
+		if task.Acceptance != "" {
+			lines = append(lines, lipgloss.NewStyle().Bold(true).Render("Acceptance Criteria:"))
+			wrapped := wrapText(task.Acceptance, width-4)
+			lines = append(lines, wrapped)
+			lines = append(lines, "")
+		}
 	}
 
 	// Timestamps (dimmed)
+	lines = append(lines, "")
 	if task.CreatedAt != "" {
 		lines = append(lines, dimText(fmt.Sprintf("Created: %s", task.CreatedAt)))
 	}
@@ -792,9 +923,33 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	if p.createFocus == 0 {
 		nameStyle = inputFocusedStyle
 	}
+
+	// Add validation indicator to label
+	nameValue := p.createNameInput.Value()
+	if nameValue != "" {
+		if p.branchNameValid {
+			nameLabel = "Name: " + lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("✓")
+		} else {
+			nameLabel = "Name: " + lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("✗")
+		}
+	}
+
 	sb.WriteString(nameLabel)
 	sb.WriteString("\n")
 	sb.WriteString(nameStyle.Render(p.createNameInput.View()))
+
+	// Show validation errors or sanitized suggestion
+	if nameValue != "" && !p.branchNameValid {
+		sb.WriteString("\n")
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+		if len(p.branchNameErrors) > 0 {
+			sb.WriteString(errorStyle.Render("  ⚠ " + strings.Join(p.branchNameErrors, ", ")))
+		}
+		if p.branchNameSanitized != "" && p.branchNameSanitized != nameValue {
+			sb.WriteString("\n")
+			sb.WriteString(dimText(fmt.Sprintf("  Suggestion: %s", p.branchNameSanitized)))
+		}
+	}
 	sb.WriteString("\n\n")
 
 	// Base branch field with autocomplete

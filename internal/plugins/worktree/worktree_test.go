@@ -4,6 +4,74 @@ import (
 	"testing"
 )
 
+func TestValidateBranchName(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantValid bool
+		wantErrs  bool // whether errors are expected
+	}{
+		{"valid simple", "feature-branch", true, false},
+		{"valid with numbers", "feature-123", true, false},
+		{"valid with underscore", "feature_branch", true, false},
+		{"empty", "", false, false},
+		{"starts with dash", "-feature", false, true},
+		{"starts with dot", ".feature", false, true},
+		{"ends with .lock", "feature.lock", false, true},
+		{"contains space", "feature branch", false, true},
+		{"contains tilde", "feature~branch", false, true},
+		{"contains caret", "feature^branch", false, true},
+		{"contains colon", "feature:branch", false, true},
+		{"contains question", "feature?branch", false, true},
+		{"contains asterisk", "feature*branch", false, true},
+		{"contains bracket", "feature[branch", false, true},
+		{"contains backslash", "feature\\branch", false, true},
+		{"contains double dots", "feature..branch", false, true},
+		{"contains @{", "feature@{branch", false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			valid, errs, _ := ValidateBranchName(tt.input)
+			if valid != tt.wantValid {
+				t.Errorf("ValidateBranchName(%q) valid = %v, want %v", tt.input, valid, tt.wantValid)
+			}
+			hasErrs := len(errs) > 0
+			if hasErrs != tt.wantErrs {
+				t.Errorf("ValidateBranchName(%q) hasErrors = %v, want %v, errors: %v", tt.input, hasErrs, tt.wantErrs, errs)
+			}
+		})
+	}
+}
+
+func TestSanitizeBranchName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"spaces to dashes", "my feature", "my-feature"},
+		{"removes tilde", "feature~1", "feature1"},
+		{"removes caret", "feature^2", "feature2"},
+		{"removes leading dash", "-feature", "feature"},
+		{"removes leading dot", ".feature", "feature"},
+		{"removes trailing .lock", "feature.lock", "feature"},
+		{"removes trailing dot", "feature.", "feature"},
+		{"lowercase", "MyFeature", "myfeature"},
+		{"already clean", "feature-branch", "feature-branch"},
+		{"complex", "My Feature~1^2", "my-feature12"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SanitizeBranchName(tt.input)
+			if got != tt.want {
+				t.Errorf("SanitizeBranchName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseWorktreeList(t *testing.T) {
 	tests := []struct {
 		name        string

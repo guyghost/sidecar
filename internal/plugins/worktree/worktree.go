@@ -385,11 +385,12 @@ func (p *Plugin) unlinkTask(wt *Worktree) tea.Cmd {
 	}
 }
 
-// loadOpenTasks fetches all open/in_progress tasks from td.
+// loadOpenTasks fetches all non-closed tasks from td.
 func (p *Plugin) loadOpenTasks() tea.Cmd {
 	return func() tea.Msg {
 		// Use --limit 500 to fetch more items (td defaults to 50)
-		cmd := exec.Command("td", "list", "--json", "--status", "open,in_progress", "--limit", "500")
+		// Include all statuses except closed so users can link tasks in_review, etc.
+		cmd := exec.Command("td", "list", "--json", "--status", "open,in_progress,in_review", "--limit", "500")
 		cmd.Dir = p.ctx.WorkDir
 		output, err := cmd.Output()
 		if err != nil {
@@ -463,6 +464,139 @@ func filterTasks(query string, allTasks []Task) []Task {
 	}
 
 	return matches
+}
+
+// ValidateBranchName validates a git branch name and returns validation state.
+// Returns: (valid, errors, sanitized suggestion)
+// Based on git-check-ref-format rules.
+func ValidateBranchName(name string) (bool, []string, string) {
+	var errors []string
+
+	if name == "" {
+		return false, []string{}, ""
+	}
+
+	// Invalid characters in git branch names
+	invalidChars := []string{" ", "~", "^", ":", "?", "*", "[", "\\", "@{"}
+	for _, char := range invalidChars {
+		if strings.Contains(name, char) {
+			errors = append(errors, fmt.Sprintf("contains '%s'", char))
+		}
+	}
+
+	// Cannot start with dash or dot
+	if strings.HasPrefix(name, "-") {
+		errors = append(errors, "starts with '-'")
+	}
+	if strings.HasPrefix(name, ".") {
+		errors = append(errors, "starts with '.'")
+	}
+
+	// Cannot end with .lock
+	if strings.HasSuffix(name, ".lock") {
+		errors = append(errors, "ends with '.lock'")
+	}
+
+	// Cannot contain consecutive dots
+	if strings.Contains(name, "..") {
+		errors = append(errors, "contains '..'")
+	}
+
+	// Cannot end with dot
+	if strings.HasSuffix(name, ".") {
+		errors = append(errors, "ends with '.'")
+	}
+
+	// Cannot end with slash
+	if strings.HasSuffix(name, "/") {
+		errors = append(errors, "ends with '/'")
+	}
+
+	// Cannot contain double slash
+	if strings.Contains(name, "//") {
+		errors = append(errors, "contains '//'")
+	}
+
+	// Cannot contain slash followed by dot (e.g., "feature/.hidden")
+	if strings.Contains(name, "/.") {
+		errors = append(errors, "contains '/.'")
+	}
+
+	// Cannot be exactly "@"
+	if name == "@" {
+		errors = append(errors, "cannot be '@'")
+	}
+
+	// Cannot contain control characters (ASCII < 32) or DEL (ASCII 127)
+	for _, r := range name {
+		if r < 32 || r == 127 {
+			errors = append(errors, "contains control character")
+			break
+		}
+	}
+
+	// Generate sanitized suggestion
+	sanitized := SanitizeBranchName(name)
+
+	return len(errors) == 0, errors, sanitized
+}
+
+// SanitizeBranchName converts a string to a valid git branch name.
+// The output should always pass ValidateBranchName.
+func SanitizeBranchName(name string) string {
+	// Replace spaces with dashes
+	result := strings.ReplaceAll(name, " ", "-")
+
+	// Remove invalid characters
+	invalidChars := []string{"~", "^", ":", "?", "*", "[", "\\", "@{"}
+	for _, char := range invalidChars {
+		result = strings.ReplaceAll(result, char, "")
+	}
+
+	// Remove control characters (ASCII < 32 and DEL 127)
+	var cleaned strings.Builder
+	for _, r := range result {
+		if r >= 32 && r != 127 {
+			cleaned.WriteRune(r)
+		}
+	}
+	result = cleaned.String()
+
+	// Remove leading dashes and dots
+	for len(result) > 0 && (result[0] == '-' || result[0] == '.') {
+		result = result[1:]
+	}
+
+	// Collapse consecutive dots to single dot
+	for strings.Contains(result, "..") {
+		result = strings.ReplaceAll(result, "..", ".")
+	}
+
+	// Collapse double slashes to single slash
+	for strings.Contains(result, "//") {
+		result = strings.ReplaceAll(result, "//", "/")
+	}
+
+	// Remove /. sequences (slash followed by dot)
+	result = strings.ReplaceAll(result, "/.", "/")
+
+	// Remove trailing .lock
+	result = strings.TrimSuffix(result, ".lock")
+
+	// Remove trailing dots and slashes
+	for len(result) > 0 && (result[len(result)-1] == '.' || result[len(result)-1] == '/') {
+		result = result[:len(result)-1]
+	}
+
+	// Handle special case of "@"
+	if result == "@" {
+		result = ""
+	}
+
+	// Convert to lowercase (common convention)
+	result = strings.ToLower(result)
+
+	return result
 }
 
 // loadTaskDetails fetches full task details from td.

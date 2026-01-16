@@ -71,6 +71,16 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		if p.selectedWorktree() != nil && p.selectedWorktree().Name == msg.WorktreeName {
 			p.diffContent = msg.Content
 			p.diffRaw = msg.Raw
+			// Also load commit status for this worktree
+			if p.commitStatusWorktree != msg.WorktreeName {
+				cmds = append(cmds, p.loadCommitStatus(p.selectedWorktree()))
+			}
+		}
+
+	case CommitStatusLoadedMsg:
+		if msg.Err == nil && p.selectedWorktree() != nil && p.selectedWorktree().Name == msg.WorktreeName {
+			p.commitStatusList = msg.Commits
+			p.commitStatusWorktree = msg.WorktreeName
 		}
 
 	case CreateDoneMsg:

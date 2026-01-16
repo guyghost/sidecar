@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/marcus/sidecar/internal/markdown"
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/plugin"
 	"github.com/marcus/sidecar/internal/state"
@@ -109,6 +110,10 @@ type Plugin struct {
 	diffRaw      string
 	diffViewMode DiffViewMode // Unified or side-by-side
 
+	// Commit status header for diff view
+	commitStatusList     []CommitStatusInfo
+	commitStatusWorktree string // Name of worktree for cached status
+
 	// Conflict detection state
 	conflicts []Conflict
 
@@ -122,6 +127,11 @@ type Plugin struct {
 	createFocus           int       // 0=name, 1=base, 2=prompt, 3=task, 4=agent, 5=skipPerms, 6=create, 7=cancel
 	createButtonHover     int       // 0=none, 1=create, 2=cancel
 	createError           string    // Error message to display in create modal
+
+	// Branch name validation state
+	branchNameValid     bool     // Is current name valid?
+	branchNameErrors    []string // Validation error messages
+	branchNameSanitized string   // Suggested sanitized name
 
 	// Prompt state for create modal
 	createPrompts   []Prompt      // Available prompts (merged global + project)
@@ -148,6 +158,12 @@ type Plugin struct {
 	cachedTask        *TaskDetails
 	cachedTaskFetched time.Time
 
+	// Markdown rendering for task view
+	markdownRenderer     *markdown.Renderer
+	taskMarkdownMode     bool     // true = rendered, false = raw
+	taskMarkdownRendered []string // Cached rendered lines
+	taskMarkdownWidth    int      // Width used for cached render
+
 	// Merge workflow state
 	mergeState *MergeWorkflowState
 
@@ -172,6 +188,9 @@ type Plugin struct {
 
 // New creates a new worktree manager plugin.
 func New() *Plugin {
+	// Create markdown renderer (ignore error, will fall back to plain text)
+	mdRenderer, _ := markdown.NewRenderer()
+
 	return &Plugin{
 		worktrees:        make([]*Worktree, 0),
 		agents:           make(map[string]*Agent),
@@ -183,6 +202,8 @@ func New() *Plugin {
 		sidebarWidth:     40,   // Default 40% sidebar
 		sidebarVisible:   true, // Sidebar visible by default
 		autoScrollOutput: true, // Auto-scroll to follow agent output
+		markdownRenderer: mdRenderer,
+		taskMarkdownMode: true, // Default to rendered mode
 	}
 }
 

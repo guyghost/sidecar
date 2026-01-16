@@ -209,6 +209,14 @@ type GitStats struct {
 	Behind       int // Commits behind base branch
 }
 
+// CommitStatusInfo holds commit information with merge/push status.
+type CommitStatusInfo struct {
+	Hash    string // Short commit hash
+	Subject string // Commit subject line
+	Pushed  bool   // Is commit pushed to remote?
+	Merged  bool   // Is commit merged to base branch?
+}
+
 // OutputBuffer is a thread-safe bounded buffer for agent output.
 // Uses SHA256 hashing to detect content changes and avoid duplicate processing.
 type OutputBuffer struct {

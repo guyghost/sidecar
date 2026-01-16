@@ -146,3 +146,106 @@ func splitLines(s string) []string {
 	return lines
 }
 
+// loadCommitStatus returns a command to load commit status for a worktree.
+func (p *Plugin) loadCommitStatus(wt *Worktree) tea.Cmd {
+	if wt == nil {
+		return nil
+	}
+	name := wt.Name
+	path := wt.Path
+	baseBranch := wt.BaseBranch
+	if baseBranch == "" {
+		baseBranch = "main"
+	}
+
+	return func() tea.Msg {
+		commits, err := getWorktreeCommits(path, baseBranch)
+		if err != nil {
+			return CommitStatusLoadedMsg{WorktreeName: name, Err: err}
+		}
+		return CommitStatusLoadedMsg{WorktreeName: name, Commits: commits}
+	}
+}
+
+// getWorktreeCommits returns commits unique to this branch vs base branch with status.
+func getWorktreeCommits(workdir, baseBranch string) ([]CommitStatusInfo, error) {
+	// Get commits in HEAD that aren't in base branch
+	// Format: short hash + subject
+	cmd := exec.Command("git", "log", baseBranch+"..HEAD", "--oneline", "--format=%h|%s")
+	cmd.Dir = workdir
+	output, err := cmd.Output()
+	if err != nil {
+		// Might fail if base branch doesn't exist, try origin/base
+		cmd = exec.Command("git", "log", "origin/"+baseBranch+"..HEAD", "--oneline", "--format=%h|%s")
+		cmd.Dir = workdir
+		output, err = cmd.Output()
+		if err != nil {
+			// No commits or error - return empty list
+			return []CommitStatusInfo{}, nil
+		}
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 0 || (len(lines) == 1 && lines[0] == "") {
+		return []CommitStatusInfo{}, nil
+	}
+
+	// Get remote tracking branch to check pushed status
+	remoteBranch := getRemoteTrackingBranch(workdir)
+
+	var commits []CommitStatusInfo
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		hash := parts[0]
+		subject := parts[1]
+
+		// Check if pushed (exists in remote tracking branch)
+		pushed := false
+		if remoteBranch != "" {
+			pushed = isCommitInBranch(workdir, hash, remoteBranch)
+		}
+
+		// Check if merged (exists in base branch) - should always be false for these commits
+		// but include for potential future merge detection
+		merged := isCommitInBranch(workdir, hash, baseBranch)
+
+		commits = append(commits, CommitStatusInfo{
+			Hash:    hash,
+			Subject: subject,
+			Pushed:  pushed,
+			Merged:  merged,
+		})
+	}
+
+	return commits, nil
+}
+
+// getRemoteTrackingBranch returns the remote tracking branch for HEAD.
+func getRemoteTrackingBranch(workdir string) string {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+	cmd.Dir = workdir
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// isCommitInBranch checks if a commit exists in a branch.
+// Uses merge-base --is-ancestor for accurate checking instead of substring matching.
+func isCommitInBranch(workdir, commit, branch string) bool {
+	// Use merge-base --is-ancestor to check if commit is reachable from branch
+	// This is more accurate than substring matching on branch -r --contains output
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, branch)
+	cmd.Dir = workdir
+	err := cmd.Run()
+	// Exit code 0 = commit is ancestor (in branch), non-zero = not ancestor
+	return err == nil
+}
+

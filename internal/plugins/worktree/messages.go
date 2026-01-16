@@ -160,3 +160,10 @@ type TaskDetailsLoadedMsg struct {
 type restartAgentMsg struct {
 	worktree *Worktree
 }
+
+// CommitStatusLoadedMsg delivers commit status info for the diff view header.
+type CommitStatusLoadedMsg struct {
+	WorktreeName string
+	Commits      []CommitStatusInfo
+	Err          error
+}
