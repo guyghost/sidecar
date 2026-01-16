@@ -356,25 +356,37 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	modalY := (height - modalH) / 2
 
 	// Register hit regions for interactive elements
-	// modalStyle has border(1) + padding(1) = 2 rows offset from modalY
+	// modalStyle has border(1) + padding(1) = 2 rows, but OverlayModal centers
+	// based on line count which effectively makes content start at modalY + 1
 	// Track Y position through modal content structure
+	// IMPORTANT: inputStyle/inputFocusedStyle add a border, making inputs 3 lines tall
+	// (top border + content + bottom border)
 	hitX := modalX + 3 // border + padding for left edge
 	hitW := modalW - 6 // width minus border+padding on both sides
-	currentY := modalY + 2
+	currentY := modalY + 1
 
 	// Title "Create New Worktree" + blank
 	currentY += 2
 
-	// Name field (focus=0): label + input + blank
+	// Name field (focus=0): label + bordered input (3 lines)
 	currentY++ // "Name:" label
-	p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 1, 0)
-	currentY++ // input line
-	currentY++ // blank
+	p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 3, 0)
+	currentY += 3 // bordered input (top border + content + bottom border)
 
-	// Base Branch field (focus=1): label + input
+	// Validation errors (conditional) + blank line
+	// Note: nameValue already declared earlier in the render function
+	if nameValue != "" && !p.branchNameValid {
+		currentY++ // error line
+		if p.branchNameSanitized != "" && p.branchNameSanitized != nameValue {
+			currentY++ // suggestion line
+		}
+	}
+	currentY++ // blank line (\n\n after name section)
+
+	// Base Branch field (focus=1): label + bordered input (3 lines)
 	currentY++ // "Base Branch..." label
-	p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 1, 1)
-	currentY++ // input line
+	p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 3, 1)
+	currentY += 3 // bordered input
 
 	// Branch dropdown (if visible)
 	if p.createFocus == 1 && len(p.branchFiltered) > 0 {
@@ -392,19 +404,19 @@ func (p *Plugin) renderCreateModal(width, height int) string {
 	}
 	currentY++ // blank
 
-	// Prompt field (focus=2): label + display + preview hint + blank
+	// Prompt field (focus=2): label + bordered display (3 lines) + preview hint + blank
 	currentY++ // "Prompt:" label
-	p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 1, 2)
-	currentY++ // prompt display
+	p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 3, 2)
+	currentY += 3 // bordered prompt display
 	currentY++ // preview/hint line
 	currentY++ // blank
 
 	// Task field (focus=3) - only shown when ticketMode allows
-	// Note: selectedPrompt already declared at line 852
+	// Note: selectedPrompt already declared at rendering section
 	if selectedPrompt == nil || selectedPrompt.TicketMode != TicketNone {
 		currentY++ // "Link Task..." label
-		p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 1, 3)
-		currentY++ // input line
+		p.mouseHandler.HitMap.AddRect(regionCreateInput, hitX, currentY, hitW, 3, 3)
+		currentY += 3 // bordered input (3 lines)
 
 		// Task hints (backspace hint, fallback hint, or required hint)
 		if p.createFocus == 3 && p.createTaskID != "" {
@@ -606,8 +618,9 @@ func (p *Plugin) renderTaskLinkModal(width, height int) string {
 	modalY := (height - modalH) / 2
 
 	// Register hit regions for task dropdown items
-	// Modal layout: border(1) + padding(1) + title(1) + blank(1) + label(1) + input(1) = 6 lines before dropdown
-	dropdownStartY := modalY + 2 + 4 + 1 // border+padding + title+blank+label+input
+	// Content: title(1) + blank(1) + label(1) + bordered-input(3) = 6 lines before dropdown
+	// Border offset is 1 (adjusted for OverlayModal centering)
+	dropdownStartY := modalY + 1 + 6 // border offset + content lines to dropdown
 
 	// Determine which list to use for hit regions
 	tasks := p.taskSearchFiltered
@@ -746,8 +759,9 @@ func (p *Plugin) renderConfirmDeleteModal(width, height int) string {
 	modalStartY := (height - modalHeight) / 2
 
 	// Calculate Y positions for hit regions
-	// border(1) + padding(1) + title(1) + empty(1) + name/branch/path(3) + empty(1) + warning(3) + empty(1) + header(1)
-	checkboxStartY := modalStartY + 2 + 10
+	// Content lines: title(1) + empty(1) + name/branch/path(3) + empty(1) + warning(1) + bullets(2) + empty(1) + header(1) = 11
+	// Border offset is 1 (adjusted for OverlayModal centering)
+	checkboxStartY := modalStartY + 1 + 11
 
 	// Hit regions for checkboxes
 	p.mouseHandler.HitMap.AddRect(regionDeleteLocalBranchCheck, modalStartX+3, checkboxStartY, modalW-6, 1, 0)
@@ -791,14 +805,20 @@ func (p *Plugin) renderPromptPickerModal(width, height int) string {
 	modalY := (height - modalH) / 2
 
 	// Register hit region for filter input
-	// Layout: border(1) + padding(1) + header(1) + blank(1) + "Filter:" label(1) = 5 lines before filter input
-	filterY := modalY + 2 + 3 // border+padding + header + blank + label
-	p.mouseHandler.HitMap.AddRect(regionPromptFilter, modalX+2, filterY, 32, 1, nil)
+	// Layout from content start (modalY + 1, adjusted for OverlayModal centering):
+	// - header "Select Prompt..." (1 line)
+	// - blank from \n\n (1 line)
+	// - "Filter:" label (1 line)
+	// - bordered filter input (3 lines: border + content + border)
+	// Filter input starts at: 1 + 1 + 1 = 3 lines from content start
+	filterY := modalY + 1 + 3 // border offset + header + blank + label
+	p.mouseHandler.HitMap.AddRect(regionPromptFilter, modalX+2, filterY, 32, 3, nil) // height 3 for bordered input
 
 	// Register hit regions for prompt items
-	// Layout: border(1) + padding(1) + header(2) + filter(3) + column headers(2) = 9 lines before items
+	// After filter input (3 lines) + blank (1 line) + column headers (1 line) + separator (1 line) = 6 more lines
+	// Total from content start: 3 (before filter) + 3 (filter) + 1 (blank) + 1 (headers) + 1 (separator) = 9
 	// "None" option is first, then filtered prompts
-	itemStartY := modalY + 2 + 7 // border+padding + header + filter + col headers
+	itemStartY := modalY + 1 + 9 // border offset + header + blank + label + bordered-filter + blank + col-headers + separator
 	itemHeight := 1              // Each prompt item is 1 line
 
 	// "None" option at index -1
@@ -808,7 +828,7 @@ func (p *Plugin) renderPromptPickerModal(width, height int) string {
 	maxVisible := 10
 	if len(p.promptPicker.filtered) > 0 {
 		visibleCount := min(maxVisible, len(p.promptPicker.filtered))
-		for i := 0; i < visibleCount; i++ {
+		for i := range visibleCount {
 			y := itemStartY + 1 + i // +1 for "none" row
 			p.mouseHandler.HitMap.AddRect(regionPromptItem, modalX+2, y, modalW-6, itemHeight, i)
 		}
@@ -881,8 +901,9 @@ func (p *Plugin) renderAgentChoiceModal(width, height int) string {
 	modalStartY := (height - modalHeight) / 2
 
 	// Hit regions for options (inside modal content area)
-	// Modal border (1) + padding (1) = 2, plus title lines (2) + empty (1) + message (2) + empty (1) = 6
-	optionY := modalStartY + 2 + 5 // border+padding + header lines
+	// Content lines: title(1) + blank(1) + message(2) + blank(1) = 5 lines before options
+	// Border offset is 1 (adjusted for OverlayModal centering)
+	optionY := modalStartY + 1 + 5 // border offset + header lines
 	optionX := modalStartX + 3     // border + padding + "  " prefix
 	for i := range options {
 		p.mouseHandler.HitMap.AddRect(regionAgentChoiceOption, optionX, optionY+i, modalW-6, 1, i)
@@ -1284,15 +1305,12 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 		modalX := (width - modalW) / 2
 		modalY := (height - modalH) / 2
 
-		// Radio buttons are at: border(1) + padding(1) + title(1) + blank(1) +
-		// progress steps(5) + blank(1) + separator(1) + blank(2) + content...
-		// In MergeStepWaitingMerge: header(2) + blank(1) + PR URL(2) + blank(1) +
-		// separator(1) + blank(2) + "After merge:"(1) + blank(2) + radio1 + radio2
-		// This is complex; use content line count approach
+		// Radio buttons position calculated from bottom of content
+		// Border offset is 1 (adjusted for OverlayModal centering)
 		contentLines := strings.Count(content, "\n")
 		// Radio buttons are approximately at contentLines - 7 (from bottom)
 		// "Delete worktree" and "Keep worktree" options
-		radio1Y := modalY + 2 + contentLines - 7
+		radio1Y := modalY + 1 + contentLines - 7
 		radio2Y := radio1Y + 1
 		p.mouseHandler.HitMap.AddRect(regionMergeRadio, modalX+2, radio1Y, modalW-6, 1, 0) // Delete
 		p.mouseHandler.HitMap.AddRect(regionMergeRadio, modalX+2, radio2Y, modalW-6, 1, 1) // Keep
@@ -1305,10 +1323,9 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 		modalY := (height - modalH) / 2
 
 		// Calculate positions based on content structure
-		// Title(1) + blank(1) + separator(1) + blank(1) + header(1) + subtext(1) + blank(1) = ~7 lines before checkboxes
-		// Then: checkbox1(1) + hint1(1) + checkbox2(1) + hint2(1) + checkbox3(1) + hint3(1) + blank(1) +
-		// separator(1) + blank(1) + pull_header(1) + pull_checkbox(1) + pull_hint(1) + blank(1) + buttons(1)
-		checkboxBaseY := modalY + 2 + 7 // approximate
+		// Title(1) + blank(1) + separator(1) + blank(1) + header(1) + subtext(1) + blank(1) = 7 lines before checkboxes
+		// Border offset is 1 (adjusted for OverlayModal centering)
+		checkboxBaseY := modalY + 1 + 7 // border offset + content lines to checkboxes
 
 		// Three cleanup checkbox options (2 lines each: checkbox + hint)
 		for i := 0; i < 3; i++ {
