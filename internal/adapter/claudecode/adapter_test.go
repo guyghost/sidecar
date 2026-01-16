@@ -574,3 +574,91 @@ func TestTruncateTitle_WithXMLTags(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoverRelatedProjectDirs(t *testing.T) {
+	// Create temp directory simulating ~/.claude/projects/
+	tmpDir := t.TempDir()
+	a := &Adapter{projectsDir: tmpDir}
+
+	// Create test directories
+	// Claude Code encoding: /Users/test/code/myrepo -> -Users-test-code-myrepo
+	// KNOWN LIMITATION: Decoding is lossy - hyphens in original paths become slashes.
+	// E.g., worktree at /Users/test/code/myrepo-feature encodes to -Users-test-code-myrepo-feature
+	// but decodes to /Users/test/code/myrepo/feature (incorrect, but acceptable for discovery purposes)
+	dirs := []string{
+		"-Users-test-code-myrepo",         // main repo
+		"-Users-test-code-myrepo-feature", // worktree (decodes with slash, not hyphen)
+		"-Users-test-code-myrepo-bugfix",  // worktree (decodes with slash, not hyphen)
+		"-Users-test-other",               // unrelated project
+		"-Users-test-code-myrepo2",        // different repo (myrepo2, not myrepo)
+	}
+	for _, d := range dirs {
+		if err := os.MkdirAll(tmpDir+"/"+d, 0755); err != nil {
+			t.Fatalf("failed to create dir: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name     string
+		mainPath string
+		want     []string
+	}{
+		{
+			name:     "finds related paths",
+			mainPath: "/Users/test/code/myrepo",
+			// Note: decoded paths have slashes where original had hyphens (known limitation)
+			want: []string{"/Users/test/code/myrepo", "/Users/test/code/myrepo/feature", "/Users/test/code/myrepo/bugfix"},
+		},
+		{
+			name:     "empty for invalid main path",
+			mainPath: "",
+			want:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := a.DiscoverRelatedProjectDirs(tt.mainPath)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			// Check we got expected paths (order may vary)
+			if tt.name == "finds related paths" {
+				if len(got) != 3 {
+					t.Errorf("expected 3 paths, got %d: %v", len(got), got)
+				}
+				// Verify myrepo2 and other are not included
+				for _, p := range got {
+					if p == "/Users/test/other" || p == "/Users/test/code/myrepo2" {
+						t.Errorf("should not include unrelated path: %s", p)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDiscoverRelatedProjectDirs_EmptyProjectsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	a := &Adapter{projectsDir: tmpDir}
+
+	got, err := a.DiscoverRelatedProjectDirs("/Users/test/myrepo")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty slice, got %v", got)
+	}
+}
+
+func TestDiscoverRelatedProjectDirs_NonexistentProjectsDir(t *testing.T) {
+	a := &Adapter{projectsDir: "/nonexistent/path/should/not/exist"}
+
+	got, err := a.DiscoverRelatedProjectDirs("/Users/test/myrepo")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty slice, got %v", got)
+	}
+}

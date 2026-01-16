@@ -641,3 +641,4 @@ func (p *Plugin) loadTaskDetails(taskID string) tea.Cmd {
 		}
 	}
 }
+

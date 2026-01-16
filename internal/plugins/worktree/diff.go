@@ -1,9 +1,11 @@
 package worktree
 
 import (
+	"context"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -237,15 +239,20 @@ func getRemoteTrackingBranch(workdir string) string {
 	return strings.TrimSpace(string(output))
 }
 
-// isCommitInBranch checks if a commit exists in a branch.
-// Uses merge-base --is-ancestor for accurate checking instead of substring matching.
+// isCommitInBranch checks if a commit is reachable from a branch.
+// Uses git merge-base --is-ancestor with a 5-second timeout.
+// Returns false for empty inputs, non-existent refs, or if commit is not an ancestor.
 func isCommitInBranch(workdir, commit, branch string) bool {
-	// Use merge-base --is-ancestor to check if commit is reachable from branch
-	// This is more accurate than substring matching on branch -r --contains output
-	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, branch)
+	if commit == "" || branch == "" || workdir == "" {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "merge-base", "--is-ancestor", commit, branch)
 	cmd.Dir = workdir
 	err := cmd.Run()
-	// Exit code 0 = commit is ancestor (in branch), non-zero = not ancestor
 	return err == nil
 }
 
