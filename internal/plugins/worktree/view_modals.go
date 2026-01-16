@@ -650,7 +650,7 @@ func (p *Plugin) renderConfirmDeleteModal(width, height int) string {
 	}
 
 	// Modal dimensions
-	modalW := 55
+	modalW := 58
 	if modalW > width-4 {
 		modalW = width - 4
 	}
@@ -675,19 +675,72 @@ func (p *Plugin) renderConfirmDeleteModal(width, height int) string {
 	sb.WriteString(dimText("  • Remove the working directory"))
 	sb.WriteString("\n")
 	sb.WriteString(dimText("  • Uncommitted changes will be lost"))
-	sb.WriteString("\n")
-	sb.WriteString(dimText("  • The branch will remain in the repository"))
 	sb.WriteString("\n\n")
+
+	// Branch deletion options
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Branch Cleanup (Optional)"))
+	sb.WriteString("\n")
+
+	// Checkbox options
+	type checkboxOpt struct {
+		label   string
+		checked bool
+		hint    string
+		focusID int
+	}
+
+	opts := []checkboxOpt{
+		{"Delete local branch", p.deleteLocalBranchOpt,
+			"Removes '" + wt.Branch + "' locally", 0},
+	}
+
+	// Only show remote option if remote branch exists
+	if p.deleteHasRemote {
+		opts = append(opts, checkboxOpt{
+			"Delete remote branch", p.deleteRemoteBranchOpt,
+			"Removes 'origin/" + wt.Branch + "'", 1,
+		})
+	}
+
+	checkboxLines := 0
+	for _, opt := range opts {
+		checkbox := "[ ]"
+		if opt.checked {
+			checkbox = "[x]"
+		}
+
+		line := fmt.Sprintf("  %s %s", checkbox, opt.label)
+
+		if p.deleteConfirmFocus == opt.focusID {
+			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true).Render("> " + line[2:]))
+		} else {
+			sb.WriteString(line)
+		}
+		sb.WriteString("\n")
+		sb.WriteString(dimText("      " + opt.hint))
+		sb.WriteString("\n")
+		checkboxLines += 2
+	}
+
+	sb.WriteString("\n")
+
+	// Determine button focus indices based on whether remote is shown
+	deleteBtnFocus := 1
+	cancelBtnFocus := 2
+	if p.deleteHasRemote {
+		deleteBtnFocus = 2
+		cancelBtnFocus = 3
+	}
 
 	// Render buttons with focus/hover states
 	deleteStyle := styles.ButtonDanger
 	cancelStyle := styles.Button
-	if p.deleteConfirmButtonFocus == 0 {
+	if p.deleteConfirmFocus == deleteBtnFocus {
 		deleteStyle = styles.ButtonDangerFocused
 	} else if p.deleteConfirmButtonHover == 1 {
 		deleteStyle = styles.ButtonDangerHover
 	}
-	if p.deleteConfirmButtonFocus == 1 {
+	if p.deleteConfirmFocus == cancelBtnFocus {
 		cancelStyle = styles.ButtonFocused
 	} else if p.deleteConfirmButtonHover == 2 {
 		cancelStyle = styles.ButtonHover
@@ -699,20 +752,28 @@ func (p *Plugin) renderConfirmDeleteModal(width, height int) string {
 	content := sb.String()
 	modal := modalStyle.Width(modalW).Render(content)
 
-	// Register hit regions for the modal buttons
+	// Register hit regions for the modal
 	// Calculate modal position (centered)
 	modalHeight := lipgloss.Height(modal)
 	modalStartX := (width - modalW) / 2
 	modalStartY := (height - modalHeight) / 2
 
-	// Hit regions for buttons
-	// Content lines: title(1) + empty(1) + name/branch/path(3) + empty(1) + warning header(1) + bullets(3) + empty(1) = 11 lines
-	// Buttons are ON line 11 (0-indexed), with border+padding offset of 1 (not 2, due to OverlayModal centering)
-	buttonY := modalStartY + 1 + 11 // border offset + content lines to buttons
-	deleteX := modalStartX + 3      // border + padding
-	// " Delete " (8) + Padding(0,2) = 12 chars, " Cancel " (8) + Padding(0,2) = 12 chars
+	// Calculate Y positions for hit regions
+	// Content lines: title(1) + empty(1) + name/branch/path(3) + empty(1) + warning(1) + bullets(2) + empty(1) + header(1) = 11
+	// Border offset is 1 (adjusted for OverlayModal centering)
+	checkboxStartY := modalStartY + 1 + 11
+
+	// Hit regions for checkboxes
+	p.mouseHandler.HitMap.AddRect(regionDeleteLocalBranchCheck, modalStartX+3, checkboxStartY, modalW-6, 1, 0)
+	if p.deleteHasRemote {
+		p.mouseHandler.HitMap.AddRect(regionDeleteRemoteBranchCheck, modalStartX+3, checkboxStartY+2, modalW-6, 1, 1)
+	}
+
+	// Hit regions for buttons (after checkboxes)
+	buttonY := checkboxStartY + checkboxLines + 1
+	deleteX := modalStartX + 3
 	p.mouseHandler.HitMap.AddRect(regionDeleteConfirmDelete, deleteX, buttonY, 12, 1, nil)
-	cancelX := deleteX + 12 + 2 // delete width + spacing
+	cancelX := deleteX + 12 + 2
 	p.mouseHandler.HitMap.AddRect(regionDeleteConfirmCancel, cancelX, buttonY, 12, 1, nil)
 
 	return ui.OverlayModal(background, modal, width, height)
@@ -886,14 +947,28 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Render(title))
 	sb.WriteString("\n\n")
 
-	// Progress indicators
-	steps := []MergeWorkflowStep{
-		MergeStepReviewDiff,
-		MergeStepPush,
-		MergeStepCreatePR,
-		MergeStepWaitingMerge,
-		MergeStepPostMergeConfirmation,
-		MergeStepCleanup,
+	// Progress indicators - show different steps based on merge method
+	var steps []MergeWorkflowStep
+	if p.mergeState.UseDirectMerge {
+		// Direct merge path
+		steps = []MergeWorkflowStep{
+			MergeStepReviewDiff,
+			MergeStepMergeMethod,
+			MergeStepDirectMerge,
+			MergeStepPostMergeConfirmation,
+			MergeStepCleanup,
+		}
+	} else {
+		// PR workflow path
+		steps = []MergeWorkflowStep{
+			MergeStepReviewDiff,
+			MergeStepMergeMethod,
+			MergeStepPush,
+			MergeStepCreatePR,
+			MergeStepWaitingMerge,
+			MergeStepPostMergeConfirmation,
+			MergeStepCleanup,
+		}
 	}
 
 	for _, step := range steps {
@@ -959,7 +1034,57 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 			sb.WriteString("\n")
 		}
 		sb.WriteString("\n")
-		sb.WriteString(dimText("Press Enter to push branch, Esc to cancel"))
+		sb.WriteString(dimText("Press Enter to continue, Esc to cancel"))
+
+	case MergeStepMergeMethod:
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Choose Merge Method:"))
+		sb.WriteString("\n\n")
+
+		baseBranch := p.mergeState.Worktree.BaseBranch
+		if baseBranch == "" {
+			baseBranch = "main"
+		}
+
+		// Option 1: Create PR (default)
+		prIcon := "○"
+		prStyle := dimText
+		if p.mergeState.MergeMethodOption == 0 {
+			prIcon = "●"
+			prStyle = func(s string) string {
+				return lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Render(s)
+			}
+		}
+		sb.WriteString(prStyle(fmt.Sprintf(" %s Create Pull Request (Recommended)", prIcon)))
+		sb.WriteString("\n")
+		sb.WriteString(dimText("      Push to origin and create a GitHub PR for review"))
+		sb.WriteString("\n\n")
+
+		// Option 2: Direct merge
+		directIcon := "○"
+		directStyle := dimText
+		if p.mergeState.MergeMethodOption == 1 {
+			directIcon = "●"
+			directStyle = func(s string) string {
+				return lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Render(s)
+			}
+		}
+		sb.WriteString(directStyle(fmt.Sprintf(" %s Direct Merge", directIcon)))
+		sb.WriteString("\n")
+		sb.WriteString(dimText(fmt.Sprintf("      Merge directly to '%s' without PR", baseBranch)))
+		sb.WriteString("\n")
+		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("      Warning: Bypasses code review"))
+		sb.WriteString("\n\n")
+
+		sb.WriteString(dimText("↑/↓: select   Enter: continue   Esc: cancel"))
+
+	case MergeStepDirectMerge:
+		sb.WriteString("Merging directly to base branch...")
+		sb.WriteString("\n\n")
+		baseBranch := p.mergeState.Worktree.BaseBranch
+		if baseBranch == "" {
+			baseBranch = "main"
+		}
+		sb.WriteString(dimText(fmt.Sprintf("Merging '%s' into '%s'...", p.mergeState.Worktree.Branch, baseBranch)))
 
 	case MergeStepPush:
 		sb.WriteString("Pushing branch to remote...")
@@ -1006,18 +1131,11 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 
 	case MergeStepPostMergeConfirmation:
 		// Success header
-		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")).Render("PR Merged Successfully!"))
-		sb.WriteString("\n\n")
-
-		// Pull reminder (highlighted)
-		reminderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-		sb.WriteString(reminderStyle.Render("Remember to pull changes to your main branch:"))
-		sb.WriteString("\n")
-		baseBranch := p.mergeState.Worktree.BaseBranch
-		if baseBranch == "" {
-			baseBranch = "main"
+		mergeMethod := "PR Merged"
+		if p.mergeState.UseDirectMerge {
+			mergeMethod = "Direct Merge Complete"
 		}
-		sb.WriteString(dimText(fmt.Sprintf("   git checkout %s && git pull", baseBranch)))
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")).Render(mergeMethod + "!"))
 		sb.WriteString("\n\n")
 
 		sb.WriteString(strings.Repeat("─", min(modalW-4, 60)))
@@ -1028,6 +1146,11 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 		sb.WriteString("\n")
 		sb.WriteString(dimText("Select what to clean up:"))
 		sb.WriteString("\n\n")
+
+		baseBranch := p.mergeState.Worktree.BaseBranch
+		if baseBranch == "" {
+			baseBranch = "main"
+		}
 
 		// Checkbox options
 		type checkboxOpt struct {
@@ -1063,18 +1186,44 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 		}
 
 		sb.WriteString("\n")
+		sb.WriteString(strings.Repeat("─", min(modalW-4, 60)))
+		sb.WriteString("\n\n")
 
-		// Buttons
+		// Pull section
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Update Current Branch"))
+		sb.WriteString("\n")
+
+		// Pull checkbox
+		pullCheckbox := "[ ]"
+		if p.mergeState.PullAfterMerge {
+			pullCheckbox = "[x]"
+		}
+		pullLabel := fmt.Sprintf("Pull '%s' to current branch", baseBranch)
+		pullLine := fmt.Sprintf("  %s %s", pullCheckbox, pullLabel)
+		if p.mergeState.ConfirmationFocus == 3 {
+			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true).Render("> " + pullLine[2:]))
+		} else {
+			sb.WriteString(pullLine)
+		}
+		sb.WriteString("\n")
+		if p.mergeState.CurrentBranch != "" {
+			sb.WriteString(dimText(fmt.Sprintf("      Current branch: %s", p.mergeState.CurrentBranch)))
+		} else {
+			sb.WriteString(dimText("      Pulls merged changes to your working branch"))
+		}
+		sb.WriteString("\n\n")
+
+		// Buttons (now at focus indices 4 and 5)
 		confirmLabel := " Clean Up "
 		skipLabel := " Skip All "
 
 		confirmStyle := lipgloss.NewStyle().Background(lipgloss.Color("62")).Foreground(lipgloss.Color("0"))
 		skipStyle := lipgloss.NewStyle().Background(lipgloss.Color("240")).Foreground(lipgloss.Color("255"))
 
-		if p.mergeState.ConfirmationFocus == 3 {
+		if p.mergeState.ConfirmationFocus == 4 {
 			confirmStyle = confirmStyle.Bold(true).Background(lipgloss.Color("42"))
 		}
-		if p.mergeState.ConfirmationFocus == 4 {
+		if p.mergeState.ConfirmationFocus == 5 {
 			skipStyle = skipStyle.Bold(true).Background(lipgloss.Color("214"))
 		}
 
@@ -1110,6 +1259,15 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 			if results.RemoteBranchDeleted {
 				sb.WriteString(successStyle.Render("  ✓ Remote branch deleted"))
 				sb.WriteString("\n")
+			}
+			if results.PullAttempted {
+				if results.PullSuccess {
+					sb.WriteString(successStyle.Render("  ✓ Pulled latest changes"))
+					sb.WriteString("\n")
+				} else if results.PullError != nil {
+					sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("  ⚠ Pull failed: " + results.PullError.Error()))
+					sb.WriteString("\n")
+				}
 			}
 
 			// Show any errors/warnings
@@ -1165,11 +1323,11 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 		modalY := (height - modalH) / 2
 
 		// Calculate positions based on content structure
-		// Content lines before checkboxes: ~12 lines
+		// Title(1) + blank(1) + separator(1) + blank(1) + header(1) + subtext(1) + blank(1) = 7 lines before checkboxes
 		// Border offset is 1 (adjusted for OverlayModal centering)
-		checkboxBaseY := modalY + 1 + 12 // border offset + content lines to checkboxes
+		checkboxBaseY := modalY + 1 + 7 // border offset + content lines to checkboxes
 
-		// Three checkbox options (2 lines each: checkbox + hint)
+		// Three cleanup checkbox options (2 lines each: checkbox + hint)
 		for i := 0; i < 3; i++ {
 			p.mouseHandler.HitMap.AddRect(
 				regionMergeConfirmCheckbox,
@@ -1181,8 +1339,13 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 			)
 		}
 
-		// Button hit regions (after checkboxes + blank line)
-		buttonY := checkboxBaseY + 7
+		// Pull checkbox (focus index 3)
+		// After 3 cleanup checkboxes (6 lines) + blank(1) + separator(1) + blank(1) + header(1) = 10 lines
+		pullCheckboxY := checkboxBaseY + 10
+		p.mouseHandler.HitMap.AddRect(regionMergeConfirmCheckbox, modalX+2, pullCheckboxY, modalW-6, 1, 3)
+
+		// Button hit regions (after pull checkbox + hint + blank)
+		buttonY := pullCheckboxY + 3
 		p.mouseHandler.HitMap.AddRect(regionMergeConfirmButton, modalX+4, buttonY, 12, 1, nil)
 		p.mouseHandler.HitMap.AddRect(regionMergeSkipButton, modalX+18, buttonY, 12, 1, nil)
 	}
