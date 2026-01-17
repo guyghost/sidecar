@@ -2,57 +2,84 @@
 
 This guide explains how to capture screenshots of Sidecar for documentation purposes.
 
-## Quick Method: Manual Capture
+## Prerequisites
 
-The simplest approach is using macOS built-in screenshot tools:
+- `tmux` - for running sidecar in a detached session
+- `aha` - for converting ANSI terminal output to HTML (`brew install aha`)
 
-1. Run `sidecar` in your terminal
-2. Press `Cmd+Shift+4` then `Space` to capture the window
-3. Click on the terminal window to capture
+## Terminal Size
 
-## Automated Method: Agent-Assisted Capture
+For documentation screenshots, resize your terminal to approximately **120x45** characters before capturing. This produces screenshots that fit well in documentation without being too large.
 
-When working with an AI agent (like Warp Agent Mode), use this two-step approach:
+## Agent-Controlled Screenshots (Recommended)
 
-### Step 1: Start the Screenshot Timer
+Use the helper script `scripts/tmux-screenshot.sh` with simple subcommands:
 
-In one terminal, start the background screenshot timer:
-
-```bash
-./scripts/screenshot-timer.sh 2 5 sidecar-docs
-```
-
-This takes 5 screenshots at 2-second intervals with the prefix `sidecar-docs`.
-
-### Step 2: Run Sidecar via Agent
-
-Have the agent run sidecar and navigate through views. The background timer will capture each state.
-
-## Using the Expect Script
-
-For fully automated captures (useful in CI/pipelines), use the expect script:
+### Step 1: Start sidecar
 
 ```bash
-./scripts/capture-screenshots.exp
+./scripts/tmux-screenshot.sh start
 ```
 
-**Note:** This captures full-screen screenshots, not just the terminal window. It works best when Warp is the only visible application.
+This starts sidecar in a detached tmux session sized to your current terminal.
 
-## Screenshot Naming Convention
+### Step 2: Attach and navigate
 
-Screenshots should follow this naming pattern:
-- `sidecar-{plugin}.png` - Main view of a plugin (td, git, files, conversations)
-- `sidecar-{plugin}-{feature}.png` - Specific feature view (e.g., `sidecar-git-diff-side-by-side.png`)
+```bash
+./scripts/tmux-screenshot.sh attach
+```
 
-## Tips
+Or directly: `tmux attach -t sidecar-screenshot`
 
-- Use `screencapture -x` flag to silence the capture sound
-- Use `screencapture -o` to exclude window shadow
-- For window-specific capture: `screencapture -l <window_id>` (get ID via AppleScript)
+Once attached:
+1. Navigate to the desired view using keyboard shortcuts (1-5 for plugins, j/k for navigation)
+2. Detach from tmux with `Ctrl+B D` (or `Ctrl+A D` if your prefix is Ctrl+A)
 
-## Scripts
+### Step 3: Capture the screenshot
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/screenshot-timer.sh` | Takes screenshots at intervals (for agent workflow) |
-| `scripts/capture-screenshots.exp` | Automated full capture via expect |
+```bash
+./scripts/tmux-screenshot.sh capture sidecar-td
+```
+
+This captures the current view and auto-converts to HTML (if `aha` is installed).
+
+### Step 4: Repeat or cleanup
+
+Repeat steps 2-3 for additional screenshots, then:
+
+```bash
+./scripts/tmux-screenshot.sh stop
+```
+
+## Script Commands
+
+| Command | Description |
+|---------|-------------|
+| `start` | Start sidecar in a tmux session |
+| `attach` | Attach to navigate (detach with Ctrl+A/B D) |
+| `capture NAME` | Capture current view to `docs/screenshots/NAME.html` |
+| `list` | List existing screenshots |
+| `stop` | Quit sidecar and kill session |
+
+## LLM Workflow
+
+For AI agents, run `tmux attach -t sidecar-screenshot` in **interact mode** to navigate. The workflow:
+
+1. `./scripts/tmux-screenshot.sh start`
+2. `tmux attach -t sidecar-screenshot` → navigate with keys (1-5 for plugins) → Ctrl+A D to detach
+3. `./scripts/tmux-screenshot.sh capture sidecar-{plugin}`
+4. Repeat 2-3 for each plugin
+5. `./scripts/tmux-screenshot.sh stop`
+
+**Plugin keys:** 1=TD, 2=Git, 3=Files, 4=Conversations, 5=Worktrees
+
+## Why Interactive?
+
+`tmux send-keys` doesn't reliably trigger sidecar's keybindings. Attaching and pressing keys directly always works.
+
+## Viewing Captures
+
+```bash
+./scripts/tmux-screenshot.sh list    # List screenshots
+open docs/screenshots/sidecar-td.html # Open in browser
+```
