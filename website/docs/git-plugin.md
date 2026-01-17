@@ -547,8 +547,8 @@ $ git commit -m "message"  # Commit
 
 ## Performance
 
-- **Startup**: <50ms to initialize
-- **Diff rendering**: <100ms for typical files (1000 lines)
+- **Startup**: under 50ms to initialize
+- **Diff rendering**: under 100ms for typical files (1000 lines)
 - **Syntax highlighting**: Cached per file, instant on re-view
 - **Auto-refresh**: Debounced to 500ms, prevents CPU spikes
 - **Large diffs**: Horizontal scroll handles 1000+ character lines
