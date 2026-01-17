@@ -265,10 +265,12 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 
 	case AgentStoppedMsg:
 		if wt := p.findWorktree(msg.WorktreeName); wt != nil {
+			// Capture session name before clearing Agent (uses sanitized name like StartAgent)
+			sessionName := tmuxSessionPrefix + sanitizeName(wt.Name)
 			wt.Agent = nil
 			wt.Status = StatusPaused
 			// Clean up cache entry for stopped agent
-			globalPaneCache.remove(tmuxSessionPrefix + wt.Name)
+			globalPaneCache.remove(sessionName)
 		}
 		delete(p.agents, msg.WorktreeName)
 		return p, nil
