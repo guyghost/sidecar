@@ -350,6 +350,27 @@ func (p *Plugin) handleTreeKey(key string) (plugin.Plugin, tea.Cmd) {
 			// When hiding tree, focus moves to preview pane
 			p.activePane = PanePreview
 		}
+
+	case "I":
+		// Toggle git-ignored file visibility
+		p.showIgnored = !p.showIgnored
+		p.tree.ShowIgnored = p.showIgnored
+		p.tree.Flatten()
+		// Ensure cursor stays valid
+		if p.treeCursor >= p.tree.Len() {
+			p.treeCursor = max(0, p.tree.Len()-1)
+		}
+		p.ensureTreeCursorVisible()
+		// Update preview if current file was hidden
+		if p.treeCursor >= 0 && p.treeCursor < p.tree.Len() {
+			node := p.tree.GetNode(p.treeCursor)
+			if node != nil && node.Path != p.previewFile {
+				p.previewFile = node.Path
+				p.updateWatchedFile()
+				p.previewScroll = 0
+				return p, LoadPreview(p.ctx.WorkDir, p.previewFile)
+			}
+		}
 	}
 
 	return p, nil

@@ -454,12 +454,16 @@ func (p *Plugin) renderFileOpSuggestions() string {
 func (p *Plugin) renderTreePane(visibleHeight int) string {
 	var sb strings.Builder
 
-	// Header with sort mode indicator
+	// Header with sort mode and ignored indicator
 	header := styles.Title.Render("Files")
 	sb.WriteString(header)
 	if p.tree != nil {
 		sb.WriteString("  ")
 		sb.WriteString(styles.Muted.Render("[" + p.tree.SortMode.Label() + "]"))
+		if !p.showIgnored {
+			sb.WriteString(" ")
+			sb.WriteString(styles.Muted.Render("[ignored: hidden]"))
+		}
 	}
 	sb.WriteString("\n")
 

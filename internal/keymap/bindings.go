@@ -204,6 +204,7 @@ func DefaultBindings() []Binding {
 		{Key: "i", Command: "info", Context: "file-browser-tree"},
 		{Key: "B", Command: "blame", Context: "file-browser-tree"},
 		{Key: "\\", Command: "toggle-sidebar", Context: "file-browser-tree"},
+		{Key: "I", Command: "toggle-ignored", Context: "file-browser-tree"},
 
 		// File browser preview context
 		{Key: "tab", Command: "switch-pane", Context: "file-browser-preview"},

@@ -110,6 +110,7 @@ type Plugin struct {
 	// Pane state
 	activePane   FocusPane
 	treeVisible  bool // Toggle tree pane visibility with \
+	showIgnored  bool // Toggle git-ignored file visibility with I
 
 	// Tree state
 	treeCursor    int
@@ -223,6 +224,7 @@ func New() *Plugin {
 		mouseHandler:  mouse.NewHandler(),
 		imageRenderer: image.New(), // Detect terminal graphics protocol once
 		treeVisible:   true,        // Tree pane visible by default
+		showIgnored:   true,        // Show git-ignored files by default
 	}
 }
 
@@ -304,6 +306,7 @@ func (p *Plugin) saveState() {
 		ActivePane:    activePane,
 		PreviewFile:   p.previewFile,
 		TreeCursor:    p.treeCursor,
+		ShowIgnored:   &p.showIgnored,
 	}
 
 	if err := state.SetFileBrowserState(p.ctx.WorkDir, fbState); err != nil {
@@ -400,6 +403,13 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 				expandedPaths[path] = true
 			}
 			p.tree.RestoreExpandedPaths(expandedPaths)
+		}
+
+		// Restore ignored file visibility (nil = default true)
+		if fbState.ShowIgnored != nil {
+			p.showIgnored = *fbState.ShowIgnored
+			p.tree.ShowIgnored = p.showIgnored
+			p.tree.Flatten()
 		}
 
 		// Restore tree cursor position
@@ -590,6 +600,7 @@ func (p *Plugin) Commands() []plugin.Command {
 		{ID: "move", Name: "Move", Description: "Move file or directory", Category: plugin.CategoryActions, Context: "file-browser-tree", Priority: 7},
 		{ID: "reveal", Name: "Reveal", Description: "Reveal in file manager", Category: plugin.CategoryActions, Context: "file-browser-tree", Priority: 8},
 		{ID: "toggle-sidebar", Name: "Panel", Description: "Toggle tree pane visibility", Category: plugin.CategoryView, Context: "file-browser-tree", Priority: 9},
+		{ID: "toggle-ignored", Name: "Ignored", Description: "Toggle git-ignored file visibility", Category: plugin.CategoryView, Context: "file-browser-tree", Priority: 9},
 		// Preview pane commands
 		{ID: "quick-open", Name: "Open", Description: "Quick open file by name", Category: plugin.CategorySearch, Context: "file-browser-preview", Priority: 1},
 		{ID: "project-search", Name: "Find", Description: "Search in project", Category: plugin.CategorySearch, Context: "file-browser-preview", Priority: 2},

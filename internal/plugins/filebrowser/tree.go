@@ -55,19 +55,21 @@ type FileNode struct {
 
 // FileTree manages the hierarchical file structure.
 type FileTree struct {
-	Root      *FileNode
-	RootDir   string
-	FlatList  []*FileNode // Flattened visible nodes for cursor navigation
-	gitIgnore *GitIgnore
-	SortMode  SortMode // Current sort mode
+	Root        *FileNode
+	RootDir     string
+	FlatList    []*FileNode // Flattened visible nodes for cursor navigation
+	gitIgnore   *GitIgnore
+	SortMode    SortMode // Current sort mode
+	ShowIgnored bool     // Whether to include ignored files in FlatList
 }
 
 // NewFileTree creates a new file tree rooted at the given directory.
 func NewFileTree(rootDir string) *FileTree {
 	return &FileTree{
-		RootDir:   rootDir,
-		FlatList:  make([]*FileNode, 0),
-		gitIgnore: NewGitIgnore(),
+		RootDir:     rootDir,
+		FlatList:    make([]*FileNode, 0),
+		gitIgnore:   NewGitIgnore(),
+		ShowIgnored: true, // Show ignored files by default
 	}
 }
 
@@ -236,6 +238,10 @@ func (t *FileTree) Flatten() []*FileNode {
 
 func (t *FileTree) flattenNode(node *FileNode) {
 	for _, child := range node.Children {
+		// Skip ignored files/folders when ShowIgnored is false
+		if !t.ShowIgnored && child.IsIgnored {
+			continue
+		}
 		t.FlatList = append(t.FlatList, child)
 		if child.IsDir && child.IsExpanded {
 			t.flattenNode(child)

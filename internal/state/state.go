@@ -33,6 +33,7 @@ type FileBrowserState struct {
 	ActivePane     string   `json:"activePane,omitempty"`     // "tree" or "preview"
 	PreviewFile    string   `json:"previewFile,omitempty"`    // File being previewed (relative)
 	TreeCursor     int      `json:"treeCursor,omitempty"`     // Tree cursor position
+	ShowIgnored    *bool    `json:"showIgnored,omitempty"`    // Whether to show git-ignored files (nil = default true)
 }
 
 var (
