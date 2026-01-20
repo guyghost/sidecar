@@ -354,8 +354,10 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 	case ShellSessionDeadMsg:
 		// Shell session externally terminated (user typed 'exit' in shell)
 		// Remove the dead shell from the list
+		removedIdx := -1
 		for i, shell := range p.shells {
 			if shell.TmuxName == msg.TmuxName {
+				removedIdx = i
 				// Clean up Agent resources
 				if shell.Agent != nil {
 					shell.Agent.OutputBuf = nil
@@ -369,8 +371,12 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 			}
 		}
 		// Adjust selection if needed
-		if p.shellSelected {
-			if p.selectedShellIdx >= len(p.shells) {
+		if p.shellSelected && removedIdx >= 0 {
+			if removedIdx < p.selectedShellIdx {
+				// Shell before selected one was removed, decrement to stay on same shell
+				p.selectedShellIdx--
+			} else if p.selectedShellIdx >= len(p.shells) {
+				// Selected shell was removed or index is now out of bounds
 				if len(p.shells) > 0 {
 					p.selectedShellIdx = len(p.shells) - 1
 				} else if len(p.worktrees) > 0 {
