@@ -270,6 +270,11 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 	p.worktrees = make([]*Worktree, 0)
 	p.attachedSession = ""
 
+	// Reset shell state before initializing for new project (critical for project switching)
+	// Without this, shell session from previous project persists incorrectly
+	p.shellSession = nil
+	p.shellSessionName = ""
+
 	// Initialize shell session for this project
 	p.initShellSession()
 

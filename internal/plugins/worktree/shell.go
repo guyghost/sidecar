@@ -17,7 +17,10 @@ const (
 // Shell session messages
 type (
 	// ShellCreatedMsg signals shell session was created
-	ShellCreatedMsg struct{}
+	ShellCreatedMsg struct {
+		SessionName string // Name of the created session
+		Err         error  // Non-nil if creation failed
+	}
 
 	// ShellDetachedMsg signals user detached from shell session
 	ShellDetachedMsg struct {
@@ -54,56 +57,41 @@ func (p *Plugin) initShellSession() {
 
 // createShellSession creates a new tmux session in the project root directory.
 func (p *Plugin) createShellSession() tea.Cmd {
+	// Capture values to avoid race conditions in closure
+	sessionName := p.shellSessionName
+	workDir := p.ctx.WorkDir
+
 	return func() tea.Msg {
 		// Check if session already exists
-		if sessionExists(p.shellSessionName) {
-			// Session exists, just update our state
-			p.shellSession = &Agent{
-				Type:        AgentShell,
-				TmuxSession: p.shellSessionName,
-				OutputBuf:   NewOutputBuffer(outputBufferCap),
-				StartedAt:   time.Now(),
-				Status:      AgentStatusRunning,
-			}
-			return ShellCreatedMsg{}
+		if sessionExists(sessionName) {
+			return ShellCreatedMsg{SessionName: sessionName}
 		}
 
 		// Create new detached session in project directory
 		args := []string{
 			"new-session",
-			"-d",                    // Detached
-			"-s", p.shellSessionName, // Session name
-			"-c", p.ctx.WorkDir,      // Working directory
+			"-d",            // Detached
+			"-s", sessionName, // Session name
+			"-c", workDir,     // Working directory
 		}
 		cmd := exec.Command("tmux", args...)
 		if err := cmd.Run(); err != nil {
-			return ShellDetachedMsg{Err: fmt.Errorf("create shell session: %w", err)}
+			return ShellCreatedMsg{SessionName: sessionName, Err: fmt.Errorf("create shell session: %w", err)}
 		}
 
-		// Track as managed session
-		p.managedSessions[p.shellSessionName] = true
-
-		// Create agent struct for tracking
-		p.shellSession = &Agent{
-			Type:        AgentShell,
-			TmuxSession: p.shellSessionName,
-			OutputBuf:   NewOutputBuffer(outputBufferCap),
-			StartedAt:   time.Now(),
-			Status:      AgentStatusRunning,
-		}
-
-		return ShellCreatedMsg{}
+		return ShellCreatedMsg{SessionName: sessionName}
 	}
 }
 
 // attachToShell attaches to the shell tmux session.
 func (p *Plugin) attachToShell() tea.Cmd {
-	if p.shellSession == nil || p.shellSessionName == "" {
+	if p.shellSessionName == "" {
 		return nil
 	}
 
-	c := exec.Command("tmux", "attach-session", "-t", p.shellSessionName)
+	sessionName := p.shellSessionName
 	projectName := filepath.Base(p.ctx.WorkDir)
+	c := exec.Command("tmux", "attach-session", "-t", sessionName)
 	return tea.Sequence(
 		tea.Printf("\nAttaching to %s shell. Press Ctrl-b d to return to sidecar.\n", projectName),
 		tea.ExecProcess(c, func(err error) tea.Msg {
@@ -118,17 +106,14 @@ func (p *Plugin) killShellSession() tea.Cmd {
 		return nil
 	}
 
+	sessionName := p.shellSessionName
 	return func() tea.Msg {
 		// Kill the session
-		cmd := exec.Command("tmux", "kill-session", "-t", p.shellSessionName)
+		cmd := exec.Command("tmux", "kill-session", "-t", sessionName)
 		cmd.Run() // Ignore errors (session may already be dead)
 
-		// Clean up tracking
-		delete(p.managedSessions, p.shellSessionName)
-		globalPaneCache.remove(p.shellSessionName)
-
-		// Clear session state
-		p.shellSession = nil
+		// Clean up pane cache
+		globalPaneCache.remove(sessionName)
 
 		return ShellKilledMsg{}
 	}
@@ -140,20 +125,22 @@ func (p *Plugin) pollShellSession() tea.Cmd {
 		return nil
 	}
 
+	// Capture values to avoid race conditions in closure
+	sessionName := p.shellSessionName
+	outputBuf := p.shellSession.OutputBuf
+	maxBytes := p.tmuxCaptureMaxBytes
+
 	return func() tea.Msg {
-		output, err := capturePaneDirect(p.shellSessionName)
+		output, err := capturePaneDirect(sessionName)
 		if err != nil {
 			return ShellOutputMsg{Output: "", Changed: false}
 		}
 
 		// Trim to max bytes
-		output = trimCapturedOutput(output, p.tmuxCaptureMaxBytes)
+		output = trimCapturedOutput(output, maxBytes)
 
 		// Update buffer and check if content changed
-		changed := p.shellSession.OutputBuf.Update(output)
-		if changed {
-			p.shellSession.LastOutput = time.Now()
-		}
+		changed := outputBuf.Update(output)
 
 		return ShellOutputMsg{Output: output, Changed: changed}
 	}
@@ -169,21 +156,3 @@ func (p *Plugin) scheduleShellPoll(delay time.Duration) tea.Cmd {
 // pollShellMsg triggers a shell output poll.
 type pollShellMsg struct{}
 
-// shellOutputVisible returns true if shell output is currently visible.
-func (p *Plugin) shellOutputVisible() bool {
-	return p.focused &&
-		p.viewMode == ViewModeList &&
-		p.shellSelected &&
-		p.previewTab == PreviewTabOutput
-}
-
-// shellPollInterval returns appropriate poll interval based on visibility.
-func (p *Plugin) shellPollInterval() time.Duration {
-	if p.shellOutputVisible() {
-		return pollIntervalActive
-	}
-	if p.focused {
-		return pollIntervalBackground
-	}
-	return pollIntervalUnfocused
-}

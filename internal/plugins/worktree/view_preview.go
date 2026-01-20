@@ -12,9 +12,9 @@ import (
 func (p *Plugin) renderPreviewContent(width, height int) string {
 	var lines []string
 
-	// Hide tabs when no worktree is selected - show welcome guide instead
+	// Show welcome guide only when no worktree AND no shell is selected
 	wt := p.selectedWorktree()
-	if wt == nil {
+	if wt == nil && !p.shellSelected {
 		return p.truncateAllLines(p.renderWelcomeGuide(width, height), width)
 	}
 
@@ -219,14 +219,7 @@ func (p *Plugin) renderOutputContent(width, height int) string {
 // renderShellOutput renders project shell output.
 func (p *Plugin) renderShellOutput(width, height int) string {
 	if p.shellSession == nil {
-		// No session message
-		return dimText(`No shell session
-
-Press Enter to create a tmux session
-in the project directory.
-
-For running builds, dev servers, or
-quick fixes without worktrees.`)
+		return p.renderShellPrimer(width, height)
 	}
 
 	// Hint for tmux detach
@@ -277,6 +270,48 @@ quick fixes without worktrees.`)
 	}
 
 	return hint + "\n" + strings.Join(displayLines, "\n")
+}
+
+// renderShellPrimer renders a helpful guide when no shell session exists.
+func (p *Plugin) renderShellPrimer(width, height int) string {
+	var lines []string
+
+	// Section style
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
+
+	// Title
+	lines = append(lines, sectionStyle.Render("Project Shell"))
+	lines = append(lines, "")
+
+	// Description
+	lines = append(lines, dimText("A tmux session in your project directory for running"))
+	lines = append(lines, dimText("builds, dev servers, or quick terminal tasks without"))
+	lines = append(lines, dimText("creating a git worktree."))
+	lines = append(lines, "")
+	lines = append(lines, strings.Repeat("─", min(width-4, 50)))
+	lines = append(lines, "")
+
+	// Quick start
+	lines = append(lines, sectionStyle.Render("Quick Start"))
+	lines = append(lines, dimText("  Enter         Create and attach to shell"))
+	lines = append(lines, dimText("  K             Kill shell session"))
+	lines = append(lines, "")
+
+	// When attached
+	lines = append(lines, sectionStyle.Render("When Attached"))
+	lines = append(lines, dimText("  Ctrl-b d      Detach (return to sidecar)"))
+	lines = append(lines, dimText("  Ctrl-b [      Enter scroll mode"))
+	lines = append(lines, dimText("  q             Exit scroll mode"))
+	lines = append(lines, "")
+
+	// Use cases
+	lines = append(lines, sectionStyle.Render("Common Uses"))
+	lines = append(lines, dimText("  • npm run dev, go run, python manage.py"))
+	lines = append(lines, dimText("  • Running tests or builds"))
+	lines = append(lines, dimText("  • Quick git commands"))
+	lines = append(lines, dimText("  • Debugging without a worktree"))
+
+	return strings.Join(lines, "\n")
 }
 
 // renderCommitStatusHeader renders the commit status header for diff view.

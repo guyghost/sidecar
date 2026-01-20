@@ -270,7 +270,20 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 
 	// Shell session messages
 	case ShellCreatedMsg:
-		// Shell session created, start polling for output
+		if msg.Err != nil {
+			// Creation failed, don't update state
+			return p, nil
+		}
+		// Create shell session agent struct
+		p.shellSession = &Agent{
+			Type:        AgentShell,
+			TmuxSession: msg.SessionName,
+			OutputBuf:   NewOutputBuffer(outputBufferCap),
+			StartedAt:   time.Now(),
+			Status:      AgentStatusRunning,
+		}
+		p.managedSessions[msg.SessionName] = true
+		// Start polling for output
 		cmds = append(cmds, p.scheduleShellPoll(500*time.Millisecond))
 
 	case ShellDetachedMsg:
@@ -282,9 +295,16 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 
 	case ShellKilledMsg:
 		// Shell session killed, clear state
+		if p.shellSession != nil {
+			delete(p.managedSessions, p.shellSession.TmuxSession)
+		}
 		p.shellSession = nil
 
 	case ShellOutputMsg:
+		// Update last output time if content changed
+		if msg.Changed && p.shellSession != nil {
+			p.shellSession.LastOutput = time.Now()
+		}
 		// Schedule next poll with adaptive interval
 		interval := pollIntervalActive
 		if !msg.Changed {
