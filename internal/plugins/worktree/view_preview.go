@@ -147,6 +147,11 @@ func (p *Plugin) renderTabs(width int) string {
 
 // renderOutputContent renders agent output.
 func (p *Plugin) renderOutputContent(width, height int) string {
+	// Handle shell output when shell is selected
+	if p.shellSelected {
+		return p.renderShellOutput(width, height)
+	}
+
 	wt := p.selectedWorktree()
 	if wt == nil {
 		return dimText("No worktree selected")
@@ -204,6 +209,69 @@ func (p *Plugin) renderOutputContent(width, height int) string {
 		displayLine := expandTabs(line, tabStopWidth)
 		// Apply horizontal offset and truncate to width in a single cached operation
 		// This prevents allocation churn from repeated parsing with varying offsets
+		displayLine = p.truncateCache.TruncateLeftRight(displayLine, p.previewHorizOffset, width)
+		displayLines = append(displayLines, displayLine)
+	}
+
+	return hint + "\n" + strings.Join(displayLines, "\n")
+}
+
+// renderShellOutput renders project shell output.
+func (p *Plugin) renderShellOutput(width, height int) string {
+	if p.shellSession == nil {
+		// No session message
+		return dimText(`No shell session
+
+Press Enter to create a tmux session
+in the project directory.
+
+For running builds, dev servers, or
+quick fixes without worktrees.`)
+	}
+
+	// Hint for tmux detach
+	hint := dimText("enter to attach • Ctrl-b d to detach")
+	height-- // Reserve line for hint
+
+	if p.shellSession.OutputBuf == nil {
+		return hint + "\n" + dimText("No output yet")
+	}
+
+	lineCount := p.shellSession.OutputBuf.LineCount()
+	if lineCount == 0 {
+		return hint + "\n" + dimText("No output yet")
+	}
+
+	var start, end int
+	if p.autoScrollOutput {
+		// Auto-scroll: show newest content (last height lines)
+		start = lineCount - height
+		if start < 0 {
+			start = 0
+		}
+		end = lineCount
+	} else {
+		// Manual scroll: previewOffset is lines from bottom
+		start = lineCount - height - p.previewOffset
+		if start < 0 {
+			start = 0
+		}
+		end = start + height
+		if end > lineCount {
+			end = lineCount
+		}
+	}
+
+	// Get only the lines we need
+	lines := p.shellSession.OutputBuf.LinesRange(start, end)
+	if len(lines) == 0 {
+		return hint + "\n" + dimText("No output yet")
+	}
+
+	// Apply horizontal offset and truncate each line
+	displayLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		displayLine := expandTabs(line, tabStopWidth)
 		displayLine = p.truncateCache.TruncateLeftRight(displayLine, p.previewHorizOffset, width)
 		displayLines = append(displayLines, displayLine)
 	}
