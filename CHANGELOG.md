@@ -2,6 +2,19 @@
 
 All notable changes to sidecar are documented here.
 
+## [v0.30.0] - 2026-01-20
+
+### Features
+- **Project Switcher**: Type-to-filter support - type to filter projects by name/path in real-time, shows match count, Esc clears filter or closes modal
+- **Project Switcher**: j/k keyboard navigation now works correctly (previously went to text input)
+
+### Bug Fixes
+- Fixed project switcher Esc handler missing context update
+- Fixed project switcher hover state not clearing on filter change
+
+### Documentation
+- Added project switcher developer guide (`docs/guides/project-switcher-dev-guide.md`)
+
 ## [v0.29.0] - 2026-01-19
 
 ### Features
