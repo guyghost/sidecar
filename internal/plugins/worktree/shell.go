@@ -160,7 +160,12 @@ func (p *Plugin) ensureShellAndAttach() tea.Cmd {
 		p.createShellSession(),
 		func() tea.Msg {
 			// Wait for session to be ready with exponential backoff
-			waitForSession(sessionName)
+			if !waitForSession(sessionName) {
+				return ShellCreatedMsg{
+					SessionName: sessionName,
+					Err:         fmt.Errorf("shell session failed to become ready after retries"),
+				}
+			}
 			return shellAttachAfterCreateMsg{}
 		},
 	)
