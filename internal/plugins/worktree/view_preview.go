@@ -168,11 +168,6 @@ func (p *Plugin) renderTabs(width int) string {
 
 // renderOutputContent renders agent output.
 func (p *Plugin) renderOutputContent(width, height int) string {
-	// Handle shell output when shell is selected
-	if p.shellSelected {
-		return p.renderShellOutput(width, height)
-	}
-
 	wt := p.selectedWorktree()
 	if wt == nil {
 		return dimText("No worktree selected")
