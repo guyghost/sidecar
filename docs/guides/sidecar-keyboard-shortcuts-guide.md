@@ -236,12 +236,12 @@ Each plugin returns a context string that determines which bindings are active.
 | Key | Command | Description |
 |-----|---------|-------------|
 | `@` | toggle | Open/close project switcher |
-| `j` / `↓` | cursor-down | Move to next project |
-| `k` / `↑` | cursor-up | Move to previous project |
-| `g` | cursor-top | Jump to first project |
-| `G` | cursor-bottom | Jump to last project |
+| `↓` / `ctrl+n` | cursor-down | Move to next project |
+| `↑` / `ctrl+p` | cursor-up | Move to previous project |
 | `Enter` | select | Switch to selected project |
-| `Esc` / `q` | close | Close modal without switching |
+| `Esc` | close | Close modal without switching |
+
+Typing in the filter box always updates the filter; use arrows or `ctrl+n/ctrl+p` to navigate.
 
 See `docs/guides/project-switching-guide.md` for configuration and usage details.
 

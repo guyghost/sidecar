@@ -455,9 +455,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Handle string-based keys
+		// Handle non-text shortcuts
 		switch msg.String() {
-		case "j", "ctrl+n":
+		case "ctrl+n":
 			m.projectSwitcherCursor++
 			if m.projectSwitcherCursor >= len(projects) {
 				m.projectSwitcherCursor = len(projects) - 1
@@ -468,23 +468,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.projectSwitcherScroll = projectSwitcherEnsureCursorVisible(m.projectSwitcherCursor, m.projectSwitcherScroll, 8)
 			return m, nil
 
-		case "k", "ctrl+p":
+		case "ctrl+p":
 			m.projectSwitcherCursor--
-			if m.projectSwitcherCursor < 0 {
-				m.projectSwitcherCursor = 0
-			}
-			m.projectSwitcherScroll = projectSwitcherEnsureCursorVisible(m.projectSwitcherCursor, m.projectSwitcherScroll, 8)
-			return m, nil
-
-		case "g":
-			// Go to first project
-			m.projectSwitcherCursor = 0
-			m.projectSwitcherScroll = projectSwitcherEnsureCursorVisible(m.projectSwitcherCursor, m.projectSwitcherScroll, 8)
-			return m, nil
-
-		case "G":
-			// Go to last project
-			m.projectSwitcherCursor = len(projects) - 1
 			if m.projectSwitcherCursor < 0 {
 				m.projectSwitcherCursor = 0
 			}
@@ -496,10 +481,6 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.resetProjectSwitcher()
 			m.updateContext()
 			return m, nil
-
-		case "y":
-			// Copy LLM setup prompt (less prominent when projects exist)
-			return m, m.copyProjectSetupPrompt()
 		}
 
 		// Forward other keys to text input for filtering

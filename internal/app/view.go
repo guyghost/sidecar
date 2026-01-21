@@ -263,8 +263,6 @@ func (m Model) renderProjectSwitcherOverlay(content string) string {
 	b.WriteString(styles.Muted.Render(" navigate  "))
 	b.WriteString(styles.KeyHint.Render("esc"))
 	b.WriteString(styles.Muted.Render(" cancel  "))
-	b.WriteString(styles.Subtle.Render("y"))
-	b.WriteString(styles.Subtle.Render(" llm setup"))
 
 	modal := styles.ModalBox.Render(b.String())
 	return ui.OverlayModal(content, modal, m.width, m.height)

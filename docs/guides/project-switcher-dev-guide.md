@@ -102,11 +102,10 @@ All keyboard logic is in `update.go:385-488`.
    - `KeyUp/KeyDown` - Arrow navigation
 
 2. **String switch** (`msg.String()`) - Handles named keys:
-   - `j/k` - Vim-style navigation
    - `ctrl+n/ctrl+p` - Emacs-style navigation
    - `@` - Close modal
 
-3. **Fallthrough** - All other keys forwarded to textinput
+3. **Fallthrough** - All other keys forwarded to textinput (including printable characters)
 
 ### Esc Behavior
 
@@ -418,7 +417,7 @@ See `td-1a735359` for the test task.
 1. **Forgetting updateContext()** - Call after closing modal to restore app context
 2. **Stale hover index** - Clear `projectSwitcherHover` when filter changes
 3. **Cursor out of bounds** - Always clamp after filtering
-4. **j/k vs textinput** - Navigation keys must be handled before forwarding to textinput
+4. **Printable keys vs navigation** - Keep printable characters routed to textinput so filtering always works
 5. **Mouse Y calculation** - Account for scroll indicators and filter count line
 
 ## File Locations

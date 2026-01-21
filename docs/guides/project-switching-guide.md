@@ -19,7 +19,7 @@ Switch between git repositories without restarting sidecar.
 ```
 
 2. Press `@` to open the project switcher
-3. Select a project with `j/k` or arrow keys
+3. Select a project with arrow keys (or `ctrl+n/ctrl+p`)
 4. Press `Enter` to switch
 
 ## Configuration
@@ -60,12 +60,12 @@ Paths support `~` expansion:
 
 | Key | Action |
 |-----|--------|
-| `j` / `↓` | Move cursor down |
-| `k` / `↑` | Move cursor up |
-| `g` | Jump to top |
-| `G` | Jump to bottom |
+| `↓` / `ctrl+n` | Move cursor down |
+| `↑` / `ctrl+p` | Move cursor up |
 | `Enter` | Switch to selected project |
-| `Esc` / `q` | Close without switching |
+| `Esc` | Close without switching |
+
+Typing in the filter box always updates the filter. Use arrows or `ctrl+n/ctrl+p` to navigate.
 
 ### Mouse Support
 
