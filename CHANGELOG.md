@@ -2,6 +2,33 @@
 
 All notable changes to sidecar are documented here.
 
+## [v0.34.0] - 2026-01-20
+
+### Features
+- **Tabs**: Configurable tab themes with 16 built-in presets
+- **Worktree**: File picker modal (`f`) in diff view
+- **Worktree**: File headers and navigation in diff pane
+- **Project Switcher**: Header click opens project switcher
+- **Shells**: Rename shells with persistent display names
+- **Shortcuts**: Improved modal layout
+
+### Performance
+- **Tasks**: Pre-fetch task details to eliminate lag in task tab
+- **Adapters**: Cache metadata and reduce file I/O
+
+### Bug Fixes
+- **Merge**: Better error handling and resolution actions
+- **Worktree**: Fix race conditions in caches and pre-fetch
+- **Worktree**: Flash preview pane on invalid key interactions
+- **Worktree**: Fix worktree deletion from non-repo cwd
+- **Watchers**: Fix race conditions and buffer issues
+- **Project Switcher**: Don't hijack filter input
+- **Shells**: Fix display name persistence when saving defaults
+- Guard flashPreviewTime against zero-value time
+
+### Dependencies
+- Updated embedded td to v0.18.0
+
 ## [v0.33.0] - 2026-01-20
 
 ### Features
