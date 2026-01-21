@@ -674,21 +674,7 @@ func (p *Plugin) openProjectSearchResult() (plugin.Plugin, tea.Cmd) {
 
 	// Load preview
 	p.activePane = PanePreview
-	cmd := p.openTab(path, TabOpenReplace)
-
-	// If we have a line number, scroll to it after preview loads
-	if lineNo > 0 {
-		p.previewScroll = lineNo - 1 // Convert to 0-indexed
-		if p.previewScroll < 0 {
-			p.previewScroll = 0
-		}
-		if len(p.tabs) > 0 && p.activeTab >= 0 && p.activeTab < len(p.tabs) {
-			p.tabs[p.activeTab].Scroll = p.previewScroll
-		}
-		if cmd == nil {
-			p.clampPreviewScroll()
-		}
-	}
+	cmd := p.openTabAtLine(path, lineNo, TabOpenReplace)
 
 	// Set up content search for highlighting the matched term
 	if searchQuery != "" {

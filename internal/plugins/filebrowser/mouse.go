@@ -513,19 +513,7 @@ func (p *Plugin) handleProjectSearchDoubleClick(action mouse.MouseAction) (*Plug
 					// Close project search and open file
 					p.projectSearchMode = false
 					p.projectSearchState = nil
-					cmd := p.openTab(file.Path, TabOpenReplace)
-					if match.LineNo > 0 {
-						p.previewScroll = match.LineNo - 1
-						if p.previewScroll < 0 {
-							p.previewScroll = 0
-						}
-						if len(p.tabs) > 0 && p.activeTab >= 0 && p.activeTab < len(p.tabs) {
-							p.tabs[p.activeTab].Scroll = p.previewScroll
-						}
-						if cmd == nil {
-							p.clampPreviewScroll()
-						}
-					}
+					cmd := p.openTabAtLine(file.Path, match.LineNo, TabOpenReplace)
 					return p, tea.Batch(cmd, p.openFileAtLine(file.Path, match.LineNo))
 				}
 			}

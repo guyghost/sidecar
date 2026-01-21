@@ -92,6 +92,23 @@ func (p *Plugin) openTab(path string, mode TabOpenMode) tea.Cmd {
 	return p.applyActiveTab()
 }
 
+func (p *Plugin) openTabAtLine(path string, lineNo int, mode TabOpenMode) tea.Cmd {
+	cmd := p.openTab(path, mode)
+
+	if lineNo > 0 {
+		p.previewScroll = lineNo - 1
+		if p.previewScroll < 0 {
+			p.previewScroll = 0
+		}
+		p.saveActiveTabState()
+		if cmd == nil {
+			p.clampPreviewScroll()
+		}
+	}
+
+	return cmd
+}
+
 func (p *Plugin) switchTab(index int) tea.Cmd {
 	if index < 0 || index >= len(p.tabs) {
 		return nil
