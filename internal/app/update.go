@@ -6,10 +6,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/marcus/sidecar/internal/config"
 	appmsg "github.com/marcus/sidecar/internal/msg"
 	"github.com/marcus/sidecar/internal/palette"
 	"github.com/marcus/sidecar/internal/plugin"
 	"github.com/marcus/sidecar/internal/state"
+	"github.com/marcus/sidecar/internal/styles"
 	"github.com/marcus/sidecar/internal/version"
 )
 
@@ -78,6 +80,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle project switcher modal mouse events
 		if m.showProjectSwitcher {
 			return m.handleProjectSwitcherMouse(msg)
+		}
+
+		// Handle theme switcher modal mouse events
+		if m.showThemeSwitcher {
+			return m.handleThemeSwitcherMouse(msg)
 		}
 
 		// Ignore mouse events for other modals
@@ -294,6 +301,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.updateContext()
 			return m, nil
 		}
+		if m.showThemeSwitcher {
+			// Restore original theme on cancel
+			m.applyThemeFromConfig(m.themeSwitcherOriginal)
+			m.resetThemeSwitcher()
+			m.updateContext()
+			return m, nil
+		}
 	}
 
 	if m.showQuitConfirm {
@@ -503,6 +517,130 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Handle theme switcher modal keys
+	if m.showThemeSwitcher {
+		themes := m.themeSwitcherFiltered
+
+		switch msg.Type {
+		case tea.KeyEsc:
+			// Esc: clear filter if set, otherwise restore original and close
+			if m.themeSwitcherInput.Value() != "" {
+				m.themeSwitcherInput.SetValue("")
+				m.themeSwitcherFiltered = styles.ListThemes()
+				m.themeSwitcherCursor = 0
+				m.themeSwitcherScroll = 0
+				return m, nil
+			}
+			// Restore original theme
+			m.applyThemeFromConfig(m.themeSwitcherOriginal)
+			m.resetThemeSwitcher()
+			m.updateContext()
+			return m, nil
+
+		case tea.KeyEnter:
+			// Confirm selection and close
+			if m.themeSwitcherCursor >= 0 && m.themeSwitcherCursor < len(themes) {
+				selectedTheme := themes[m.themeSwitcherCursor]
+				m.resetThemeSwitcher()
+				m.updateContext()
+				// Persist to config
+				if err := config.SaveTheme(selectedTheme); err != nil {
+					return m, func() tea.Msg {
+						return ToastMsg{Message: "Theme applied (save failed)", Duration: 3 * time.Second, IsError: true}
+					}
+				}
+				return m, func() tea.Msg {
+					return ToastMsg{Message: "Theme: " + selectedTheme, Duration: 2 * time.Second}
+				}
+			}
+			return m, nil
+
+		case tea.KeyUp:
+			m.themeSwitcherCursor--
+			if m.themeSwitcherCursor < 0 {
+				m.themeSwitcherCursor = 0
+			}
+			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
+			// Live preview
+			if m.themeSwitcherCursor < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			}
+			return m, nil
+
+		case tea.KeyDown:
+			m.themeSwitcherCursor++
+			if m.themeSwitcherCursor >= len(themes) {
+				m.themeSwitcherCursor = len(themes) - 1
+			}
+			if m.themeSwitcherCursor < 0 {
+				m.themeSwitcherCursor = 0
+			}
+			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
+			// Live preview
+			if m.themeSwitcherCursor < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			}
+			return m, nil
+		}
+
+		// Handle non-text shortcuts
+		switch msg.String() {
+		case "ctrl+n":
+			m.themeSwitcherCursor++
+			if m.themeSwitcherCursor >= len(themes) {
+				m.themeSwitcherCursor = len(themes) - 1
+			}
+			if m.themeSwitcherCursor < 0 {
+				m.themeSwitcherCursor = 0
+			}
+			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
+			if m.themeSwitcherCursor < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			}
+			return m, nil
+
+		case "ctrl+p":
+			m.themeSwitcherCursor--
+			if m.themeSwitcherCursor < 0 {
+				m.themeSwitcherCursor = 0
+			}
+			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
+			if m.themeSwitcherCursor < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			}
+			return m, nil
+
+		case "#":
+			// Close modal and restore original
+			m.applyThemeFromConfig(m.themeSwitcherOriginal)
+			m.resetThemeSwitcher()
+			m.updateContext()
+			return m, nil
+		}
+
+		// Forward other keys to text input for filtering
+		var cmd tea.Cmd
+		m.themeSwitcherInput, cmd = m.themeSwitcherInput.Update(msg)
+
+		// Re-filter on input change
+		m.themeSwitcherFiltered = filterThemes(styles.ListThemes(), m.themeSwitcherInput.Value())
+		m.themeSwitcherHover = -1
+		if m.themeSwitcherCursor >= len(m.themeSwitcherFiltered) {
+			m.themeSwitcherCursor = len(m.themeSwitcherFiltered) - 1
+		}
+		if m.themeSwitcherCursor < 0 {
+			m.themeSwitcherCursor = 0
+		}
+		m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, 0, 8)
+
+		// Live preview current selection
+		if m.themeSwitcherCursor >= 0 && m.themeSwitcherCursor < len(m.themeSwitcherFiltered) {
+			m.applyThemeFromConfig(m.themeSwitcherFiltered[m.themeSwitcherCursor])
+		}
+
+		return m, cmd
+	}
+
 	// If modal is open, don't process other keys
 	if m.showHelp || m.showQuitConfirm {
 		return m, nil
@@ -571,6 +709,18 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.initProjectSwitcher()
 		} else {
 			m.resetProjectSwitcher()
+			m.updateContext()
+		}
+		return m, nil
+	case "#":
+		// Toggle theme switcher modal
+		m.showThemeSwitcher = !m.showThemeSwitcher
+		if m.showThemeSwitcher {
+			m.activeContext = "theme-switcher"
+			m.initThemeSwitcher()
+		} else {
+			m.applyThemeFromConfig(m.themeSwitcherOriginal)
+			m.resetThemeSwitcher()
 			m.updateContext()
 		}
 		return m, nil
@@ -663,7 +813,8 @@ func isTextInputContext(ctx string) bool {
 		"file-browser-project-search",
 		"file-browser-line-jump",
 		"td-search",
-		"worktree-create", "worktree-task-link":
+		"worktree-create", "worktree-task-link",
+		"theme-switcher":
 		return true
 	default:
 		return false
@@ -831,6 +982,133 @@ func (m Model) handleProjectSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd)
 	// Clear hover when outside modal
 	if msg.Action == tea.MouseActionMotion {
 		m.projectSwitcherHover = -1
+	}
+
+	return m, nil
+}
+
+// handleThemeSwitcherMouse handles mouse events for the theme switcher modal.
+func (m Model) handleThemeSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	themes := m.themeSwitcherFiltered
+
+	// Calculate modal dimensions and position
+	maxVisible := 8
+	visibleCount := len(themes)
+	if visibleCount > maxVisible {
+		visibleCount = maxVisible
+	}
+
+	// Estimate modal dimensions (title + input + count + themes + help text)
+	// Title: 2 lines, Input: 1 line, Count: 1 line, Themes: 1 line each, Help: 2 lines
+	modalContentLines := 2 + 1 + 1 + visibleCount + 2
+	if m.themeSwitcherScroll > 0 {
+		modalContentLines++ // scroll indicator above
+	}
+	if len(themes) > m.themeSwitcherScroll+visibleCount {
+		modalContentLines++ // scroll indicator below
+	}
+	if len(themes) == 0 {
+		modalContentLines = 2 + 1 + 1 + 2 + 2 // title + input + count + "no matches" + help
+	}
+
+	// ModalBox adds padding and border (~2 on each side)
+	modalHeight := modalContentLines + 4
+	modalWidth := 50
+
+	modalX := (m.width - modalWidth) / 2
+	modalY := (m.height - modalHeight) / 2
+
+	// Check if click is inside modal
+	if msg.X >= modalX && msg.X < modalX+modalWidth &&
+		msg.Y >= modalY && msg.Y < modalY+modalHeight {
+
+		if len(themes) == 0 {
+			return m, nil
+		}
+
+		// Calculate which theme was clicked
+		// Content starts at modalY + 2 (border + padding)
+		// Title: 2 lines, Input: 1 line, Count: 1 line, then scroll indicator (if any), then themes
+		contentStartY := modalY + 2 + 2 + 1 + 1 // border/padding + title + input + count
+		if m.themeSwitcherScroll > 0 {
+			contentStartY++ // scroll indicator
+		}
+
+		// Each theme takes 1 line
+		relY := msg.Y - contentStartY
+		if relY >= 0 && relY < visibleCount {
+			themeIdx := m.themeSwitcherScroll + relY
+
+			if themeIdx >= 0 && themeIdx < len(themes) {
+				switch msg.Action {
+				case tea.MouseActionPress:
+					if msg.Button == tea.MouseButtonLeft {
+						// Click to select and confirm
+						selectedTheme := themes[themeIdx]
+						m.applyThemeFromConfig(selectedTheme)
+						m.resetThemeSwitcher()
+						m.updateContext()
+						// Persist to config
+						if err := config.SaveTheme(selectedTheme); err != nil {
+							return m, func() tea.Msg {
+								return ToastMsg{Message: "Theme applied (save failed)", Duration: 3 * time.Second, IsError: true}
+							}
+						}
+						return m, func() tea.Msg {
+							return ToastMsg{Message: "Theme: " + selectedTheme, Duration: 2 * time.Second}
+						}
+					}
+				case tea.MouseActionMotion:
+					// Hover effect and live preview
+					m.themeSwitcherHover = themeIdx
+					m.applyThemeFromConfig(themes[themeIdx])
+				}
+			}
+		} else {
+			if msg.Action == tea.MouseActionMotion {
+				m.themeSwitcherHover = -1
+			}
+		}
+
+		// Handle scroll wheel
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			m.themeSwitcherCursor--
+			if m.themeSwitcherCursor < 0 {
+				m.themeSwitcherCursor = 0
+			}
+			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, maxVisible)
+			if m.themeSwitcherCursor < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			}
+		case tea.MouseButtonWheelDown:
+			m.themeSwitcherCursor++
+			if m.themeSwitcherCursor >= len(themes) {
+				m.themeSwitcherCursor = len(themes) - 1
+			}
+			if m.themeSwitcherCursor < 0 {
+				m.themeSwitcherCursor = 0
+			}
+			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, maxVisible)
+			if m.themeSwitcherCursor < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			}
+		}
+
+		return m, nil
+	}
+
+	// Click outside modal - restore original and close
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+		m.applyThemeFromConfig(m.themeSwitcherOriginal)
+		m.resetThemeSwitcher()
+		m.updateContext()
+		return m, nil
+	}
+
+	// Clear hover when outside modal
+	if msg.Action == tea.MouseActionMotion {
+		m.themeSwitcherHover = -1
 	}
 
 	return m, nil

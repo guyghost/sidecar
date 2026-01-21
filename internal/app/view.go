@@ -76,6 +76,9 @@ func (m Model) View() string {
 	if m.showProjectSwitcher {
 		return m.renderProjectSwitcherOverlay(b.String())
 	}
+	if m.showThemeSwitcher {
+		return m.renderThemeSwitcherOverlay(b.String())
+	}
 
 	return b.String()
 }
@@ -263,6 +266,129 @@ func (m Model) renderProjectSwitcherOverlay(content string) string {
 	b.WriteString(styles.Muted.Render(" navigate  "))
 	b.WriteString(styles.KeyHint.Render("esc"))
 	b.WriteString(styles.Muted.Render(" cancel  "))
+
+	modal := styles.ModalBox.Render(b.String())
+	return ui.OverlayModal(content, modal, m.width, m.height)
+}
+
+// renderThemeSwitcherOverlay renders the theme switcher modal.
+func (m Model) renderThemeSwitcherOverlay(content string) string {
+	var b strings.Builder
+
+	// Title
+	b.WriteString(styles.ModalTitle.Render("Switch Theme"))
+	b.WriteString("  ")
+	b.WriteString(styles.Muted.Render("#"))
+	b.WriteString("\n\n")
+
+	allThemes := styles.ListThemes()
+
+	// Render search input
+	b.WriteString(m.themeSwitcherInput.View())
+	b.WriteString("\n")
+
+	// Show count if filtering
+	themes := m.themeSwitcherFiltered
+	if m.themeSwitcherInput.Value() != "" {
+		b.WriteString(styles.Muted.Render(fmt.Sprintf("%d of %d themes", len(themes), len(allThemes))))
+	}
+	b.WriteString("\n")
+
+	// Empty filtered state
+	if len(themes) == 0 {
+		b.WriteString("\n")
+		b.WriteString(styles.Muted.Render("No matches"))
+		b.WriteString("\n\n")
+		b.WriteString(styles.KeyHint.Render("esc"))
+		b.WriteString(styles.Muted.Render(" clear filter  "))
+		b.WriteString(styles.KeyHint.Render("#"))
+		b.WriteString(styles.Muted.Render(" close"))
+
+		modal := styles.ModalBox.Render(b.String())
+		return ui.OverlayModal(content, modal, m.width, m.height)
+	}
+
+	// Calculate visible window for scrolling
+	maxVisible := 8
+	visibleCount := len(themes)
+	if visibleCount > maxVisible {
+		visibleCount = maxVisible
+	}
+
+	scrollOffset := m.themeSwitcherScroll
+
+	// Render scroll indicator if needed (top)
+	if scrollOffset > 0 {
+		b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↑ %d more above\n", scrollOffset)))
+	}
+
+	// Styles for theme items
+	cursorStyle := lipgloss.NewStyle().Foreground(styles.Primary)
+	nameNormalStyle := lipgloss.NewStyle().Foreground(styles.Secondary)
+	nameSelectedStyle := lipgloss.NewStyle().Foreground(styles.Primary).Bold(true)
+	nameCurrentStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
+	nameCurrentSelectedStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
+
+	currentTheme := m.themeSwitcherOriginal
+
+	// Render theme list
+	for i := scrollOffset; i < scrollOffset+visibleCount && i < len(themes); i++ {
+		themeName := themes[i]
+		isCursor := i == m.themeSwitcherCursor
+		isHover := i == m.themeSwitcherHover
+		isCurrent := themeName == currentTheme
+
+		// Cursor indicator
+		if isCursor {
+			b.WriteString(cursorStyle.Render("> "))
+		} else {
+			b.WriteString("  ")
+		}
+
+		// Theme name styling
+		var nameStyle lipgloss.Style
+		if isCurrent {
+			if isCursor || isHover {
+				nameStyle = nameCurrentSelectedStyle
+			} else {
+				nameStyle = nameCurrentStyle
+			}
+		} else if isCursor || isHover {
+			nameStyle = nameSelectedStyle
+		} else {
+			nameStyle = nameNormalStyle
+		}
+
+		// Get display name from theme
+		theme := styles.GetTheme(themeName)
+		displayName := theme.DisplayName
+		if displayName == "" {
+			displayName = themeName
+		}
+		b.WriteString(nameStyle.Render(displayName))
+
+		// Current indicator
+		if isCurrent {
+			b.WriteString(styles.Muted.Render(" (current)"))
+		}
+		b.WriteString("\n")
+	}
+
+	// Render scroll indicator if needed (bottom)
+	remaining := len(themes) - (scrollOffset + visibleCount)
+	if remaining > 0 {
+		b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↓ %d more below\n", remaining)))
+	}
+
+	b.WriteString("\n")
+
+	// Help text
+	b.WriteString(styles.KeyHint.Render("enter"))
+	b.WriteString(styles.Muted.Render(" select  "))
+	b.WriteString(styles.KeyHint.Render("↑/↓"))
+	b.WriteString(styles.Muted.Render(" navigate  "))
+	b.WriteString(styles.KeyHint.Render("esc"))
+	b.WriteString(styles.Muted.Render(" cancel"))
 
 	modal := styles.ModalBox.Render(b.String())
 	return ui.OverlayModal(content, modal, m.width, m.height)
