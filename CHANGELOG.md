@@ -2,6 +2,11 @@
 
 All notable changes to sidecar are documented here.
 
+## [v0.36.0] - 2026-01-21
+
+### Features
+- **Themes**: Live theme switcher modal with persistence
+
 ## [v0.35.0] - 2026-01-21
 
 ### Improvements
