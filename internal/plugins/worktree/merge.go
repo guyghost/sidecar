@@ -92,6 +92,13 @@ type CleanupResults struct {
 	PullSuccess          bool
 	PullError            error
 	Errors               []string
+
+	// Error detail expansion state (for UX improvements)
+	ShowErrorDetails bool   // Toggle for expanded error view
+	PullErrorSummary string // Concise 1-line summary
+	PullErrorFull    string // Full git output for details view
+	BranchDiverged   bool   // Enables rebase/merge resolution actions
+	BaseBranch       string // Branch name for resolution commands
 }
 
 // MergeStepCompleteMsg signals a merge workflow step completed.
@@ -541,6 +548,149 @@ func (p *Plugin) pullAfterMerge(wt *Worktree, branch string, currentBranch strin
 
 		return PullAfterMergeMsg{
 			WorktreeName: wt.Name,
+			Branch:       branch,
+			Success:      true,
+		}
+	}
+}
+
+// summarizePullError parses git pull/fetch output and returns a concise summary.
+// Returns: (summary string, fullError string, isDiverged bool)
+func summarizePullError(err error) (string, string, bool) {
+	if err == nil {
+		return "", "", false
+	}
+
+	fullMsg := err.Error()
+	lowerMsg := strings.ToLower(fullMsg)
+
+	// Check for divergence patterns
+	divergePatterns := []string{
+		"cannot fast-forward",
+		"not possible to fast-forward",
+		"have diverged",
+		"diverging",
+		"divergent",
+	}
+
+	isDiverged := false
+	for _, pattern := range divergePatterns {
+		if strings.Contains(lowerMsg, pattern) {
+			isDiverged = true
+			break
+		}
+	}
+
+	// Generate concise summary based on error type
+	var summary string
+	switch {
+	case strings.Contains(lowerMsg, "not possible to fast-forward"):
+		summary = "Local and remote branches have diverged"
+	case strings.Contains(lowerMsg, "cannot fast-forward"):
+		summary = "Local and remote branches have diverged"
+	case strings.Contains(lowerMsg, "have diverged"):
+		summary = "Local and remote branches have diverged"
+	case strings.Contains(lowerMsg, "your local changes"):
+		summary = "Uncommitted local changes blocking pull"
+	case strings.Contains(lowerMsg, "could not resolve host"):
+		summary = "Network error - unable to reach remote"
+	case strings.Contains(lowerMsg, "permission denied"):
+		summary = "Authentication failed"
+	case strings.Contains(lowerMsg, "not a git repository"):
+		summary = "Git repository not found"
+	default:
+		// Extract first meaningful line (skip "pull:" prefix if present)
+		lines := strings.Split(fullMsg, "\n")
+		if len(lines) > 0 {
+			firstLine := strings.TrimSpace(lines[0])
+			// Remove common prefixes
+			firstLine = strings.TrimPrefix(firstLine, "pull: ")
+			if len(firstLine) > 60 {
+				firstLine = firstLine[:57] + "..."
+			}
+			summary = firstLine
+		} else {
+			summary = "Pull failed (unknown error)"
+		}
+	}
+
+	return summary, fullMsg, isDiverged
+}
+
+// RebaseResolutionMsg signals result of rebase resolution attempt.
+type RebaseResolutionMsg struct {
+	WorktreeName string
+	Branch       string
+	Success      bool
+	Err          error
+}
+
+// MergeResolutionMsg signals result of merge resolution attempt.
+type MergeResolutionMsg struct {
+	WorktreeName string
+	Branch       string
+	Success      bool
+	Err          error
+}
+
+// executeRebaseResolution performs git pull --rebase to resolve diverged branches.
+func (p *Plugin) executeRebaseResolution() tea.Cmd {
+	if p.mergeState == nil || p.mergeState.CleanupResults == nil {
+		return nil
+	}
+
+	branch := p.mergeState.CleanupResults.BaseBranch
+	workDir := p.ctx.WorkDir
+	wtName := p.mergeState.Worktree.Name
+
+	return func() tea.Msg {
+		cmd := exec.Command("git", "pull", "--rebase", "origin", branch)
+		cmd.Dir = workDir
+		output, err := cmd.CombinedOutput()
+
+		if err != nil {
+			return RebaseResolutionMsg{
+				WorktreeName: wtName,
+				Branch:       branch,
+				Success:      false,
+				Err:          fmt.Errorf("rebase failed: %s", strings.TrimSpace(string(output))),
+			}
+		}
+
+		return RebaseResolutionMsg{
+			WorktreeName: wtName,
+			Branch:       branch,
+			Success:      true,
+		}
+	}
+}
+
+// executeMergeResolution performs git pull (with merge) to resolve diverged branches.
+func (p *Plugin) executeMergeResolution() tea.Cmd {
+	if p.mergeState == nil || p.mergeState.CleanupResults == nil {
+		return nil
+	}
+
+	branch := p.mergeState.CleanupResults.BaseBranch
+	workDir := p.ctx.WorkDir
+	wtName := p.mergeState.Worktree.Name
+
+	return func() tea.Msg {
+		cmd := exec.Command("git", "pull", "origin", branch)
+		cmd.Dir = workDir
+		output, err := cmd.CombinedOutput()
+
+		if err != nil {
+			return MergeResolutionMsg{
+				WorktreeName: wtName,
+				Branch:       branch,
+				Success:      false,
+				Err:          fmt.Errorf("merge failed: %s", strings.TrimSpace(string(output))),
+			}
+		}
+
+		return MergeResolutionMsg{
+			WorktreeName: wtName,
 			Branch:       branch,
 			Success:      true,
 		}

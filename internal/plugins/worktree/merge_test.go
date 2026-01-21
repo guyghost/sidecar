@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -308,6 +309,98 @@ func TestParseExistingPRURL(t *testing.T) {
 			}
 			if gotFound != tt.wantFound {
 				t.Errorf("parseExistingPRURL() found = %v, want %v", gotFound, tt.wantFound)
+			}
+		})
+	}
+}
+
+func TestSummarizePullError(t *testing.T) {
+	tests := []struct {
+		name         string
+		errMsg       string
+		wantSummary  string
+		wantDiverged bool
+	}{
+		{
+			name:         "nil error",
+			errMsg:       "",
+			wantSummary:  "",
+			wantDiverged: false,
+		},
+		{
+			name:         "fast-forward not possible",
+			errMsg:       "pull: fatal: Not possible to fast-forward, aborting.: exit status 128",
+			wantSummary:  "Local and remote branches have diverged",
+			wantDiverged: true,
+		},
+		{
+			name:         "cannot fast-forward",
+			errMsg:       "pull: error: cannot fast-forward your working tree",
+			wantSummary:  "Local and remote branches have diverged",
+			wantDiverged: true,
+		},
+		{
+			name:         "branches have diverged",
+			errMsg:       "pull: hint: Diverging branches have diverged and must be merged",
+			wantSummary:  "Local and remote branches have diverged",
+			wantDiverged: true,
+		},
+		{
+			name:         "local changes blocking",
+			errMsg:       "error: Your local changes to the following files would be overwritten",
+			wantSummary:  "Uncommitted local changes blocking pull",
+			wantDiverged: false,
+		},
+		{
+			name:         "network error",
+			errMsg:       "fatal: Could not resolve host: github.com",
+			wantSummary:  "Network error - unable to reach remote",
+			wantDiverged: false,
+		},
+		{
+			name:         "permission denied",
+			errMsg:       "Permission denied (publickey)",
+			wantSummary:  "Authentication failed",
+			wantDiverged: false,
+		},
+		{
+			name:         "not a git repository",
+			errMsg:       "fatal: not a git repository",
+			wantSummary:  "Git repository not found",
+			wantDiverged: false,
+		},
+		{
+			name:         "unknown error truncated",
+			errMsg:       "some very long error message that exceeds sixty characters and should be truncated properly",
+			wantSummary:  "some very long error message that exceeds sixty character...",
+			wantDiverged: false,
+		},
+		{
+			name:         "multiline error uses first line",
+			errMsg:       "first line of error\nsecond line\nthird line",
+			wantSummary:  "first line of error",
+			wantDiverged: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			if tt.errMsg != "" {
+				err = fmt.Errorf("%s", tt.errMsg)
+			}
+
+			gotSummary, gotFull, gotDiverged := summarizePullError(err)
+
+			if gotSummary != tt.wantSummary {
+				t.Errorf("summarizePullError() summary = %q, want %q", gotSummary, tt.wantSummary)
+			}
+			if gotDiverged != tt.wantDiverged {
+				t.Errorf("summarizePullError() diverged = %v, want %v", gotDiverged, tt.wantDiverged)
+			}
+			// Full error should preserve original message
+			if err != nil && gotFull != tt.errMsg {
+				t.Errorf("summarizePullError() full = %q, want %q", gotFull, tt.errMsg)
 			}
 		})
 	}
