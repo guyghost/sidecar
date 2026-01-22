@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/marcus/sidecar/internal/features"
 	"github.com/marcus/sidecar/internal/styles"
 )
@@ -246,24 +247,37 @@ func (p *Plugin) renderOutputContent(width, height int) string {
 		displayWidth = paneWidth
 	}
 
+	effectiveLineCount := lineCount
+	if p.autoScrollOutput && !interactive {
+		lines := wt.Agent.OutputBuf.Lines()
+		if idx := lastNonEmptyLine(lines); idx >= 0 {
+			effectiveLineCount = idx + 1
+		} else {
+			effectiveLineCount = 0
+		}
+		if effectiveLineCount == 0 {
+			return hint + "\n" + dimText("No output yet")
+		}
+	}
+
 	var start, end int
 	if p.autoScrollOutput {
 		// Auto-scroll: show newest content (last visibleHeight lines)
-		start = lineCount - visibleHeight
+		start = effectiveLineCount - visibleHeight
 		if start < 0 {
 			start = 0
 		}
-		end = lineCount
+		end = effectiveLineCount
 	} else {
 		// Manual scroll: previewOffset is lines from bottom
 		// offset=0 means bottom, offset=N means N lines up from bottom
-		start = lineCount - visibleHeight - p.previewOffset
+		start = effectiveLineCount - visibleHeight - p.previewOffset
 		if start < 0 {
 			start = 0
 		}
 		end = start + visibleHeight
-		if end > lineCount {
-			end = lineCount
+		if end > effectiveLineCount {
+			end = effectiveLineCount
 		}
 	}
 
@@ -405,23 +419,36 @@ func (p *Plugin) renderShellOutput(width, height int) string {
 		displayWidth = paneWidth
 	}
 
+	effectiveLineCount := lineCount
+	if p.autoScrollOutput && !interactive {
+		lines := shell.Agent.OutputBuf.Lines()
+		if idx := lastNonEmptyLine(lines); idx >= 0 {
+			effectiveLineCount = idx + 1
+		} else {
+			effectiveLineCount = 0
+		}
+		if effectiveLineCount == 0 {
+			return hint + "\n" + dimText("No output yet")
+		}
+	}
+
 	var start, end int
 	if p.autoScrollOutput {
 		// Auto-scroll: show newest content (last visibleHeight lines)
-		start = lineCount - visibleHeight
+		start = effectiveLineCount - visibleHeight
 		if start < 0 {
 			start = 0
 		}
-		end = lineCount
+		end = effectiveLineCount
 	} else {
 		// Manual scroll: previewOffset is lines from bottom
-		start = lineCount - visibleHeight - p.previewOffset
+		start = effectiveLineCount - visibleHeight - p.previewOffset
 		if start < 0 {
 			start = 0
 		}
 		end = start + visibleHeight
-		if end > lineCount {
-			end = lineCount
+		if end > effectiveLineCount {
+			end = effectiveLineCount
 		}
 	}
 
@@ -481,6 +508,15 @@ func padLinesToHeight(lines []string, target int) []string {
 		lines = append(lines, "")
 	}
 	return lines
+}
+
+func lastNonEmptyLine(lines []string) int {
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.TrimSpace(ansi.Strip(lines[i])) != "" {
+			return i
+		}
+	}
+	return -1
 }
 
 // renderShellPrimer renders a helpful guide when no shell session exists.
