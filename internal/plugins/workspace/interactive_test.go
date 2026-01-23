@@ -991,6 +991,19 @@ func TestPartialMouseSeqRegex_NoMatchNormalText(t *testing.T) {
 	}
 }
 
+// TestPartialMouseSeqRegex_MatchesMultipleSequences tests that multiple concatenated
+// mouse sequences (from fast scrolling) are matched as a single KeyRunes message
+func TestPartialMouseSeqRegex_MatchesMultipleSequences(t *testing.T) {
+	// Two scroll events arriving together (fast scroll)
+	if !partialMouseSeqRegex.MatchString("[<64;81;24M[<64;81;24M") {
+		t.Error("expected regex to match two concatenated scroll sequences")
+	}
+	// Three events
+	if !partialMouseSeqRegex.MatchString("[<64;10;5M[<65;10;5M[<0;10;5m") {
+		t.Error("expected regex to match three concatenated mouse sequences")
+	}
+}
+
 // TestPartialMouseSeqRegex_NoMatchWithESC tests sequences with ESC are not matched
 // (those are handled by mouseEscapeRegex instead)
 func TestPartialMouseSeqRegex_NoMatchWithESC(t *testing.T) {

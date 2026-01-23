@@ -58,7 +58,7 @@ const (
 // separate read from the rest of the sequence, Bubble Tea generates a KeyEscape
 // followed by KeyRunes containing "[<button;x;yM/m". These should be dropped
 // rather than forwarded to tmux where they'd appear as literal text (td-791865).
-var partialMouseSeqRegex = regexp.MustCompile(`^\[<\d+;\d+;\d+[Mm]$`)
+var partialMouseSeqRegex = regexp.MustCompile(`^(\[<\d+;\d+;\d+[Mm])+$`)
 
 // escapeTimerMsg is sent when the escape delay timer fires.
 // If pendingEscape is still true, we forward the single Escape to tmux.
