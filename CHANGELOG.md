@@ -2,6 +2,18 @@
 
 All notable changes to sidecar are documented here.
 
+## [v0.41.0] - 2026-01-22
+
+### Bug Fixes
+- Fixed feature flags being reset during config saves
+- Fixed interactive mode scroll to use previewOffset instead of tmux commands
+- Fixed config save overwriting user settings
+- Fixed git repo root detection from subdirectory in gitstatus plugin
+
+### Improvements
+- Enhanced tmux pane resizing for detached sessions
+- Improved tmux pane width synchronization
+
 ## [v0.40.0] - 2026-01-22
 
 ### Performance
