@@ -28,7 +28,6 @@ var (
 				Padding(0, 1)
 )
 
-const tabStopWidth = 8
 
 // Panel dimension constants for consistent width calculations.
 // These must stay in sync with styles.RenderGradientBorder.

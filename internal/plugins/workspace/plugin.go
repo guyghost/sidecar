@@ -131,9 +131,9 @@ type Plugin struct {
 
 	// Interactive selection state (preview pane)
 	interactiveSelectionActive bool
-	interactiveSelectionStart  int
-	interactiveSelectionEnd    int
-	interactiveSelectionAnchor int
+	interactiveSelStart        selectionPoint // start of selection (line, col)
+	interactiveSelEnd          selectionPoint // end of selection (line, col), col is INCLUSIVE
+	interactiveSelAnchor       selectionPoint // anchor (click point) for drag
 	interactiveSelectionRect   mouse.Rect
 
 	// Kanban view state
