@@ -126,6 +126,13 @@ type Plugin struct {
 	toastMessage       string    // Temporary toast message to display
 	toastTime          time.Time // When toast was triggered
 
+	// Interactive selection state (preview pane)
+	interactiveSelectionActive bool
+	interactiveSelectionStart  int
+	interactiveSelectionEnd    int
+	interactiveSelectionAnchor int
+	interactiveSelectionRect   mouse.Rect
+
 	// Kanban view state
 	kanbanCol int // Current column index (0=Active, 1=Waiting, 2=Done, 3=Paused)
 	kanbanRow int // Current row within the column
@@ -431,6 +438,11 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 		ctx.Keymap.RegisterPluginBinding("k", "cursor-up", "worktree-agent-choice")
 		ctx.Keymap.RegisterPluginBinding("down", "cursor-down", "worktree-agent-choice")
 		ctx.Keymap.RegisterPluginBinding("up", "cursor-up", "worktree-agent-choice")
+
+		// Interactive mode context - uses configured keys (td-18098d)
+		ctx.Keymap.RegisterPluginBinding(p.getInteractiveExitKey(), "exit-interactive", "worktree-interactive")
+		ctx.Keymap.RegisterPluginBinding(p.getInteractiveCopyKey(), "copy", "worktree-interactive")
+		ctx.Keymap.RegisterPluginBinding(p.getInteractivePasteKey(), "paste", "worktree-interactive")
 	}
 
 	// Load saved sidebar width
@@ -848,10 +860,15 @@ func (p *Plugin) ensureVisible() {
 
 // cyclePreviewTab cycles through preview tabs.
 func (p *Plugin) cyclePreviewTab(delta int) tea.Cmd {
+	prevTab := p.previewTab
 	p.previewTab = PreviewTab((int(p.previewTab) + delta + 3) % 3)
 	p.previewOffset = 0
 	p.previewHorizOffset = 0
 	p.autoScrollOutput = true // Reset auto-scroll when switching tabs
+
+	if prevTab == PreviewTabOutput && p.previewTab != PreviewTabOutput {
+		p.clearInteractiveSelection()
+	}
 
 	// Load content for the active tab
 	var cmds []tea.Cmd

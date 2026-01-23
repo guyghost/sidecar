@@ -293,6 +293,9 @@ func DefaultBindings() []Binding {
 		{Key: "k", Command: "scroll-up", Context: "worktree-preview"},
 		{Key: "ctrl+d", Command: "page-down", Context: "worktree-preview"},
 		{Key: "ctrl+u", Command: "page-up", Context: "worktree-preview"},
+
+		// Worktree interactive context bindings are registered dynamically
+		// by the worktree plugin Init() to reflect configured keys.
 	}
 }
 

@@ -46,6 +46,8 @@ type rawWorktreeConfig struct {
 	TmuxCaptureMaxBytes  *int   `json:"tmuxCaptureMaxBytes"`
 	InteractiveExitKey   string `json:"interactiveExitKey"`
 	InteractiveAttachKey string `json:"interactiveAttachKey"`
+	InteractiveCopyKey   string `json:"interactiveCopyKey"`
+	InteractivePasteKey  string `json:"interactivePasteKey"`
 }
 
 type rawGitStatusConfig struct {
@@ -179,6 +181,12 @@ func mergeConfig(cfg *Config, raw *rawConfig) {
 	}
 	if raw.Plugins.Worktree.InteractiveAttachKey != "" {
 		cfg.Plugins.Worktree.InteractiveAttachKey = raw.Plugins.Worktree.InteractiveAttachKey
+	}
+	if raw.Plugins.Worktree.InteractiveCopyKey != "" {
+		cfg.Plugins.Worktree.InteractiveCopyKey = raw.Plugins.Worktree.InteractiveCopyKey
+	}
+	if raw.Plugins.Worktree.InteractivePasteKey != "" {
+		cfg.Plugins.Worktree.InteractivePasteKey = raw.Plugins.Worktree.InteractivePasteKey
 	}
 
 	// Keymap
