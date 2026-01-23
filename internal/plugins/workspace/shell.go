@@ -201,12 +201,11 @@ func (p *Plugin) discoverExistingShells() []*ShellSession {
 	return shells
 }
 
-// generateShellSessionName creates a unique tmux session name for a new shell.
-func (p *Plugin) generateShellSessionName() string {
+// nextShellIndex returns the next available shell index based on existing sessions.
+func (p *Plugin) nextShellIndex() int {
 	projectName := filepath.Base(p.ctx.WorkDir)
 	basePrefix := shellSessionPrefix + sanitizeName(projectName)
 
-	// Find the next available index
 	maxIdx := 0
 	indexPattern := regexp.MustCompile(`-(\d+)$`)
 
@@ -218,18 +217,30 @@ func (p *Plugin) generateShellSessionName() string {
 				maxIdx = idx
 			}
 		} else if shell.TmuxName == basePrefix {
-			// Legacy format counts as index 1
 			if maxIdx < 1 {
 				maxIdx = 1
 			}
 		}
 	}
 
-	return fmt.Sprintf("%s-%d", basePrefix, maxIdx+1)
+	return maxIdx + 1
 }
 
-// createNewShell creates a new shell session and returns a command.
-func (p *Plugin) createNewShell() tea.Cmd {
+// nextShellDisplayName returns the default display name for the next shell.
+func (p *Plugin) nextShellDisplayName() string {
+	return fmt.Sprintf("Shell %d", p.nextShellIndex())
+}
+
+// generateShellSessionName creates a unique tmux session name for a new shell.
+func (p *Plugin) generateShellSessionName() string {
+	projectName := filepath.Base(p.ctx.WorkDir)
+	basePrefix := shellSessionPrefix + sanitizeName(projectName)
+	return fmt.Sprintf("%s-%d", basePrefix, p.nextShellIndex())
+}
+
+// createNewShell creates a new shell session. If customName is non-empty, it is
+// used as the display name instead of the auto-generated "Shell N".
+func (p *Plugin) createNewShell(customName string) tea.Cmd {
 	if !isTmuxInstalled() {
 		return func() tea.Msg {
 			return ShellCreatedMsg{Err: fmt.Errorf("tmux not installed: %s", getTmuxInstallInstructions())}
@@ -237,15 +248,10 @@ func (p *Plugin) createNewShell() tea.Cmd {
 	}
 
 	sessionName := p.generateShellSessionName()
-	// Extract index from session name (e.g., "sidecar-sh-project-3" -> 3)
-	// This ensures correct numbering after kills (e.g., Shell 1, Shell 3)
-	indexPattern := regexp.MustCompile(`-(\d+)$`)
-	matches := indexPattern.FindStringSubmatch(sessionName)
-	displayIdx := len(p.shells) + 1 // fallback
-	if matches != nil {
-		displayIdx, _ = strconv.Atoi(matches[1])
+	displayName := strings.TrimSpace(customName)
+	if displayName == "" {
+		displayName = p.nextShellDisplayName()
 	}
-	displayName := fmt.Sprintf("Shell %d", displayIdx)
 	workDir := p.ctx.WorkDir
 
 	return func() tea.Msg {

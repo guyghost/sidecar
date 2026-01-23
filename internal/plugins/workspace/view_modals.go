@@ -1801,11 +1801,13 @@ func (p *Plugin) renderCommitForMergeModal(width, height int) string {
 
 // renderTypeSelectorModal renders the type selector modal (Shell vs Worktree).
 func (p *Plugin) renderTypeSelectorModal(width, height int) string {
-	// Render the background (list view)
 	background := p.renderListView(width, height)
 
-	// Modal dimensions - minimal width for quick selection
+	// Wider when Shell selected to fit name input
 	modalW := 32
+	if p.typeSelectorIdx == 0 {
+		modalW = 44
+	}
 	if modalW > width-4 {
 		modalW = width - 4
 	}
@@ -1818,30 +1820,59 @@ func (p *Plugin) renderTypeSelectorModal(width, height int) string {
 	options := []string{"Shell", "Workspace"}
 	for i, opt := range options {
 		prefix := "  "
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color("245")) // dim
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 
 		if i == p.typeSelectorIdx {
 			prefix = "> "
-			style = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true) // highlight
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("62")).Bold(true)
 		} else if i == p.typeSelectorHover {
-			style = lipgloss.NewStyle().Foreground(lipgloss.Color("252")) // hover
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 		}
 
 		sb.WriteString(style.Render(prefix + opt))
 		sb.WriteString("\n")
 	}
 
+	// Show name input when Shell is selected
+	nameInputLines := 0
+	if p.typeSelectorIdx == 0 {
+		sb.WriteString("\n")
+		nameInputLines++
+
+		nameLabel := dimText("Name (optional):")
+		sb.WriteString(nameLabel)
+		sb.WriteString("\n")
+		nameInputLines++
+
+		inputW := modalW - 10
+		if inputW < 20 {
+			inputW = 20
+		}
+		p.typeSelectorNameInput.Width = inputW
+		p.typeSelectorNameInput.Placeholder = p.nextShellDisplayName()
+
+		nameStyle := inputStyle
+		if p.typeSelectorFocus == 1 {
+			nameStyle = inputFocusedStyle
+		}
+		sb.WriteString(nameStyle.Render(p.typeSelectorNameInput.View()))
+		sb.WriteString("\n")
+		nameInputLines += 3 // bordered input is 3 lines
+	}
+
 	sb.WriteString("\n")
 
-	// Buttons - Confirm and Cancel
+	// Buttons
+	confirmFocus := p.typeSelectorConfirmFocus()
+	cancelFocus := p.typeSelectorCancelFocus()
 	confirmStyle := styles.Button
 	cancelStyle := styles.Button
-	if p.typeSelectorFocus == 1 {
+	if p.typeSelectorFocus == confirmFocus {
 		confirmStyle = styles.ButtonFocused
 	} else if p.typeSelectorButtonHover == 1 {
 		confirmStyle = styles.ButtonHover
 	}
-	if p.typeSelectorFocus == 2 {
+	if p.typeSelectorFocus == cancelFocus {
 		cancelStyle = styles.ButtonFocused
 	} else if p.typeSelectorButtonHover == 2 {
 		cancelStyle = styles.ButtonHover
@@ -1853,26 +1884,30 @@ func (p *Plugin) renderTypeSelectorModal(width, height int) string {
 	content := sb.String()
 	modal := modalStyle.Width(modalW).Render(content)
 
-	// Calculate modal position for hit regions
+	// Hit regions
 	modalHeight := lipgloss.Height(modal)
 	modalX := (width - modalW) / 2
 	modalY := (height - modalHeight) / 2
 
-	// Register hit regions for options (inside modal content)
-	// Content starts at modalY + 2 (border + padding) + 2 (title + blank line)
-	optionStartY := modalY + 4
-	optionW := modalW - 6 // Subtract border + padding
+	optionStartY := modalY + 4 // border(1) + padding(1) + title(1) + blank(1)
+	optionW := modalW - 6
 
 	for i := range options {
 		p.mouseHandler.HitMap.AddRect(regionTypeSelectorOption, modalX+3, optionStartY+i, optionW, 1, i)
 	}
 
-	// Register hit regions for buttons
-	// Buttons are after options (2 lines) + blank (1 line) = 3 more lines from options
-	buttonY := optionStartY + 3
-	hitX := modalX + 3 // border + padding
+	hitX := modalX + 3
+	// Name input hit region (when Shell selected)
+	if p.typeSelectorIdx == 0 {
+		// Name input starts after options(2) + blank(1) + label(1) = 4 lines from optionStartY
+		nameInputY := optionStartY + 4
+		p.mouseHandler.HitMap.AddRect(regionTypeSelectorNameInput, hitX, nameInputY, modalW-6, 3, nil)
+	}
+
+	// Buttons after options(2) + blank(1) + nameInputLines + blank(1)
+	buttonY := optionStartY + 2 + nameInputLines + 1
 	p.mouseHandler.HitMap.AddRect(regionTypeSelectorConfirm, hitX, buttonY, 13, 1, nil)
-	cancelX := hitX + 13 + 2 // confirm width + spacing
+	cancelX := hitX + 13 + 2
 	p.mouseHandler.HitMap.AddRect(regionTypeSelectorCancel, cancelX, buttonY, 12, 1, nil)
 
 	return ui.OverlayModal(background, modal, width, height)

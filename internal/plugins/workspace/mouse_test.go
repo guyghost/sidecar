@@ -54,7 +54,7 @@ func TestIsBackgroundRegion(t *testing.T) {
 		regionDeleteConfirmDelete, regionDeleteConfirmCancel,
 		regionCreateBackdrop, regionCreateModalBody, regionCreateInput,
 		regionMergeMethodOption, regionMergeConfirmButton,
-		regionTypeSelectorOption, regionTypeSelectorConfirm, regionTypeSelectorCancel,
+		regionTypeSelectorOption, regionTypeSelectorConfirm, regionTypeSelectorCancel, regionTypeSelectorNameInput,
 		regionRenameShellInput, regionRenameShellConfirm, regionRenameShellCancel,
 		regionPromptItem, regionPromptFilter,
 	}

@@ -193,9 +193,12 @@ func (p *Plugin) handleMouseHover(action mouse.MouseAction) tea.Cmd {
 		switch action.Region.ID {
 		case regionTypeSelectorOption:
 			if idx, ok := action.Region.Data.(int); ok {
-				p.typeSelectorHover = idx // 0=Shell, 1=Worktree (consistent with typeSelectorIdx)
+				p.typeSelectorHover = idx
 			}
 			p.typeSelectorButtonHover = 0
+		case regionTypeSelectorNameInput:
+			p.typeSelectorButtonHover = 0
+			p.typeSelectorHover = -1
 		case regionTypeSelectorConfirm:
 			p.typeSelectorButtonHover = 1
 			p.typeSelectorHover = -1
@@ -263,7 +266,7 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) tea.Cmd {
 		return p.openCreateModal()
 	case regionShellsPlusButton:
 		// Click on Shells [+] button - immediately create a new shell
-		return p.createNewShell()
+		return p.createNewShell("")
 	case regionWorkspacesPlusButton:
 		// Click on Worktrees [+] button - open new worktree modal directly
 		return p.openCreateModal()
@@ -569,24 +572,33 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) tea.Cmd {
 		// Click on type selector option - select it (visual only)
 		if idx, ok := action.Region.Data.(int); ok {
 			p.typeSelectorIdx = idx
-			p.typeSelectorFocus = 0 // Keep focus on options
+			p.typeSelectorFocus = 0
+			if idx == 1 {
+				p.typeSelectorNameInput.Blur()
+			}
 		}
+	case regionTypeSelectorNameInput:
+		// Click on name input - focus it
+		p.typeSelectorFocus = 1
+		p.typeSelectorNameInput.Focus()
 	case regionTypeSelectorConfirm:
 		// Click confirm button - execute selected option
 		p.viewMode = ViewModeList
 		if p.typeSelectorIdx == 0 {
-			// Create new shell
-			return p.createNewShell()
+			name := p.typeSelectorNameInput.Value()
+			p.typeSelectorNameInput.SetValue("")
+			p.typeSelectorNameInput.Blur()
+			return p.createNewShell(name)
 		}
-		// Open worktree create modal
 		return p.openCreateModal()
 	case regionTypeSelectorCancel:
-		// Click cancel button - close modal
 		p.viewMode = ViewModeList
-		p.typeSelectorIdx = 1    // Reset to default (Worktree)
-		p.typeSelectorHover = -1 // Clear hover state
-		p.typeSelectorFocus = 0  // Reset focus
+		p.typeSelectorIdx = 1
+		p.typeSelectorHover = -1
+		p.typeSelectorFocus = 0
 		p.typeSelectorButtonHover = 0
+		p.typeSelectorNameInput.SetValue("")
+		p.typeSelectorNameInput.Blur()
 	}
 	return nil
 }
