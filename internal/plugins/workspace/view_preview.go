@@ -316,12 +316,15 @@ func (p *Plugin) renderOutputContent(width, height int) string {
 	displayLines := make([]string, 0, len(lines))
 	for i, line := range lines {
 		displayLine := expandTabs(line, tabStopWidth)
-		// Apply horizontal offset and truncate to width in a single cached operation
-		// This prevents allocation churn from repeated parsing with varying offsets
-		displayLine = p.truncateCache.TruncateLeftRight(displayLine, p.previewHorizOffset, displayWidth)
-		if interactive && p.isInteractiveLineSelected(start+i) {
-			displayLine = injectSelectionBackground(displayLine)
+		// Apply character-level selection background BEFORE truncation
+		if interactive && p.hasInteractiveSelection() {
+			startCol, endCol := p.getLineSelectionCols(start + i)
+			if startCol >= 0 {
+				displayLine = injectCharacterRangeBackground(displayLine, startCol, endCol)
+			}
 		}
+		// Apply horizontal offset and truncate to width in a single cached operation
+		displayLine = p.truncateCache.TruncateLeftRight(displayLine, p.previewHorizOffset, displayWidth)
 		displayLines = append(displayLines, displayLine)
 	}
 
@@ -498,10 +501,14 @@ func (p *Plugin) renderShellOutput(width, height int) string {
 	displayLines := make([]string, 0, len(lines))
 	for i, line := range lines {
 		displayLine := expandTabs(line, tabStopWidth)
-		displayLine = p.truncateCache.TruncateLeftRight(displayLine, p.previewHorizOffset, displayWidth)
-		if interactive && p.isInteractiveLineSelected(start+i) {
-			displayLine = injectSelectionBackground(displayLine)
+		// Apply character-level selection background BEFORE truncation
+		if interactive && p.hasInteractiveSelection() {
+			startCol, endCol := p.getLineSelectionCols(start + i)
+			if startCol >= 0 {
+				displayLine = injectCharacterRangeBackground(displayLine, startCol, endCol)
+			}
 		}
+		displayLine = p.truncateCache.TruncateLeftRight(displayLine, p.previewHorizOffset, displayWidth)
 		displayLines = append(displayLines, displayLine)
 	}
 
