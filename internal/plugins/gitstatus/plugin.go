@@ -112,9 +112,10 @@ type Plugin struct {
 	pushPreservedCommitHash string   // Hash of selected commit when push started
 
 	// Pull menu state
-	pullMenuReturnMode ViewMode // Mode to return to when pull menu closes
-	pullMenuFocus      int      // 0=merge, 1=rebase, 2=ff-only, 3=autostash
-	pullMenuHover      int      // -1=none, 0-3=menu item hover
+	pullMenuReturnMode ViewMode     // Mode to return to when pull menu closes
+	pullModal          *modal.Modal // Modal instance for pull menu
+	pullModalWidth     int          // Cached modal width
+	pullSelectedIdx    int          // 0=merge, 1=rebase, 2=ff-only, 3=autostash
 
 	// Pull conflict state
 	pullConflictFiles []string // Conflicted files from failed pull
@@ -603,7 +604,6 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 			p.pullConflictFiles = GetConflictedFiles(p.repoRoot)
 			if len(p.pullConflictFiles) > 0 {
 				p.viewMode = ViewModePullConflict
-				p.pullMenuFocus = 0
 				return p, nil
 			}
 		}

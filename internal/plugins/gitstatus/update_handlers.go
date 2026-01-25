@@ -110,7 +110,7 @@ func (p *Plugin) updateStatus(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 		if p.canPull() && !p.pullInProgress {
 			p.pullMenuReturnMode = p.viewMode
 			p.viewMode = ViewModePullMenu
-			p.pullMenuFocus = 0
+			p.pullSelectedIdx = 0
 		}
 
 	case "tab", "shift+tab":
@@ -770,52 +770,75 @@ func (p *Plugin) updatePushMenu(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 
 // updatePullMenu handles key events in the pull menu.
 func (p *Plugin) updatePullMenu(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
-	const itemCount = 4 // merge, rebase, ff-only, autostash
-
-	switch msg.String() {
-	case "tab", "j", "down":
-		p.pullMenuFocus = (p.pullMenuFocus + 1) % itemCount
+	p.ensurePullModal()
+	if p.pullModal == nil {
 		return p, nil
-	case "shift+tab", "k", "up":
-		p.pullMenuFocus = (p.pullMenuFocus - 1 + itemCount) % itemCount
-		return p, nil
-	case "enter":
-		return p.executePullMenuAction(p.pullMenuFocus)
-	case "esc", "q":
-		p.viewMode = p.pullMenuReturnMode
-		p.pullMenuFocus = 0
-		return p, nil
-	case "p":
-		return p.executePullMenuAction(0)
-	case "r":
-		return p.executePullMenuAction(1)
-	case "f":
-		return p.executePullMenuAction(2)
-	case "a":
-		return p.executePullMenuAction(3)
 	}
-	return p, nil
+
+	// Handle keyboard shortcuts
+	switch msg.String() {
+	case "p":
+		return p.executePullMenuAction(pullMenuOptionMerge)
+	case "r":
+		return p.executePullMenuAction(pullMenuOptionRebase)
+	case "f":
+		return p.executePullMenuAction(pullMenuOptionFFOnly)
+	case "a":
+		return p.executePullMenuAction(pullMenuOptionAutostash)
+	}
+
+	action, cmd := p.pullModal.HandleKey(msg)
+
+	switch action {
+	case "cancel":
+		p.viewMode = p.pullMenuReturnMode
+		p.clearPullModal()
+		return p, nil
+	case pullMenuOptionMerge, pullMenuOptionRebase, pullMenuOptionFFOnly, pullMenuOptionAutostash:
+		return p.executePullMenuAction(action)
+	case pullMenuActionID:
+		// Primary action (Enter) - execute the currently selected option
+		return p.executePullMenuActionByIndex(p.pullSelectedIdx)
+	}
+
+	return p, cmd
 }
 
-// executePullMenuAction executes the pull menu action at the given index.
-func (p *Plugin) executePullMenuAction(idx int) (plugin.Plugin, tea.Cmd) {
+// executePullMenuAction executes the pull menu action by ID.
+func (p *Plugin) executePullMenuAction(actionID string) (plugin.Plugin, tea.Cmd) {
 	p.viewMode = p.pullMenuReturnMode
 	p.pullInProgress = true
 	p.pullError = ""
 	p.pullSuccess = false
-	p.pullMenuFocus = 0
+	p.clearPullModal()
 
-	switch idx {
-	case 0:
+	switch actionID {
+	case pullMenuOptionMerge:
 		return p, p.doPull()
-	case 1:
+	case pullMenuOptionRebase:
 		return p, p.doPullRebase()
-	case 2:
+	case pullMenuOptionFFOnly:
 		return p, p.doPullFFOnly()
-	case 3:
+	case pullMenuOptionAutostash:
 		return p, p.doPullAutostash()
 	}
 	return p, nil
+}
+
+// executePullMenuActionByIndex executes the pull menu action by selected index.
+func (p *Plugin) executePullMenuActionByIndex(idx int) (plugin.Plugin, tea.Cmd) {
+	actions := []string{pullMenuOptionMerge, pullMenuOptionRebase, pullMenuOptionFFOnly, pullMenuOptionAutostash}
+	if idx >= 0 && idx < len(actions) {
+		return p.executePullMenuAction(actions[idx])
+	}
+	return p, nil
+}
+
+// clearPullModal clears pull menu modal state.
+func (p *Plugin) clearPullModal() {
+	p.pullModal = nil
+	p.pullModalWidth = 0
+	p.pullSelectedIdx = 0
 }
 
 // updatePullConflict handles key events in the pull conflict modal.

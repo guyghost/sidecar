@@ -69,7 +69,7 @@ Also see `docs/guides/ui-feature-guide.md` for the modal initialization pattern.
 |-------|------|-----------|
 | Quit Confirm | Confirmation | ✓ |
 | Command Palette | Search | ○ |
-| Help Modal | Info | ○ |
+| Help Modal | Info | ✓ |
 | Diagnostics | Info | ○ |
 | Project Switcher | Selection | ○ |
 | Project Add | Form | ○ |
@@ -85,7 +85,7 @@ Also see `docs/guides/ui-feature-guide.md` for the modal initialization pattern.
 | Create Worktree | Form | ✓ |
 | Task Link | Dropdown | ✓ |
 | Confirm Delete | Confirmation | ○ |
-| Confirm Delete Shell | Confirmation | ○ |
+| Confirm Delete Shell | Confirmation | ✓ |
 | Rename Shell | Form | ✓ |
 | Prompt Picker | Selection | ○ |
 | Agent Choice | Selection | ○ |
@@ -101,7 +101,7 @@ Also see `docs/guides/ui-feature-guide.md` for the modal initialization pattern.
 |-------|------|-----------|
 | Confirm Discard | Confirmation | ✓ |
 | Confirm Stash Pop | Confirmation | ✓ |
-| Pull Menu | Selection | ○ |
+| Pull Menu | Selection | ✓ |
 | Pull Conflict | Menu | ○ |
 | Push Menu | Selection | ○ |
 | Commit Message | Form | ✓ |
@@ -113,7 +113,7 @@ Also see `docs/guides/ui-feature-guide.md` for the modal initialization pattern.
 
 | Modal | Type | Converted |
 |-------|------|-----------|
-| Blame View | Info | ○ |
+| Blame View | Info | ✓ |
 | File Info | Info | ○ |
 | Project Search | Results | ○ |
 
@@ -122,5 +122,5 @@ Also see `docs/guides/ui-feature-guide.md` for the modal initialization pattern.
 ## Summary
 
 **Total Modals:** 28
-**Converted:** 7 (25%)
-**Remaining:** 21 (75%)
+**Converted:** 13 (46%)
+**Remaining:** 15 (54%)

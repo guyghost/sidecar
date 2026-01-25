@@ -26,6 +26,9 @@ const (
 var (
 	tmuxInstalledOnce   sync.Once
 	tmuxInstalledCached bool
+
+	tmuxPrefixOnce   sync.Once
+	tmuxPrefixCached string
 )
 
 // isTmuxInstalled returns true if tmux is available in PATH.
@@ -36,6 +39,54 @@ func isTmuxInstalled() bool {
 		tmuxInstalledCached = err == nil
 	})
 	return tmuxInstalledCached
+}
+
+// getTmuxPrefix returns the user's tmux prefix key in human-readable format.
+// Queries `tmux show-options -g prefix` and converts notation (C-b → Ctrl-b).
+// Falls back to "Ctrl-b" if detection fails. Result is cached.
+func getTmuxPrefix() string {
+	tmuxPrefixOnce.Do(func() {
+		tmuxPrefixCached = "Ctrl-b" // default fallback
+
+		if !isTmuxInstalled() {
+			return
+		}
+
+		out, err := exec.Command("tmux", "show-options", "-g", "prefix").Output()
+		if err != nil {
+			return
+		}
+
+		// Output format: "prefix C-b" or "prefix C-a"
+		line := strings.TrimSpace(string(out))
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			return
+		}
+
+		tmuxPrefixCached = tmuxNotationToHuman(parts[1])
+	})
+	return tmuxPrefixCached
+}
+
+// tmuxNotationToHuman converts tmux key notation to human-readable format.
+// Examples: C-b → Ctrl-b, C-a → Ctrl-a, M-x → Alt-x
+func tmuxNotationToHuman(notation string) string {
+	if len(notation) < 2 {
+		return notation
+	}
+
+	// Handle C- prefix (Ctrl)
+	if strings.HasPrefix(notation, "C-") {
+		return "Ctrl-" + notation[2:]
+	}
+
+	// Handle M- prefix (Meta/Alt)
+	if strings.HasPrefix(notation, "M-") {
+		return "Alt-" + notation[2:]
+	}
+
+	return notation
 }
 
 // getTmuxInstallInstructions returns platform-specific tmux install instructions.
@@ -306,7 +357,7 @@ func (p *Plugin) attachToShellByIndex(idx int) tea.Cmd {
 	// Resize to full terminal before attaching so no dot borders appear
 	return tea.Sequence(
 		p.resizeForAttachCmd(target),
-		tea.Printf("\nAttaching to %s. Press Ctrl-b d to return to sidecar.\n", displayName),
+		tea.Printf("\nAttaching to %s. Press %s d to return to sidecar.\n", displayName, getTmuxPrefix()),
 		tea.ExecProcess(c, func(err error) tea.Msg {
 			return ShellDetachedMsg{Err: err}
 		}),

@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcus/sidecar/internal/community"
 	"github.com/marcus/sidecar/internal/keymap"
+	"github.com/marcus/sidecar/internal/modal"
+	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/plugin"
 	"github.com/marcus/sidecar/internal/styles"
 	"github.com/marcus/sidecar/internal/ui"
@@ -67,7 +69,7 @@ func (m Model) View() string {
 	case ModalPalette:
 		return m.renderPaletteOverlay(bg)
 	case ModalHelp:
-		return m.renderHelpOverlay(bg)
+		return m.renderHelpModal(bg)
 	case ModalDiagnostics:
 		return m.renderDiagnosticsOverlay(bg)
 	case ModalQuitConfirm:
@@ -1067,43 +1069,77 @@ func renderHintLineTruncated(hints []footerHint, maxWidth int) string {
 	return result
 }
 
-// renderHelpOverlay renders the help modal over content.
-func (m Model) renderHelpOverlay(content string) string {
-	help := m.buildHelpContent()
-	modal := styles.ModalBox.Render(help)
-	return ui.OverlayModal(content, modal, m.width, m.height)
-}
-
-// buildHelpContent creates the help modal content.
-func (m Model) buildHelpContent() string {
-	var b strings.Builder
-
-	b.WriteString(styles.ModalTitle.Render("Keyboard Shortcuts"))
-	b.WriteString("\n\n")
-
-	// Global bindings
-	b.WriteString(styles.Title.Render("Global"))
-	b.WriteString("\n")
-	m.renderBindingSection(&b, "global")
-	b.WriteString("\n")
-
-	// Active plugin bindings
-	if p := m.ActivePlugin(); p != nil {
-		ctx := p.FocusContext()
-		if ctx != "global" && ctx != "" {
-			bindings := m.keymap.BindingsForContext(ctx)
-			if len(bindings) > 0 {
-				b.WriteString(styles.Title.Render(p.Name()))
-				b.WriteString("\n")
-				m.renderBindingSection(&b, ctx)
-				b.WriteString("\n")
-			}
-		}
+// ensureHelpModal builds/rebuilds the help modal.
+func (m *Model) ensureHelpModal() {
+	modalW := 60
+	if modalW > m.width-4 {
+		modalW = m.width - 4
+	}
+	if modalW < 20 {
+		modalW = 20
 	}
 
-	b.WriteString(styles.Subtle.Render("Press ? or esc to close"))
+	// Only rebuild if modal doesn't exist or width changed
+	if m.helpModal != nil && m.helpModalWidth == modalW {
+		return
+	}
+	m.helpModalWidth = modalW
 
-	return b.String()
+	m.helpModal = modal.New("Keyboard Shortcuts",
+		modal.WithWidth(modalW),
+		modal.WithHints(false),
+	).
+		AddSection(m.helpGlobalSection()).
+		AddSection(m.helpPluginSection())
+}
+
+// clearHelpModal clears the help modal state.
+func (m *Model) clearHelpModal() {
+	m.helpModal = nil
+	m.helpModalWidth = 0
+}
+
+// helpGlobalSection renders the global bindings section.
+func (m *Model) helpGlobalSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		var b strings.Builder
+		b.WriteString(styles.Title.Render("Global"))
+		b.WriteString("\n")
+		m.renderBindingSection(&b, "global")
+		return modal.RenderedSection{Content: b.String()}
+	}, nil)
+}
+
+// helpPluginSection renders the active plugin bindings section.
+func (m *Model) helpPluginSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		if p := m.ActivePlugin(); p != nil {
+			ctx := p.FocusContext()
+			if ctx != "global" && ctx != "" {
+				bindings := m.keymap.BindingsForContext(ctx)
+				if len(bindings) > 0 {
+					var b strings.Builder
+					b.WriteString(styles.Title.Render(p.Name()))
+					b.WriteString("\n")
+					m.renderBindingSection(&b, ctx)
+					return modal.RenderedSection{Content: b.String()}
+				}
+			}
+		}
+		return modal.RenderedSection{}
+	}, nil)
+}
+
+// renderHelpModal renders the help modal.
+func (m *Model) renderHelpModal(content string) string {
+	m.ensureHelpModal()
+	if m.helpModal == nil {
+		return content
+	}
+
+	mouseHandler := mouse.NewHandler()
+	modalContent := m.helpModal.Render(m.width, m.height, mouseHandler)
+	return ui.OverlayModal(content, modalContent, m.width, m.height)
 }
 
 // renderBindingSection renders bindings for a context.

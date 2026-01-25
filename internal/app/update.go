@@ -290,6 +290,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case ModalHelp:
 			m.showHelp = false
+			m.clearHelpModal()
 			return m, nil
 		case ModalDiagnostics:
 			m.showDiagnostics = false
@@ -1185,6 +1186,15 @@ func (m Model) handleThemeSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleQuitConfirmMouse handles mouse events for the quit confirmation modal.
+func (m Model) handleHelpModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	m.ensureHelpModal()
+	if m.helpModal == nil {
+		return m, nil
+	}
+	// Info-only modal - no mouse interaction needed beyond ensuring modal exists
+	return m, nil
+}
+
 func (m Model) handleQuitConfirmMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	action := m.quitModal.HandleMouse(msg, m.quitMouseHandler)
 	switch action {

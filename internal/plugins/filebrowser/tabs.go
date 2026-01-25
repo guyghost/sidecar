@@ -282,6 +282,8 @@ func (p *Plugin) resetPreviewModes() {
 	p.infoMode = false
 	p.blameMode = false
 	p.blameState = nil
+	p.blameModal = nil
+	p.blameModalWidth = 0
 	p.markdownRendered = nil
 	p.imageResult = nil
 }

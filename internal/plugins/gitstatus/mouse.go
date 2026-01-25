@@ -17,7 +17,6 @@ const (
 	regionDiffModal     = "diff-modal"     // Full-screen diff view
 	regionBranchItem    = "branch-item"    // Branch picker list item
 	regionPushMenuItem  = "push-menu-item" // Push menu item
-	regionPullMenuItem  = "pull-menu-item" // Pull menu item
 	regionCommitButton  = "commit-button"  // Commit modal button
 )
 
@@ -426,27 +425,23 @@ func (p *Plugin) handleBranchPickerMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 
 // handlePullMenuMouse processes mouse events in the pull menu modal.
 func (p *Plugin) handlePullMenuMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
-	action := p.mouseHandler.HandleMouse(msg)
-
-	switch action.Type {
-	case mouse.ActionClick:
-		if action.Region != nil && action.Region.ID == regionPullMenuItem {
-			if idx, ok := action.Region.Data.(int); ok && idx < 4 {
-				plug, cmd := p.executePullMenuAction(idx)
-				return plug.(*Plugin), cmd
-			}
-		}
-
-	case mouse.ActionHover:
-		if action.Region != nil && action.Region.ID == regionPullMenuItem {
-			if idx, ok := action.Region.Data.(int); ok {
-				p.pullMenuHover = idx
-			}
-		} else {
-			p.pullMenuHover = -1
-		}
+	p.ensurePullModal()
+	if p.pullModal == nil {
+		return p, nil
 	}
 
+	action := p.pullModal.HandleMouse(msg, p.mouseHandler)
+	switch action {
+	case "":
+		return p, nil
+	case "cancel":
+		p.viewMode = p.pullMenuReturnMode
+		p.clearPullModal()
+		return p, nil
+	case pullMenuOptionMerge, pullMenuOptionRebase, pullMenuOptionFFOnly, pullMenuOptionAutostash:
+		plug, cmd := p.executePullMenuAction(action)
+		return plug.(*Plugin), cmd
+	}
 	return p, nil
 }
 

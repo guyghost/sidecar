@@ -84,6 +84,8 @@ type Model struct {
 	// UI state
 	width, height   int
 	showHelp         bool
+	helpModal        *modal.Modal
+	helpModalWidth   int
 	showDiagnostics  bool
 	showFooter       bool
 	showPalette      bool

@@ -1121,23 +1121,40 @@ func (p *Plugin) openBlameView(path string) (plugin.Plugin, tea.Cmd) {
 
 // handleBlameKey handles key input during blame view mode.
 func (p *Plugin) handleBlameKey(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
-	key := msg.String()
-
-	if p.blameState == nil {
+	p.ensureBlameModal()
+	if p.blameModal == nil || p.blameState == nil {
 		p.blameMode = false
 		return p, nil
 	}
 
+	key := msg.String()
+
+	// Handle modal keys (Esc, etc.)
+	action, cmd := p.blameModal.HandleKey(msg)
+	switch action {
+	case "cancel", blameActionID:
+		// Close blame view
+		p.blameMode = false
+		p.blameState = nil
+		p.blameModal = nil
+		p.blameModalWidth = 0
+		return p, nil
+	}
+
+	// Handle custom navigation keys
 	visibleHeight := p.height - blameModalHeaderFooterLines
 	if visibleHeight < blameMinVisibleLines {
 		visibleHeight = blameMinVisibleLines
 	}
 
 	switch key {
-	case "esc", "q":
+	case "q":
 		// Close blame view
 		p.blameMode = false
 		p.blameState = nil
+		p.blameModal = nil
+		p.blameModalWidth = 0
+		return p, nil
 
 	case "j", "down":
 		// Move cursor down
@@ -1198,6 +1215,10 @@ func (p *Plugin) handleBlameKey(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 		}
 	}
 
+	// Return modal cmd if any
+	if cmd != nil {
+		return p, cmd
+	}
 	return p, nil
 }
 

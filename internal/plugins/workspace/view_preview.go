@@ -120,14 +120,15 @@ func (p *Plugin) renderWelcomeGuide(width, height int) string {
 	lines = append(lines, "")
 
 	// Section: Attaching to agent sessions
+	prefix := getTmuxPrefix()
 	lines = append(lines, sectionStyle.Render("Agent Sessions"))
 	lines = append(lines, dimText("  Enter      Attach to selected worktree session"))
-	lines = append(lines, dimText("  Ctrl-b d   Detach from session (return here)"))
+	lines = append(lines, dimText(fmt.Sprintf("  %s d   Detach from session (return here)", prefix)))
 	lines = append(lines, "")
 
 	// Section: Navigation inside tmux
 	lines = append(lines, sectionStyle.Render("Scrolling (in attached session)"))
-	lines = append(lines, dimText("  Ctrl-b [        Enter scroll mode"))
+	lines = append(lines, dimText(fmt.Sprintf("  %s [        Enter scroll mode", prefix)))
 	lines = append(lines, dimText("  PgUp/PgDn       Scroll page (fn+↑/↓ on Mac)"))
 	lines = append(lines, dimText("  ↑/↓             Scroll line by line"))
 	lines = append(lines, dimText("  q               Exit scroll mode"))
@@ -222,10 +223,11 @@ func (p *Plugin) renderOutputContent(width, height int) string {
 		hint = interactiveStyle.Render("INTERACTIVE") + " " + dimText(p.getInteractiveExitKey()+" exit • "+p.getInteractiveAttachKey()+" attach")
 	} else {
 		// Only show "i for interactive" hint if feature flag is enabled
+		prefix := getTmuxPrefix()
 		if features.IsEnabled(features.TmuxInteractiveInput.Name) {
-			hint = dimText("enter to attach • i for interactive • Ctrl-b d to detach")
+			hint = dimText(fmt.Sprintf("enter to attach • i for interactive • %s d to detach", prefix))
 		} else {
-			hint = dimText("enter to attach • Ctrl-b d to detach")
+			hint = dimText(fmt.Sprintf("enter to attach • %s d to detach", prefix))
 		}
 	}
 	height-- // Reserve line for hint
@@ -409,10 +411,11 @@ func (p *Plugin) renderShellOutput(width, height int) string {
 		hint = interactiveStyle.Render("INTERACTIVE") + " " + dimText(p.getInteractiveExitKey()+" exit")
 	} else {
 		// Only show "i for interactive" hint if feature flag is enabled
+		prefix := getTmuxPrefix()
 		if features.IsEnabled(features.TmuxInteractiveInput.Name) {
-			hint = dimText("enter to attach • i for interactive • Ctrl-b d to detach")
+			hint = dimText(fmt.Sprintf("enter to attach • i for interactive • %s d to detach", prefix))
 		} else {
-			hint = dimText("enter to attach • Ctrl-b d to detach")
+			hint = dimText(fmt.Sprintf("enter to attach • %s d to detach", prefix))
 		}
 	}
 	height-- // Reserve line for hint
@@ -595,10 +598,11 @@ func (p *Plugin) renderShellPrimer(width, height int) string {
 	lines = append(lines, "")
 
 	// Quick start
+	prefix := getTmuxPrefix()
 	lines = append(lines, sectionStyle.Render("Quick Start"))
 	lines = append(lines, dimText("  Enter         Create and attach to shell"))
 	lines = append(lines, dimText("  K             Kill shell session"))
-	lines = append(lines, dimText("  Ctrl-b d      Detach (return to sidecar)"))
+	lines = append(lines, dimText(fmt.Sprintf("  %s d      Detach (return to sidecar)", prefix)))
 	lines = append(lines, "")
 	lines = append(lines, strings.Repeat("─", min(width-4, 50)))
 	lines = append(lines, "")

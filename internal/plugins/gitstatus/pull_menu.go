@@ -5,50 +5,60 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/styles"
 	"github.com/marcus/sidecar/internal/ui"
 )
+
+const (
+	pullMenuOptionMerge     = "pull-merge"
+	pullMenuOptionRebase    = "pull-rebase"
+	pullMenuOptionFFOnly    = "pull-ff-only"
+	pullMenuOptionAutostash = "pull-autostash"
+	pullMenuActionID        = "pull-menu-action"
+)
+
+// ensurePullModal builds/rebuilds the pull menu modal.
+func (p *Plugin) ensurePullModal() {
+	modalW := 50
+	if modalW > p.width-4 {
+		modalW = p.width - 4
+	}
+	if modalW < 20 {
+		modalW = 20
+	}
+
+	// Only rebuild if modal doesn't exist or width changed
+	if p.pullModal != nil && p.pullModalWidth == modalW {
+		return
+	}
+	p.pullModalWidth = modalW
+
+	items := []modal.ListItem{
+		{ID: pullMenuOptionMerge, Label: "Pull (merge)"},
+		{ID: pullMenuOptionRebase, Label: "Pull (rebase)"},
+		{ID: pullMenuOptionFFOnly, Label: "Pull (fast-forward only)"},
+		{ID: pullMenuOptionAutostash, Label: "Pull (rebase + autostash)"},
+	}
+
+	p.pullModal = modal.New("Pull",
+		modal.WithWidth(modalW),
+		modal.WithPrimaryAction(pullMenuActionID),
+	).
+		AddSection(modal.List("pull-options", items, &p.pullSelectedIdx, modal.WithMaxVisible(4)))
+}
 
 // renderPullMenu renders the pull options popup menu.
 func (p *Plugin) renderPullMenu() string {
 	background := p.renderThreePaneView()
 
-	var sb strings.Builder
-
-	sb.WriteString(styles.Title.Render(" Pull "))
-	sb.WriteString("\n\n")
-
-	options := []struct{ key, label string }{
-		{"p", " Pull (merge) "},
-		{"r", " Pull (rebase) "},
-		{"f", " Pull (fast-forward only) "},
-		{"a", " Pull (rebase + autostash) "},
+	p.ensurePullModal()
+	if p.pullModal == nil {
+		return background
 	}
 
-	for i, opt := range options {
-		style := ui.ResolveButtonStyle(p.pullMenuFocus, p.pullMenuHover, i)
-		keyHint := styles.KeyHint.Render(" " + opt.key + " ")
-		sb.WriteString(keyHint)
-		sb.WriteString(" ")
-		sb.WriteString(style.Render(opt.label))
-		if i < len(options)-1 {
-			sb.WriteString("\n\n")
-		}
-	}
-
-	sb.WriteString("\n\n")
-	sb.WriteString(styles.Muted.Render("Tab/↑↓ to navigate, Enter to select, Esc to cancel"))
-
-	menuWidth := ui.ModalWidthMedium
-
-	menuContent := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(styles.Primary).
-		Padding(1, 2).
-		Width(menuWidth).
-		Render(sb.String())
-
-	return ui.OverlayModal(background, menuContent, p.width, p.height)
+	modalContent := p.pullModal.Render(p.width, p.height, p.mouseHandler)
+	return ui.OverlayModal(background, modalContent, p.width, p.height)
 }
 
 // renderPullConflict renders the pull conflict resolution modal.
@@ -83,7 +93,7 @@ func (p *Plugin) renderPullConflict() string {
 	sb.WriteString("\n")
 
 	// Action options
-	abortStyle := ui.ResolveButtonStyle(p.pullMenuFocus, p.pullMenuHover, 0)
+	abortStyle := styles.ButtonDanger
 	sb.WriteString(styles.KeyHint.Render(" a "))
 	sb.WriteString(" ")
 	sb.WriteString(abortStyle.Render(" Abort "))

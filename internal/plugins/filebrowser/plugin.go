@@ -11,6 +11,7 @@ import (
 	"github.com/marcus/sidecar/internal/app"
 	"github.com/marcus/sidecar/internal/image"
 	"github.com/marcus/sidecar/internal/markdown"
+	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/plugin"
 	"github.com/marcus/sidecar/internal/state"
@@ -183,8 +184,10 @@ type Plugin struct {
 	gitLastCommit string
 
 	// Blame view state
-	blameMode  bool
-	blameState *BlameState
+	blameMode       bool
+	blameState      *BlameState
+	blameModal      *modal.Modal // Modal instance
+	blameModalWidth int          // Cached width for rebuild detection
 
 	// File operation state (move/rename/create/delete)
 	fileOpMode          FileOpMode

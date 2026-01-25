@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/styles"
 )
 
@@ -17,23 +18,32 @@ const (
 	blameMinVisibleLines = 5
 	// blameMaxVisibleLines is the maximum number of blame lines to display.
 	blameMaxVisibleLines = 40
+
+	// Modal element IDs
+	blameActionID  = "blame-action"  // Primary action (close on Esc)
+	blameContentID = "blame-content" // Content section ID
 )
 
-// renderBlameModalContent renders the blame view modal.
-func (p *Plugin) renderBlameModalContent() string {
-	state := p.blameState
-	if state == nil {
-		return styles.ModalBox.Render(styles.Muted.Render("No blame data"))
+// ensureBlameModal builds/rebuilds the blame modal.
+func (p *Plugin) ensureBlameModal() {
+	if p.blameState == nil {
+		return
 	}
 
-	// Modal dimensions - use most of the screen
-	modalWidth := p.width - 4
-	if modalWidth > 140 {
-		modalWidth = 140
+	// Calculate modal dimensions - use most of the screen
+	modalW := p.width - 4
+	if modalW > 140 {
+		modalW = 140
 	}
-	if modalWidth < 60 {
-		modalWidth = 60
+	if modalW < 60 {
+		modalW = 60
 	}
+
+	// Only rebuild if modal doesn't exist or width changed
+	if p.blameModal != nil && p.blameModalWidth == modalW {
+		return
+	}
+	p.blameModalWidth = modalW
 
 	// Calculate available height for results
 	resultsHeight := p.height - blameModalHeaderFooterLines
@@ -44,83 +54,132 @@ func (p *Plugin) renderBlameModalContent() string {
 		resultsHeight = blameMaxVisibleLines
 	}
 
-	var sb strings.Builder
+	title := fmt.Sprintf("Blame: %s", truncatePath(p.blameState.FilePath, modalW-10))
 
-	// Header with file path
-	header := fmt.Sprintf("Blame: %s", truncatePath(state.FilePath, modalWidth-10))
-	sb.WriteString(styles.ModalTitle.Render(header))
-	sb.WriteString("\n\n")
+	p.blameModal = modal.New(title,
+		modal.WithWidth(modalW),
+		modal.WithPrimaryAction(blameActionID),
+		modal.WithHints(false),
+	).
+		AddSection(p.blameHeaderSection()).
+		AddSection(modal.When(func() bool { return !p.blameState.IsLoading && p.blameState.Error == nil && len(p.blameState.Lines) > 0 }, p.blameContentSection(resultsHeight))).
+		AddSection(modal.When(func() bool { return p.blameState.IsLoading }, p.blameLoadingSection())).
+		AddSection(modal.When(func() bool { return p.blameState.Error != nil }, p.blameErrorSection())).
+		AddSection(modal.When(func() bool { return !p.blameState.IsLoading && p.blameState.Error == nil && len(p.blameState.Lines) == 0 }, p.blameEmptySection())).
+		AddSection(modal.Spacer()).
+		AddSection(p.blameFooterSection(resultsHeight))
+}
 
-	// Loading state
-	if state.IsLoading {
-		sb.WriteString(styles.Muted.Render("Loading blame data..."))
-		return styles.ModalBox.Width(modalWidth).Render(sb.String())
-	}
+// blameHeaderSection is intentionally empty - title is in modal header
+func (p *Plugin) blameHeaderSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		return modal.RenderedSection{Content: ""}
+	}, nil)
+}
 
-	// Error state
-	if state.Error != nil {
-		sb.WriteString(styles.StatusDeleted.Render(fmt.Sprintf("Error: %v", state.Error)))
-		sb.WriteString("\n\n")
-		sb.WriteString(styles.Muted.Render("Press 'esc' or 'q' to close"))
-		return styles.ModalBox.Width(modalWidth).Render(sb.String())
-	}
+// blameLoadingSection shows loading state.
+func (p *Plugin) blameLoadingSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		content := styles.Muted.Render("Loading blame data...")
+		return modal.RenderedSection{Content: content}
+	}, nil)
+}
 
-	// No lines
-	if len(state.Lines) == 0 {
-		sb.WriteString(styles.Muted.Render("No blame data available"))
-		return styles.ModalBox.Width(modalWidth).Render(sb.String())
-	}
-
-	// Ensure cursor is visible
-	if state.Cursor >= state.ScrollOffset+resultsHeight {
-		state.ScrollOffset = state.Cursor - resultsHeight + 1
-	}
-	if state.Cursor < state.ScrollOffset {
-		state.ScrollOffset = state.Cursor
-	}
-	if state.ScrollOffset < 0 {
-		state.ScrollOffset = 0
-	}
-
-	// Calculate column widths
-	hashWidth := 8   // Short hash
-	authorWidth := 12
-	dateWidth := 12
-	lineNoWidth := 5
-	// Content gets remaining width
-	separatorWidth := 3 // " | "
-	contentWidth := modalWidth - hashWidth - authorWidth - dateWidth - lineNoWidth - separatorWidth - 6
-	if contentWidth < 20 {
-		contentWidth = 20
-	}
-
-	// Render visible lines
-	start := state.ScrollOffset
-	end := start + resultsHeight
-	if end > len(state.Lines) {
-		end = len(state.Lines)
-	}
-
-	for i := start; i < end; i++ {
-		line := state.Lines[i]
-		isSelected := i == state.Cursor
-
-		// Build line components
-		lineStr := p.renderBlameLine(line, hashWidth, authorWidth, dateWidth, lineNoWidth, contentWidth, isSelected)
-		sb.WriteString(lineStr)
-
-		if i < end-1 {
-			sb.WriteString("\n")
+// blameErrorSection shows error state.
+func (p *Plugin) blameErrorSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		if p.blameState == nil || p.blameState.Error == nil {
+			return modal.RenderedSection{}
 		}
+		content := styles.StatusDeleted.Render(fmt.Sprintf("Error: %v", p.blameState.Error))
+		return modal.RenderedSection{Content: content}
+	}, nil)
+}
+
+// blameEmptySection shows empty state.
+func (p *Plugin) blameEmptySection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		content := styles.Muted.Render("No blame data available")
+		return modal.RenderedSection{Content: content}
+	}, nil)
+}
+
+// blameContentSection renders the scrollable blame lines.
+func (p *Plugin) blameContentSection(resultsHeight int) modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		if p.blameState == nil || len(p.blameState.Lines) == 0 {
+			return modal.RenderedSection{}
+		}
+
+		state := p.blameState
+
+		// Ensure cursor is visible
+		if state.Cursor >= state.ScrollOffset+resultsHeight {
+			state.ScrollOffset = state.Cursor - resultsHeight + 1
+		}
+		if state.Cursor < state.ScrollOffset {
+			state.ScrollOffset = state.Cursor
+		}
+		if state.ScrollOffset < 0 {
+			state.ScrollOffset = 0
+		}
+
+		// Calculate column widths based on contentWidth
+		hashWidth := 8
+		authorWidth := 12
+		dateWidth := 12
+		lineNoWidth := 5
+		separatorWidth := 3 // " | "
+		contentW := contentWidth - hashWidth - authorWidth - dateWidth - lineNoWidth - separatorWidth - 2
+		if contentW < 20 {
+			contentW = 20
+		}
+
+		// Render visible lines
+		start := state.ScrollOffset
+		end := start + resultsHeight
+		if end > len(state.Lines) {
+			end = len(state.Lines)
+		}
+
+		var sb strings.Builder
+		for i := start; i < end; i++ {
+			line := state.Lines[i]
+			isSelected := i == state.Cursor
+			lineStr := p.renderBlameLine(line, hashWidth, authorWidth, dateWidth, lineNoWidth, contentW, isSelected)
+			sb.WriteString(lineStr)
+			if i < end-1 {
+				sb.WriteString("\n")
+			}
+		}
+
+		return modal.RenderedSection{Content: sb.String()}
+	}, nil)
+}
+
+// blameFooterSection shows position and navigation hints.
+func (p *Plugin) blameFooterSection(resultsHeight int) modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		if p.blameState == nil || len(p.blameState.Lines) == 0 {
+			content := styles.Muted.Render("esc/q=close")
+			return modal.RenderedSection{Content: content}
+		}
+
+		position := fmt.Sprintf("%d/%d", p.blameState.Cursor+1, len(p.blameState.Lines))
+		footer := fmt.Sprintf("%s  j/k=scroll  enter=details  y=yank hash  esc=close", position)
+		content := styles.Muted.Render(footer)
+		return modal.RenderedSection{Content: content}
+	}, nil)
+}
+
+// renderBlameModalContent renders the blame view modal.
+func (p *Plugin) renderBlameModalContent() string {
+	p.ensureBlameModal()
+	if p.blameModal == nil {
+		return ""
 	}
 
-	// Footer with position and hints
-	sb.WriteString("\n\n")
-	position := fmt.Sprintf("%d/%d", state.Cursor+1, len(state.Lines))
-	footer := fmt.Sprintf("%s  j/k=scroll  enter=details  y=yank hash  esc=close", position)
-	sb.WriteString(styles.Muted.Render(footer))
-
-	return styles.ModalBox.Width(modalWidth).Render(sb.String())
+	return p.blameModal.Render(p.width, p.height, p.mouseHandler)
 }
 
 // renderBlameLine renders a single blame line with age-based coloring.
