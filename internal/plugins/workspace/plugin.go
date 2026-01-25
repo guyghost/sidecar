@@ -37,18 +37,14 @@ const (
 	flashDuration = 1500 * time.Millisecond
 
 	// Hit region IDs
-	regionSidebar                 = "sidebar"
-	regionPreviewPane             = "preview-pane"
-	regionPaneDivider             = "pane-divider"
-	regionWorktreeItem            = "workspace-item"
-	regionPreviewTab              = "preview-tab"
-	regionAgentChoiceOption       = "agent-choice-option"
-	regionAgentChoiceConfirm      = "agent-choice-confirm"
-	regionAgentChoiceCancel       = "agent-choice-cancel"
-	regionDeleteConfirmDelete     = "delete-confirm-delete"
-	regionDeleteConfirmCancel     = "delete-confirm-cancel"
-	regionDeleteLocalBranchCheck  = "delete-local-branch-check"
-	regionDeleteRemoteBranchCheck = "delete-remote-branch-check"
+	regionSidebar            = "sidebar"
+	regionPreviewPane        = "preview-pane"
+	regionPaneDivider        = "pane-divider"
+	regionWorktreeItem       = "workspace-item"
+	regionPreviewTab         = "preview-tab"
+	regionAgentChoiceOption  = "agent-choice-option"
+	regionAgentChoiceConfirm = "agent-choice-confirm"
+	regionAgentChoiceCancel  = "agent-choice-cancel"
 
 	// Kanban view regions
 	regionKanbanCard   = "kanban-card"
@@ -81,7 +77,7 @@ const (
 	// Sidebar header regions
 	regionCreateWorktreeButton = "create-worktree-button"
 	regionShellsPlusButton     = "shells-plus-button"
-	regionWorkspacesPlusButton  = "workspaces-plus-button"
+	regionWorkspacesPlusButton = "workspaces-plus-button"
 
 	// Type selector modal regions
 	regionTypeSelectorOption    = "type-selector-option"
@@ -110,26 +106,26 @@ type Plugin struct {
 	managedSessions map[string]bool
 
 	// View state
-	viewMode           ViewMode
-	activePane         FocusPane
-	previewTab         PreviewTab
-	selectedIdx        int
-	scrollOffset       int // Sidebar list scroll offset
-	visibleCount       int // Number of visible list items
+	viewMode         ViewMode
+	activePane       FocusPane
+	previewTab       PreviewTab
+	selectedIdx      int
+	scrollOffset     int // Sidebar list scroll offset
+	visibleCount     int // Number of visible list items
 	previewOffset    int
-	autoScrollOutput bool // Auto-scroll output to follow agent (paused when user scrolls up)
-	sidebarWidth       int       // Persisted sidebar width
-	sidebarVisible     bool      // Whether sidebar is visible (toggled with \)
-	flashPreviewTime   time.Time // When preview flash was triggered
-	toastMessage       string    // Temporary toast message to display
-	toastTime          time.Time // When toast was triggered
+	autoScrollOutput bool      // Auto-scroll output to follow agent (paused when user scrolls up)
+	sidebarWidth     int       // Persisted sidebar width
+	sidebarVisible   bool      // Whether sidebar is visible (toggled with \)
+	flashPreviewTime time.Time // When preview flash was triggered
+	toastMessage     string    // Temporary toast message to display
+	toastTime        time.Time // When toast was triggered
 
 	// Interactive selection state (preview pane)
-	interactiveSelectionActive bool
-	interactiveSelStart        selectionPoint // start of selection (line, col)
-	interactiveSelEnd          selectionPoint // end of selection (line, col), col is INCLUSIVE
-	interactiveSelAnchor       selectionPoint // anchor (click point) for drag
-	interactiveSelectionRect   mouse.Rect
+	interactiveSelectionActive    bool
+	interactiveSelStart           selectionPoint // start of selection (line, col)
+	interactiveSelEnd             selectionPoint // end of selection (line, col), col is INCLUSIVE
+	interactiveSelAnchor          selectionPoint // anchor (click point) for drag
+	interactiveSelectionRect      mouse.Rect
 	interactiveCopyPasteHintShown bool
 
 	// Kanban view state
@@ -240,14 +236,14 @@ type Plugin struct {
 	agentChoiceButtonHover int // 0=none, 1=confirm, 2=cancel
 
 	// Delete confirmation modal state
-	deleteConfirmWorktree    *Worktree // Worktree pending deletion
-	deleteConfirmButtonHover int       // 0=none, 1=delete, 2=cancel (for mouse hover)
-	deleteLocalBranchOpt     bool      // Checkbox: delete local branch
-	deleteRemoteBranchOpt    bool      // Checkbox: delete remote branch
-	deleteHasRemote          bool      // Whether remote branch exists
-	deleteIsMainBranch       bool      // Whether the worktree branch is the main branch (protected)
-	deleteConfirmFocus       int       // 0=local checkbox, 1=remote checkbox (if exists), then delete/cancel btns
-	deleteWarnings           []string  // Warnings from last delete operation (e.g., branch deletion failures)
+	deleteConfirmWorktree   *Worktree // Worktree pending deletion
+	deleteLocalBranchOpt    bool      // Checkbox: delete local branch
+	deleteRemoteBranchOpt   bool      // Checkbox: delete remote branch
+	deleteHasRemote         bool      // Whether remote branch exists
+	deleteIsMainBranch      bool      // Whether the worktree branch is the main branch (protected)
+	deleteConfirmModal      *modal.Modal
+	deleteConfirmModalWidth int
+	deleteWarnings          []string // Warnings from last delete operation (e.g., branch deletion failures)
 
 	// Shell delete confirmation modal state
 	deleteConfirmShell            *ShellSession // Shell pending deletion
@@ -271,8 +267,8 @@ type Plugin struct {
 	interactiveState *InteractiveState
 
 	// Sidebar header hover state
-	hoverNewButton           bool
-	hoverShellsPlusButton    bool
+	hoverNewButton            bool
+	hoverShellsPlusButton     bool
 	hoverWorkspacesPlusButton bool
 
 	// Multiple shell sessions (not tied to git worktrees)
@@ -281,11 +277,11 @@ type Plugin struct {
 	shellSelected    bool            // True when any shell is selected (vs a worktree)
 
 	// Type selector modal state (shell vs worktree)
-	typeSelectorIdx         int              // 0=Shell, 1=Worktree
-	typeSelectorHover       int              // Mouse hover: -1=none, 0=Shell, 1=Worktree
-	typeSelectorFocus       int              // Focus: 0=options, 1=nameInput(Shell only), 2=Confirm, 3=Cancel
-	typeSelectorButtonHover int              // Button hover: 0=none, 1=Confirm, 2=Cancel
-	typeSelectorNameInput   textinput.Model  // Optional shell name input
+	typeSelectorIdx         int             // 0=Shell, 1=Worktree
+	typeSelectorHover       int             // Mouse hover: -1=none, 0=Shell, 1=Worktree
+	typeSelectorFocus       int             // Focus: 0=options, 1=nameInput(Shell only), 2=Confirm, 3=Cancel
+	typeSelectorButtonHover int             // Button hover: 0=none, 1=Confirm, 2=Cancel
+	typeSelectorNameInput   textinput.Model // Optional shell name input
 }
 
 // New creates a new worktree manager plugin.

@@ -241,11 +241,6 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		if p.viewMode == ViewModeConfirmDelete && p.deleteConfirmWorktree != nil &&
 			p.deleteConfirmWorktree.Name == msg.WorkspaceName {
 			p.deleteHasRemote = msg.Exists
-			// Adjust focus if remote exists (remote checkbox inserts at index 1,
-			// so delete button shifts from 1 to 2)
-			if msg.Exists && p.deleteConfirmFocus == 1 {
-				p.deleteConfirmFocus = 2
-			}
 		}
 
 	case PushDoneMsg:

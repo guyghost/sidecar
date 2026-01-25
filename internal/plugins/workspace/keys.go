@@ -264,95 +264,33 @@ func (p *Plugin) executeAgentChoice() tea.Cmd {
 
 // handleConfirmDeleteKeys handles keys in delete confirmation modal.
 func (p *Plugin) handleConfirmDeleteKeys(msg tea.KeyMsg) tea.Cmd {
-	// When the branch is the main branch, no checkboxes are shown.
-	// Focus indices: 0=delete btn, 1=cancel btn
-	if p.deleteIsMainBranch {
-		switch msg.String() {
-		case "tab", "j", "down", "l", "right":
-			if p.deleteConfirmFocus == 0 {
-				p.deleteConfirmFocus = 1
-			}
-		case "shift+tab", "k", "up", "h", "left":
-			if p.deleteConfirmFocus == 1 {
-				p.deleteConfirmFocus = 0
-			}
-		case "enter":
-			if p.deleteConfirmFocus == 1 {
-				return p.cancelDelete()
-			}
-			return p.executeDelete()
-		case "D":
-			return p.executeDelete()
-		case "esc", "q":
-			return p.cancelDelete()
-		}
+	p.ensureConfirmDeleteModal()
+	if p.deleteConfirmModal == nil {
 		return nil
 	}
 
-	// Calculate max focus based on whether remote branch exists
-	// 0=local checkbox, 1=remote checkbox (if exists), 2 or 1=delete btn, 3 or 2=cancel btn
-	maxFocus := 2 // local checkbox + delete btn + cancel btn
-	if p.deleteHasRemote {
-		maxFocus = 3 // local checkbox + remote checkbox + delete btn + cancel btn
-	}
-
-	deleteBtnFocus := 1
-	cancelBtnFocus := 2
-	if p.deleteHasRemote {
-		deleteBtnFocus = 2
-		cancelBtnFocus = 3
-	}
-
 	switch msg.String() {
-	case "tab":
-		p.deleteConfirmFocus = (p.deleteConfirmFocus + 1) % (maxFocus + 1)
-	case "shift+tab":
-		p.deleteConfirmFocus = (p.deleteConfirmFocus + maxFocus) % (maxFocus + 1)
-	case "j", "down":
-		if p.deleteConfirmFocus < maxFocus {
-			p.deleteConfirmFocus++
-		}
-	case "k", "up":
-		if p.deleteConfirmFocus > 0 {
-			p.deleteConfirmFocus--
-		}
-	case " ":
-		// Space toggles checkboxes
-		if p.deleteConfirmFocus == 0 {
-			p.deleteLocalBranchOpt = !p.deleteLocalBranchOpt
-		} else if p.deleteHasRemote && p.deleteConfirmFocus == 1 {
-			p.deleteRemoteBranchOpt = !p.deleteRemoteBranchOpt
-		}
-	case "enter":
-		if p.deleteConfirmFocus == cancelBtnFocus {
-			return p.cancelDelete()
-		}
-		if p.deleteConfirmFocus == deleteBtnFocus {
-			return p.executeDelete()
-		}
-		// Space-like behavior on checkboxes with Enter
-		if p.deleteConfirmFocus == 0 {
-			p.deleteLocalBranchOpt = !p.deleteLocalBranchOpt
-		} else if p.deleteHasRemote && p.deleteConfirmFocus == 1 {
-			p.deleteRemoteBranchOpt = !p.deleteRemoteBranchOpt
-		}
 	case "D":
 		// Power user shortcut - immediate confirm
 		return p.executeDelete()
 	case "esc", "q":
 		return p.cancelDelete()
-	case "h", "left":
-		// Navigate between buttons when on button row
-		if p.deleteConfirmFocus == cancelBtnFocus {
-			p.deleteConfirmFocus = deleteBtnFocus
-		}
-	case "l", "right":
-		// Navigate between buttons when on button row
-		if p.deleteConfirmFocus == deleteBtnFocus {
-			p.deleteConfirmFocus = cancelBtnFocus
-		}
+	case "j", "down", "l", "right":
+		p.deleteConfirmModal.HandleKey(tea.KeyMsg{Type: tea.KeyTab})
+		return nil
+	case "k", "up", "h", "left":
+		p.deleteConfirmModal.HandleKey(tea.KeyMsg{Type: tea.KeyShiftTab})
+		return nil
 	}
-	return nil
+
+	action, cmd := p.deleteConfirmModal.HandleKey(msg)
+	switch action {
+	case "cancel", deleteConfirmCancelID:
+		return p.cancelDelete()
+	case deleteConfirmDeleteID:
+		return p.executeDelete()
+	}
+	return cmd
 }
 
 // executeDelete performs the actual worktree deletion and cleans up state.
@@ -380,13 +318,7 @@ func (p *Plugin) executeDelete() tea.Cmd {
 
 	// Clear modal state
 	p.viewMode = ViewModeList
-	p.deleteConfirmWorktree = nil
-	p.deleteConfirmButtonHover = 0
-	p.deleteLocalBranchOpt = false
-	p.deleteRemoteBranchOpt = false
-	p.deleteHasRemote = false
-	p.deleteIsMainBranch = false
-	p.deleteConfirmFocus = 0
+	p.clearConfirmDeleteModal()
 
 	// Clear preview pane content
 	p.diffContent = ""
@@ -424,14 +356,18 @@ func (p *Plugin) executeDelete() tea.Cmd {
 // cancelDelete closes the delete confirmation modal without deleting.
 func (p *Plugin) cancelDelete() tea.Cmd {
 	p.viewMode = ViewModeList
+	p.clearConfirmDeleteModal()
+	return nil
+}
+
+func (p *Plugin) clearConfirmDeleteModal() {
 	p.deleteConfirmWorktree = nil
-	p.deleteConfirmButtonHover = 0
 	p.deleteLocalBranchOpt = false
 	p.deleteRemoteBranchOpt = false
 	p.deleteHasRemote = false
 	p.deleteIsMainBranch = false
-	p.deleteConfirmFocus = 0
-	return nil
+	p.deleteConfirmModal = nil
+	p.deleteConfirmModalWidth = 0
 }
 
 // handleConfirmDeleteShellKeys handles keys in the shell delete confirmation modal.
@@ -590,17 +526,16 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 		p.viewMode = ViewModeConfirmDelete
 		p.deleteConfirmWorktree = wt
-		p.deleteConfirmButtonHover = 0
 		p.deleteLocalBranchOpt = false // Default: don't delete branches
 		p.deleteRemoteBranchOpt = false
 		p.deleteHasRemote = false
 		p.deleteIsMainBranch = isMainBranch(p.ctx.WorkDir, wt.Branch)
+		p.deleteConfirmModal = nil
+		p.deleteConfirmModalWidth = 0
 		if p.deleteIsMainBranch {
-			// Main branch is protected: skip branch options, focus delete button directly
-			p.deleteConfirmFocus = 0 // Delete button is focus 0 when no checkboxes
+			// Main branch is protected: skip branch options
 			return nil
 		}
-		p.deleteConfirmFocus = 1 // Focus delete button (index 1 when no remote)
 		// Check for remote branch existence asynchronously
 		return p.checkRemoteBranch(wt)
 	case "p":

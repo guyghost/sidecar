@@ -51,7 +51,7 @@ func TestIsBackgroundRegion(t *testing.T) {
 
 	modal := []string{
 		regionAgentChoiceOption, regionAgentChoiceConfirm, regionAgentChoiceCancel,
-		regionDeleteConfirmDelete, regionDeleteConfirmCancel,
+		deleteConfirmDeleteID, deleteConfirmCancelID,
 		regionCreateBackdrop, regionCreateModalBody, regionCreateInput,
 		regionMergeMethodOption, regionMergeConfirmButton,
 		regionTypeSelectorOption, regionTypeSelectorConfirm, regionTypeSelectorCancel, regionTypeSelectorNameInput,
@@ -210,4 +210,3 @@ func TestNonModalClickPassesThrough(t *testing.T) {
 		t.Error("sidebar click in List mode should set activePane to PaneSidebar")
 	}
 }
-

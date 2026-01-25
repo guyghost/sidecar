@@ -40,6 +40,10 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		return p.handleRenameShellModalMouse(msg)
 	}
 
+	if p.viewMode == ViewModeConfirmDelete {
+		return p.handleConfirmDeleteModalMouse(msg)
+	}
+
 	action := p.mouseHandler.HandleMouse(msg)
 
 	switch action.Type {
@@ -149,6 +153,32 @@ func (p *Plugin) handleRenameShellModalMouse(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
+func (p *Plugin) handleConfirmDeleteModalMouse(msg tea.MouseMsg) tea.Cmd {
+	p.ensureConfirmDeleteModal()
+	if p.deleteConfirmModal == nil {
+		return nil
+	}
+
+	action := p.deleteConfirmModal.HandleMouse(msg, p.mouseHandler)
+	switch action {
+	case "":
+		return nil
+	case "cancel", deleteConfirmCancelID:
+		return p.cancelDelete()
+	case deleteConfirmDeleteID:
+		return p.executeDelete()
+	case deleteConfirmLocalID:
+		if !p.deleteIsMainBranch {
+			p.deleteLocalBranchOpt = !p.deleteLocalBranchOpt
+		}
+	case deleteConfirmRemoteID:
+		if !p.deleteIsMainBranch && p.deleteHasRemote {
+			p.deleteRemoteBranchOpt = !p.deleteRemoteBranchOpt
+		}
+	}
+	return nil
+}
+
 // handleMouseHover handles hover events for visual feedback.
 func (p *Plugin) handleMouseHover(action mouse.MouseAction) tea.Cmd {
 	// Guard: absorb background region hovers when a modal is open (td-f63097).
@@ -187,19 +217,6 @@ func (p *Plugin) handleMouseHover(action mouse.MouseAction) tea.Cmd {
 			p.agentChoiceButtonHover = 2
 		default:
 			p.agentChoiceButtonHover = 0
-		}
-	case ViewModeConfirmDelete:
-		if action.Region == nil {
-			p.deleteConfirmButtonHover = 0
-			return nil
-		}
-		switch action.Region.ID {
-		case regionDeleteConfirmDelete:
-			p.deleteConfirmButtonHover = 1
-		case regionDeleteConfirmCancel:
-			p.deleteConfirmButtonHover = 2
-		default:
-			p.deleteConfirmButtonHover = 0
 		}
 	case ViewModeConfirmDeleteShell:
 		if action.Region == nil {
@@ -296,7 +313,6 @@ func (p *Plugin) handleMouseHover(action mouse.MouseAction) tea.Cmd {
 	default:
 		p.createButtonHover = 0
 		p.agentChoiceButtonHover = 0
-		p.deleteConfirmButtonHover = 0
 		p.mergeMethodHover = 0
 		p.mergeConfirmCheckboxHover = 0
 		p.mergeConfirmButtonHover = 0
@@ -447,24 +463,6 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) tea.Cmd {
 		p.viewMode = ViewModeList
 		p.agentChoiceWorktree = nil
 		p.agentChoiceButtonFocus = 0
-	case regionDeleteLocalBranchCheck:
-		// Click on local branch checkbox (disabled for main branch)
-		if !p.deleteIsMainBranch {
-			p.deleteLocalBranchOpt = !p.deleteLocalBranchOpt
-			p.deleteConfirmFocus = 0
-		}
-	case regionDeleteRemoteBranchCheck:
-		// Click on remote branch checkbox (only if remote exists, disabled for main branch)
-		if !p.deleteIsMainBranch && p.deleteHasRemote {
-			p.deleteRemoteBranchOpt = !p.deleteRemoteBranchOpt
-			p.deleteConfirmFocus = 1
-		}
-	case regionDeleteConfirmDelete:
-		// Click delete button
-		return p.executeDelete()
-	case regionDeleteConfirmCancel:
-		// Click cancel button
-		return p.cancelDelete()
 	case regionDeleteShellConfirmDelete:
 		// Click delete button in shell delete modal
 		return p.executeShellDelete()

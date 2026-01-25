@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/styles"
 	"github.com/marcus/sidecar/internal/ui"
@@ -176,197 +175,118 @@ func (p *Plugin) renderConfirmDeleteModal(width, height int) string {
 	// Render the background (list view)
 	background := p.renderListView(width, height)
 
-	if p.deleteConfirmWorktree == nil {
+	p.ensureConfirmDeleteModal()
+	if p.deleteConfirmModal == nil {
 		return background
 	}
 
-	// Modal dimensions
+	modalContent := p.deleteConfirmModal.Render(width, height, p.mouseHandler)
+	return ui.OverlayModal(background, modalContent, width, height)
+}
+
+const (
+	deleteConfirmLocalID  = "delete-confirm-local-branch"
+	deleteConfirmRemoteID = "delete-confirm-remote-branch"
+	deleteConfirmDeleteID = "delete-confirm-delete"
+	deleteConfirmCancelID = "delete-confirm-cancel"
+)
+
+// ensureConfirmDeleteModal builds/rebuilds the delete confirmation modal.
+func (p *Plugin) ensureConfirmDeleteModal() {
+	if p.deleteConfirmWorktree == nil {
+		return
+	}
+
 	modalW := 58
-	if modalW > width-4 {
-		modalW = width - 4
+	if modalW > p.width-4 {
+		modalW = p.width - 4
+	}
+	if modalW < 20 {
+		modalW = 20
 	}
 
-	wt := p.deleteConfirmWorktree
+	if p.deleteConfirmModal != nil && p.deleteConfirmModalWidth == modalW {
+		return
+	}
+	p.deleteConfirmModalWidth = modalW
 
-	var sb strings.Builder
-	title := "Delete Worktree?"
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(styles.Error).Render(title))
-	sb.WriteString("\n\n")
+	p.deleteConfirmModal = modal.New("Delete Worktree?",
+		modal.WithWidth(modalW),
+		modal.WithVariant(modal.VariantDanger),
+		modal.WithHints(false),
+	).
+		AddSection(p.deleteConfirmInfoSection()).
+		AddSection(modal.Spacer()).
+		AddSection(p.deleteConfirmWarningSection()).
+		AddSection(modal.Spacer()).
+		AddSection(modal.When(func() bool { return !p.deleteIsMainBranch }, p.deleteConfirmBranchHeaderSection())).
+		AddSection(modal.When(func() bool { return !p.deleteIsMainBranch }, modal.Checkbox(deleteConfirmLocalID, "Delete local branch", &p.deleteLocalBranchOpt))).
+		AddSection(modal.When(func() bool { return !p.deleteIsMainBranch }, p.deleteConfirmLocalHintSection())).
+		AddSection(modal.When(func() bool { return !p.deleteIsMainBranch && p.deleteHasRemote }, modal.Checkbox(deleteConfirmRemoteID, "Delete remote branch", &p.deleteRemoteBranchOpt))).
+		AddSection(modal.When(func() bool { return !p.deleteIsMainBranch && p.deleteHasRemote }, p.deleteConfirmRemoteHintSection())).
+		AddSection(modal.When(func() bool { return !p.deleteIsMainBranch }, modal.Spacer())).
+		AddSection(modal.Buttons(
+			modal.Btn(" Delete ", deleteConfirmDeleteID, modal.BtnDanger()),
+			modal.Btn(" Cancel ", deleteConfirmCancelID),
+		))
+}
 
-	// Worktree name
-	sb.WriteString(fmt.Sprintf("Name:   %s\n", lipgloss.NewStyle().Bold(true).Render(wt.Name)))
-	sb.WriteString(fmt.Sprintf("Branch: %s\n", wt.Branch))
-	sb.WriteString(fmt.Sprintf("Path:   %s\n", dimText(wt.Path)))
-	sb.WriteString("\n")
+func (p *Plugin) deleteConfirmInfoSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		if p.deleteConfirmWorktree == nil {
+			return modal.RenderedSection{}
+		}
 
-	// Warning text
-	warningStyle := lipgloss.NewStyle().Foreground(styles.Warning)
-	sb.WriteString(warningStyle.Render("This will:"))
-	sb.WriteString("\n")
-	sb.WriteString(dimText("  • Remove the working directory"))
-	sb.WriteString("\n")
-	sb.WriteString(dimText("  • Uncommitted changes will be lost"))
-	sb.WriteString("\n\n")
+		wt := p.deleteConfirmWorktree
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Name:   %s\n", lipgloss.NewStyle().Bold(true).Render(wt.Name)))
+		sb.WriteString(fmt.Sprintf("Branch: %s\n", wt.Branch))
+		sb.WriteString(fmt.Sprintf("Path:   %s", dimText(wt.Path)))
 
-	// Branch deletion options (hidden when worktree is on the main branch)
-	checkboxLines := 0
-	deleteBtnFocus := 0
-	cancelBtnFocus := 1
+		return modal.RenderedSection{Content: sb.String()}
+	}, nil)
+}
 
-	if !p.deleteIsMainBranch {
-		sb.WriteString(lipgloss.NewStyle().Bold(true).Render("Branch Cleanup (Optional)"))
+func (p *Plugin) deleteConfirmWarningSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		warningStyle := lipgloss.NewStyle().Foreground(styles.Warning)
+
+		var sb strings.Builder
+		sb.WriteString(warningStyle.Render("This will:"))
 		sb.WriteString("\n")
-
-		// Checkbox options
-		type checkboxOpt struct {
-			label   string
-			checked bool
-			hint    string
-			focusID int
-		}
-
-		opts := []checkboxOpt{
-			{"Delete local branch", p.deleteLocalBranchOpt,
-				"Removes '" + wt.Branch + "' locally", 0},
-		}
-
-		// Only show remote option if remote branch exists
-		if p.deleteHasRemote {
-			opts = append(opts, checkboxOpt{
-				"Delete remote branch", p.deleteRemoteBranchOpt,
-				"Removes 'origin/" + wt.Branch + "'", 1,
-			})
-		}
-
-		for _, opt := range opts {
-			checkbox := "[ ]"
-			if opt.checked {
-				checkbox = "[x]"
-			}
-
-			line := fmt.Sprintf("  %s %s", checkbox, opt.label)
-
-			if p.deleteConfirmFocus == opt.focusID {
-				sb.WriteString(lipgloss.NewStyle().Foreground(styles.Primary).Bold(true).Render("> " + line[2:]))
-			} else {
-				sb.WriteString(line)
-			}
-			sb.WriteString("\n")
-			sb.WriteString(dimText("      " + opt.hint))
-			sb.WriteString("\n")
-			checkboxLines += 2
-		}
-
+		sb.WriteString(dimText("  • Remove the working directory"))
 		sb.WriteString("\n")
+		sb.WriteString(dimText("  • Uncommitted changes will be lost"))
 
-		// Determine button focus indices based on whether remote is shown
-		deleteBtnFocus = 1
-		cancelBtnFocus = 2
-		if p.deleteHasRemote {
-			deleteBtnFocus = 2
-			cancelBtnFocus = 3
+		return modal.RenderedSection{Content: sb.String()}
+	}, nil)
+}
+
+func (p *Plugin) deleteConfirmBranchHeaderSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		content := lipgloss.NewStyle().Bold(true).Render("Branch Cleanup (Optional)")
+		return modal.RenderedSection{Content: content}
+	}, nil)
+}
+
+func (p *Plugin) deleteConfirmLocalHintSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		if p.deleteConfirmWorktree == nil {
+			return modal.RenderedSection{}
 		}
-	}
+		wt := p.deleteConfirmWorktree
+		return modal.RenderedSection{Content: dimText("  Removes '" + wt.Branch + "' locally")}
+	}, nil)
+}
 
-	// Render buttons with focus/hover states
-	deleteStyle := styles.ButtonDanger
-	cancelStyle := styles.Button
-	if p.deleteConfirmFocus == deleteBtnFocus {
-		deleteStyle = styles.ButtonDangerFocused
-	} else if p.deleteConfirmButtonHover == 1 {
-		deleteStyle = styles.ButtonDangerHover
-	}
-	if p.deleteConfirmFocus == cancelBtnFocus {
-		cancelStyle = styles.ButtonFocused
-	} else if p.deleteConfirmButtonHover == 2 {
-		cancelStyle = styles.ButtonHover
-	}
-	sb.WriteString(deleteStyle.Render(" Delete "))
-	sb.WriteString("  ")
-	sb.WriteString(cancelStyle.Render(" Cancel "))
-
-	content := sb.String()
-	modal := modalStyle().Width(modalW).Render(content)
-
-	// Register hit regions for the modal
-	// Calculate modal position (centered)
-	modalHeight := lipgloss.Height(modal)
-	modalStartX := (width - modalW) / 2
-	modalStartY := (height - modalHeight) / 2
-
-	// Calculate Y positions for hit regions dynamically
-	// modalStyle has border(1) + padding(1) = 2 rows at top before content starts
-	// We must also account for text wrapping (e.g., long paths may wrap to multiple lines)
-	//
-	// Content structure:
-	// - Title line
-	// - Blank line (\n\n)
-	// - Name line
-	// - Branch line
-	// - Path line(s) - may wrap!
-	// - Blank line
-	// - "This will:" line
-	// - Bullet 1
-	// - Bullet 2
-	// - Blank line (\n\n)
-	// - "Branch Cleanup (Optional)" header
-	// - Checkbox lines start here
-
-	// Calculate content width for wrapping (modal width minus border and padding)
-	contentWidth := modalW - 6 // border(2) + padding(4) = 6
-
-	// Build up line count dynamically to handle wrapped text
-	currentY := modalStartY + 2 // Start after border(1) + padding(1)
-
-	// Title + blank
-	currentY += 2
-
-	// Name line (typically doesn't wrap)
-	currentY++
-
-	// Branch line (typically doesn't wrap)
-	currentY++
-
-	// Path line - may wrap if path is long
-	// Use visual width (ansi.StringWidth) for accurate wrapping calculation
-	pathLine := fmt.Sprintf("Path:   %s", wt.Path)
-	pathVisualWidth := ansi.StringWidth(pathLine)
-	pathLineCount := (pathVisualWidth + contentWidth - 1) / contentWidth // Ceiling division
-	if pathLineCount < 1 {
-		pathLineCount = 1
-	}
-	currentY += pathLineCount
-
-	// Blank line
-	currentY++
-
-	// "This will:" + 2 bullets + blank
-	currentY += 4
-
-	hitX := modalStartX + 3 // border(1) + padding(2) = 3
-	hitW := modalW - 6      // width minus border+padding on both sides
-
-	if !p.deleteIsMainBranch {
-		// "Branch Cleanup (Optional)" header
-		currentY++
-
-		// Checkboxes start here
-		checkboxStartY := currentY
-
-		// Hit regions for checkboxes
-		p.mouseHandler.HitMap.AddRect(regionDeleteLocalBranchCheck, hitX, checkboxStartY, hitW, 1, 0)
-		if p.deleteHasRemote {
-			p.mouseHandler.HitMap.AddRect(regionDeleteRemoteBranchCheck, hitX, checkboxStartY+2, hitW, 1, 1)
+func (p *Plugin) deleteConfirmRemoteHintSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		if p.deleteConfirmWorktree == nil {
+			return modal.RenderedSection{}
 		}
-	}
-
-	// Hit regions for buttons (after checkboxes + blank line)
-	buttonY := currentY + checkboxLines + 1
-	p.mouseHandler.HitMap.AddRect(regionDeleteConfirmDelete, hitX, buttonY, 12, 1, nil)
-	cancelX := hitX + 12 + 2
-	p.mouseHandler.HitMap.AddRect(regionDeleteConfirmCancel, cancelX, buttonY, 12, 1, nil)
-
-	return ui.OverlayModal(background, modal, width, height)
+		wt := p.deleteConfirmWorktree
+		return modal.RenderedSection{Content: dimText("  Removes 'origin/" + wt.Branch + "'")}
+	}, nil)
 }
 
 // renderConfirmDeleteShellModal renders the shell delete confirmation modal.
@@ -448,10 +368,10 @@ func (p *Plugin) renderConfirmDeleteShellModal(width, height int) string {
 }
 
 const (
-	renameShellInputID   = "rename-shell-input"
-	renameShellRenameID  = "rename-shell-rename"
-	renameShellCancelID  = "rename-shell-cancel"
-	renameShellActionID  = "rename-shell-action"
+	renameShellInputID  = "rename-shell-input"
+	renameShellRenameID = "rename-shell-rename"
+	renameShellCancelID = "rename-shell-cancel"
+	renameShellActionID = "rename-shell-action"
 )
 
 // ensureRenameShellModal builds/rebuilds the rename shell modal.
@@ -565,7 +485,7 @@ func (p *Plugin) renderPromptPickerModal(width, height int) string {
 	// - "Filter:" label (1 line)
 	// - bordered filter input (3 lines: border + content + border)
 	// Filter input starts at: 1 + 1 + 1 = 3 lines from content start
-	filterY := modalY + 2 + 3 // border(1) + padding(1) + header + blank + label
+	filterY := modalY + 2 + 3                                                        // border(1) + padding(1) + header + blank + label
 	p.mouseHandler.HitMap.AddRect(regionPromptFilter, modalX+2, filterY, 32, 3, nil) // height 3 for bordered input
 
 	// Register hit regions for prompt items
@@ -1162,7 +1082,7 @@ func (p *Plugin) renderMergeModal(width, height int) string {
 		// Lines before step content: 1 + 1 + progressSteps + 1 + 1 + 2 = progressSteps + 6
 		// Then "Choose Merge Method:" (1) + blank (1) = 2 more lines before options
 		option1Y := modalY + 2 + progressSteps + 6 + 2 // border(1) + padding(1) + header content + step header + blank
-		option2Y := option1Y + 3                        // Option 1 text + description + blank
+		option2Y := option1Y + 3                       // Option 1 text + description + blank
 
 		p.mouseHandler.HitMap.AddRect(regionMergeMethodOption, modalX+2, option1Y, modalW-6, 1, 0) // Create PR
 		p.mouseHandler.HitMap.AddRect(regionMergeMethodOption, modalX+2, option2Y, modalW-6, 1, 1) // Direct Merge
