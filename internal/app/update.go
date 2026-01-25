@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/marcus/sidecar/internal/community"
 	"github.com/marcus/sidecar/internal/config"
+	"github.com/marcus/sidecar/internal/mouse"
 	appmsg "github.com/marcus/sidecar/internal/msg"
 	"github.com/marcus/sidecar/internal/palette"
 	"github.com/marcus/sidecar/internal/plugin"
@@ -30,9 +31,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
-		// Update button bounds if diagnostics is shown
+		// Reset diagnostics modal on resize (will be rebuilt on next render)
 		if m.showDiagnostics {
-			m.updateDiagnosticsButtonBounds()
+			m.diagnosticsModalWidth = 0
 		}
 		// Forward adjusted WindowSizeMsg to all plugins
 		// Plugins receive the content area size (minus header and footer)
@@ -66,22 +67,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ModalHelp:
 			return m.handleHelpModalMouse(msg)
 		case ModalDiagnostics:
-			if m.hasUpdatesAvailable() && !m.updateInProgress && !m.needsRestart {
-				if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-					if m.updateButtonBounds.Contains(msg.X, msg.Y) {
-						m.updateInProgress = true
-						m.updateError = ""
-						m.updateSpinnerFrame = 0
-						return m, tea.Batch(m.doUpdate(), updateSpinnerTick())
-					}
-				}
-			}
-			return m, nil
+			return m.handleDiagnosticsModalMouse(msg)
 		case ModalQuitConfirm:
 			return m.handleQuitConfirmMouse(msg)
 		case ModalProjectSwitcher:
 			if m.projectAddMode {
-				return m.handleProjectAddMouse(msg)
+				return m.handleProjectAddModalMouse(msg)
 			}
 			return m.handleProjectSwitcherMouse(msg)
 		case ModalThemeSwitcher:
@@ -333,8 +324,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.themeSwitcherInput.Value() != "" {
 				m.themeSwitcherInput.SetValue("")
 				m.themeSwitcherFiltered = styles.ListThemes()
-				m.themeSwitcherCursor = 0
-				m.themeSwitcherScroll = 0
+				m.themeSwitcherSelectedIdx = 0
+				m.themeSwitcherSelectedIdx = 0
 				return m, nil
 			}
 			m.applyThemeFromConfig(m.themeSwitcherOriginal)
@@ -429,25 +420,28 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Handle diagnostics modal keys
 	if m.showDiagnostics {
-		switch msg.String() {
-		case "u":
-			if m.hasUpdatesAvailable() && !m.updateInProgress && !m.needsRestart {
-				m.updateInProgress = true
-				m.updateError = ""
-				m.updateSpinnerFrame = 0
-				return m, tea.Batch(m.doUpdate(), updateSpinnerTick())
+		m.ensureDiagnosticsModal()
+		if m.diagnosticsModal != nil {
+			action, cmd := m.diagnosticsModal.HandleKey(msg)
+			if cmd != nil {
+				return m, cmd
 			}
-		case "tab":
-			if m.hasUpdatesAvailable() && !m.updateInProgress && !m.needsRestart {
-				m.updateButtonFocus = !m.updateButtonFocus
+			switch action {
+			case "update":
+				if !m.updateInProgress && !m.needsRestart {
+					m.updateInProgress = true
+					m.updateError = ""
+					m.updateSpinnerFrame = 0
+					return m, tea.Batch(m.doUpdate(), updateSpinnerTick())
+				}
 			}
-		case "enter":
-			if m.updateButtonFocus && !m.updateInProgress {
-				m.updateInProgress = true
-				m.updateError = ""
-				m.updateSpinnerFrame = 0
-				return m, tea.Batch(m.doUpdate(), updateSpinnerTick())
-			}
+		}
+		// Handle 'u' shortcut for update
+		if msg.String() == "u" && m.hasUpdatesAvailable() && !m.updateInProgress && !m.needsRestart {
+			m.updateInProgress = true
+			m.updateError = ""
+			m.updateSpinnerFrame = 0
+			return m, tea.Batch(m.doUpdate(), updateSpinnerTick())
 		}
 		return m, nil
 	}
@@ -456,7 +450,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.showProjectSwitcher {
 		// Handle project add sub-mode keys
 		if m.projectAddMode {
-			return m.handleProjectAddKeys(msg)
+			return m.handleProjectAddModalKeys(msg)
 		}
 
 		allProjects := m.cfg.Projects.List
@@ -550,7 +544,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Re-filter on input change
 		m.projectSwitcherFiltered = filterProjects(allProjects, m.projectSwitcherInput.Value())
-		m.projectSwitcherHover = -1 // Clear hover on filter change
+		m.clearProjectSwitcherModal() // Clear modal cache on filter change
 		// Reset cursor if it's beyond filtered list
 		if m.projectSwitcherCursor >= len(m.projectSwitcherFiltered) {
 			m.projectSwitcherCursor = len(m.projectSwitcherFiltered) - 1
@@ -601,8 +595,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter:
 			// Confirm selection and close
-			if m.themeSwitcherCursor >= 0 && m.themeSwitcherCursor < len(themes) {
-				selectedTheme := themes[m.themeSwitcherCursor]
+			if m.themeSwitcherSelectedIdx >= 0 && m.themeSwitcherSelectedIdx < len(themes) {
+				selectedTheme := themes[m.themeSwitcherSelectedIdx]
 				scope := m.themeSwitcherScope
 				m.resetThemeSwitcher()
 				m.updateContext()
@@ -624,29 +618,29 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case tea.KeyUp:
-			m.themeSwitcherCursor--
-			if m.themeSwitcherCursor < 0 {
-				m.themeSwitcherCursor = 0
+			m.themeSwitcherSelectedIdx--
+			if m.themeSwitcherSelectedIdx < 0 {
+				m.themeSwitcherSelectedIdx = 0
 			}
-			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
+			m.themeSwitcherSelectedIdx = themeSwitcherEnsureCursorVisible(m.themeSwitcherSelectedIdx, m.themeSwitcherSelectedIdx, 8)
 			// Live preview
-			if m.themeSwitcherCursor < len(themes) {
-				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			if m.themeSwitcherSelectedIdx < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherSelectedIdx])
 			}
 			return m, nil
 
 		case tea.KeyDown:
-			m.themeSwitcherCursor++
-			if m.themeSwitcherCursor >= len(themes) {
-				m.themeSwitcherCursor = len(themes) - 1
+			m.themeSwitcherSelectedIdx++
+			if m.themeSwitcherSelectedIdx >= len(themes) {
+				m.themeSwitcherSelectedIdx = len(themes) - 1
 			}
-			if m.themeSwitcherCursor < 0 {
-				m.themeSwitcherCursor = 0
+			if m.themeSwitcherSelectedIdx < 0 {
+				m.themeSwitcherSelectedIdx = 0
 			}
-			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
+			m.themeSwitcherSelectedIdx = themeSwitcherEnsureCursorVisible(m.themeSwitcherSelectedIdx, m.themeSwitcherSelectedIdx, 8)
 			// Live preview
-			if m.themeSwitcherCursor < len(themes) {
-				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			if m.themeSwitcherSelectedIdx < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherSelectedIdx])
 			}
 			return m, nil
 		}
@@ -654,27 +648,27 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Handle non-text shortcuts
 		switch msg.String() {
 		case "ctrl+n":
-			m.themeSwitcherCursor++
-			if m.themeSwitcherCursor >= len(themes) {
-				m.themeSwitcherCursor = len(themes) - 1
+			m.themeSwitcherSelectedIdx++
+			if m.themeSwitcherSelectedIdx >= len(themes) {
+				m.themeSwitcherSelectedIdx = len(themes) - 1
 			}
-			if m.themeSwitcherCursor < 0 {
-				m.themeSwitcherCursor = 0
+			if m.themeSwitcherSelectedIdx < 0 {
+				m.themeSwitcherSelectedIdx = 0
 			}
-			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
-			if m.themeSwitcherCursor < len(themes) {
-				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			m.themeSwitcherSelectedIdx = themeSwitcherEnsureCursorVisible(m.themeSwitcherSelectedIdx, m.themeSwitcherSelectedIdx, 8)
+			if m.themeSwitcherSelectedIdx < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherSelectedIdx])
 			}
 			return m, nil
 
 		case "ctrl+p":
-			m.themeSwitcherCursor--
-			if m.themeSwitcherCursor < 0 {
-				m.themeSwitcherCursor = 0
+			m.themeSwitcherSelectedIdx--
+			if m.themeSwitcherSelectedIdx < 0 {
+				m.themeSwitcherSelectedIdx = 0
 			}
-			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, 8)
-			if m.themeSwitcherCursor < len(themes) {
-				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
+			m.themeSwitcherSelectedIdx = themeSwitcherEnsureCursorVisible(m.themeSwitcherSelectedIdx, m.themeSwitcherSelectedIdx, 8)
+			if m.themeSwitcherSelectedIdx < len(themes) {
+				m.applyThemeFromConfig(themes[m.themeSwitcherSelectedIdx])
 			}
 			return m, nil
 
@@ -692,18 +686,17 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Re-filter on input change
 		m.themeSwitcherFiltered = filterThemes(styles.ListThemes(), m.themeSwitcherInput.Value())
-		m.themeSwitcherHover = -1
-		if m.themeSwitcherCursor >= len(m.themeSwitcherFiltered) {
-			m.themeSwitcherCursor = len(m.themeSwitcherFiltered) - 1
+		m.clearThemeSwitcherModal() // Force modal rebuild
+		if m.themeSwitcherSelectedIdx >= len(m.themeSwitcherFiltered) {
+			m.themeSwitcherSelectedIdx = len(m.themeSwitcherFiltered) - 1
 		}
-		if m.themeSwitcherCursor < 0 {
-			m.themeSwitcherCursor = 0
+		if m.themeSwitcherSelectedIdx < 0 {
+			m.themeSwitcherSelectedIdx = 0
 		}
-		m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, 0, 8)
 
 		// Live preview current selection
-		if m.themeSwitcherCursor >= 0 && m.themeSwitcherCursor < len(m.themeSwitcherFiltered) {
-			m.applyThemeFromConfig(m.themeSwitcherFiltered[m.themeSwitcherCursor])
+		if m.themeSwitcherSelectedIdx >= 0 && m.themeSwitcherSelectedIdx < len(m.themeSwitcherFiltered) {
+			m.applyThemeFromConfig(m.themeSwitcherFiltered[m.themeSwitcherSelectedIdx])
 		}
 
 		return m, cmd
@@ -759,14 +752,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showDiagnostics = !m.showDiagnostics
 		if m.showDiagnostics {
 			m.activeContext = "diagnostics"
-			m.updateDiagnosticsButtonBounds()
 			// Force version check in background (bypasses cache)
 			return m, tea.Batch(
 				version.ForceCheckAsync(m.currentVersion),
 				version.ForceCheckTdAsync(),
 			)
 		}
-		m.updateButtonFocus = false
+		m.clearDiagnosticsModal()
 		m.updateContext()
 		return m, nil
 	case "@":
@@ -995,25 +987,13 @@ func (m Model) handleProjectSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd)
 			projectIdx := m.projectSwitcherScroll + relY/2
 
 			if projectIdx >= 0 && projectIdx < len(projects) {
-				switch msg.Action {
-				case tea.MouseActionPress:
-					if msg.Button == tea.MouseButtonLeft {
-						// Click to select and switch
-						selectedProject := projects[projectIdx]
-						m.resetProjectSwitcher()
-						m.updateContext()
-						return m, m.switchProject(selectedProject.Path)
-					}
-				case tea.MouseActionMotion:
-					// Hover effect
-					m.projectSwitcherHover = projectIdx
-					m.previewProjectTheme()
+				if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+					// Click to select and switch
+					selectedProject := projects[projectIdx]
+					m.resetProjectSwitcher()
+					m.updateContext()
+					return m, m.switchProject(selectedProject.Path)
 				}
-			}
-		} else {
-			// Not hovering over a project
-			if msg.Action == tea.MouseActionMotion {
-				m.projectSwitcherHover = -1
 			}
 		}
 
@@ -1050,138 +1030,40 @@ func (m Model) handleProjectSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd)
 		return m, nil
 	}
 
-	// Clear hover when outside modal
-	if msg.Action == tea.MouseActionMotion {
-		m.projectSwitcherHover = -1
-	}
-
 	return m, nil
 }
 
 // handleThemeSwitcherMouse handles mouse events for the theme switcher modal.
 func (m Model) handleThemeSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	themes := m.themeSwitcherFiltered
-
-	// Calculate modal dimensions and position
-	maxVisible := 8
-	visibleCount := len(themes)
-	if visibleCount > maxVisible {
-		visibleCount = maxVisible
+	m.ensureThemeSwitcherModal()
+	if m.themeSwitcherModal == nil {
+		return m, nil
+	}
+	if m.themeSwitcherMouseHandler == nil {
+		m.themeSwitcherMouseHandler = mouse.NewHandler()
 	}
 
-	// Estimate modal dimensions (title + input + count + themes + help text)
-	// Title: 2 lines, Input: 1 line, Count: 1 line, Themes: 1 line each, Help: 2 lines
-	modalContentLines := 2 + 1 + 1 + visibleCount + 2
-	if m.themeSwitcherScroll > 0 {
-		modalContentLines++ // scroll indicator above
-	}
-	if len(themes) > m.themeSwitcherScroll+visibleCount {
-		modalContentLines++ // scroll indicator below
-	}
-	if len(themes) == 0 {
-		modalContentLines = 2 + 1 + 1 + 2 + 2 // title + input + count + "no matches" + help
-	}
-
-	// ModalBox adds padding and border (~2 on each side)
-	modalHeight := modalContentLines + 4
-	modalWidth := 50
-
-	modalX := (m.width - modalWidth) / 2
-	modalY := (m.height - modalHeight) / 2
-
-	// Check if click is inside modal
-	if msg.X >= modalX && msg.X < modalX+modalWidth &&
-		msg.Y >= modalY && msg.Y < modalY+modalHeight {
-
-		if len(themes) == 0 {
-			return m, nil
-		}
-
-		// Calculate which theme was clicked
-		// Content starts at modalY + 2 (border + padding)
-		// Title: 2 lines, Input: 1 line, Count: 1 line, then scroll indicator (if any), then themes
-		contentStartY := modalY + 2 + 2 + 1 + 1 // border/padding + title + input + count
-		if m.themeSwitcherScroll > 0 {
-			contentStartY++ // scroll indicator
-		}
-
-		// Each theme takes 1 line
-		relY := msg.Y - contentStartY
-		if relY >= 0 && relY < visibleCount {
-			themeIdx := m.themeSwitcherScroll + relY
-
-			if themeIdx >= 0 && themeIdx < len(themes) {
-				switch msg.Action {
-				case tea.MouseActionPress:
-					if msg.Button == tea.MouseButtonLeft {
-						// Click to select and confirm
-						selectedTheme := themes[themeIdx]
-						m.applyThemeFromConfig(selectedTheme)
-						m.resetThemeSwitcher()
-						m.updateContext()
-						// Persist to config
-						if err := config.SaveTheme(selectedTheme); err != nil {
-							return m, func() tea.Msg {
-								return ToastMsg{Message: "Theme applied (save failed)", Duration: 3 * time.Second, IsError: true}
-							}
-						}
-						return m, func() tea.Msg {
-							return ToastMsg{Message: "Theme: " + selectedTheme, Duration: 2 * time.Second}
-						}
-					}
-				case tea.MouseActionMotion:
-					// Hover effect and live preview
-					m.themeSwitcherHover = themeIdx
-					m.applyThemeFromConfig(themes[themeIdx])
+	action := m.themeSwitcherModal.HandleMouse(msg, m.themeSwitcherMouseHandler)
+	switch action {
+	case "select":
+		themes := m.themeSwitcherFiltered
+		if m.themeSwitcherSelectedIdx >= 0 && m.themeSwitcherSelectedIdx < len(themes) {
+			selectedTheme := themes[m.themeSwitcherSelectedIdx]
+			m.applyThemeFromConfig(selectedTheme)
+			m.resetThemeSwitcher()
+			m.updateContext()
+			// Persist to config based on scope
+			tc := config.ThemeConfig{Name: selectedTheme}
+			if err := m.saveThemeForScope(tc); err != nil {
+				return m, func() tea.Msg {
+					return ToastMsg{Message: "Theme applied (save failed)", Duration: 3 * time.Second, IsError: true}
 				}
 			}
-		} else {
-			if msg.Action == tea.MouseActionMotion {
-				m.themeSwitcherHover = -1
+			return m, func() tea.Msg {
+				return ToastMsg{Message: "Theme: " + selectedTheme, Duration: 2 * time.Second}
 			}
 		}
-
-		// Handle scroll wheel
-		switch msg.Button {
-		case tea.MouseButtonWheelUp:
-			m.themeSwitcherCursor--
-			if m.themeSwitcherCursor < 0 {
-				m.themeSwitcherCursor = 0
-			}
-			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, maxVisible)
-			if m.themeSwitcherCursor < len(themes) {
-				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
-			}
-		case tea.MouseButtonWheelDown:
-			m.themeSwitcherCursor++
-			if m.themeSwitcherCursor >= len(themes) {
-				m.themeSwitcherCursor = len(themes) - 1
-			}
-			if m.themeSwitcherCursor < 0 {
-				m.themeSwitcherCursor = 0
-			}
-			m.themeSwitcherScroll = themeSwitcherEnsureCursorVisible(m.themeSwitcherCursor, m.themeSwitcherScroll, maxVisible)
-			if m.themeSwitcherCursor < len(themes) {
-				m.applyThemeFromConfig(themes[m.themeSwitcherCursor])
-			}
-		}
-
-		return m, nil
 	}
-
-	// Click outside modal - restore original and close
-	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-		m.applyThemeFromConfig(m.themeSwitcherOriginal)
-		m.resetThemeSwitcher()
-		m.updateContext()
-		return m, nil
-	}
-
-	// Clear hover when outside modal
-	if msg.Action == tea.MouseActionMotion {
-		m.themeSwitcherHover = -1
-	}
-
 	return m, nil
 }
 
@@ -1210,62 +1092,6 @@ func (m Model) handleQuitConfirmMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
-}
-
-// handleProjectAddKeys handles keyboard input for the project add sub-mode.
-// Focus: 0=name, 1=path, 2=theme, 3=add button, 4=cancel button
-func (m Model) handleProjectAddKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// If theme picker is open, handle it separately
-	if m.projectAddThemeMode {
-		return m.handleProjectAddThemePickerKeys(msg)
-	}
-
-	switch msg.String() {
-	case "tab":
-		m.blurProjectAddInputs()
-		m.projectAddFocus = (m.projectAddFocus + 1) % 5
-		m.focusProjectAddInput()
-		return m, nil
-
-	case "shift+tab":
-		m.blurProjectAddInputs()
-		m.projectAddFocus = (m.projectAddFocus + 4) % 5
-		m.focusProjectAddInput()
-		return m, nil
-
-	case "esc":
-		m.resetProjectAdd()
-		return m, nil
-
-	case "enter":
-		switch m.projectAddFocus {
-		case 2: // Theme selector — open picker
-			m.initProjectAddThemePicker()
-			return m, nil
-		case 3: // Add button
-			if errMsg := m.validateProjectAdd(); errMsg != "" {
-				m.projectAddError = errMsg
-				return m, nil
-			}
-			cmd := m.saveProjectAdd()
-			m.resetProjectAdd()
-			return m, cmd
-		case 4: // Cancel button
-			m.resetProjectAdd()
-			return m, nil
-		}
-	}
-
-	// Forward to focused textinput
-	m.projectAddError = "" // Clear error on typing
-	var cmd tea.Cmd
-	switch m.projectAddFocus {
-	case 0:
-		m.projectAddNameInput, cmd = m.projectAddNameInput.Update(msg)
-	case 1:
-		m.projectAddPathInput, cmd = m.projectAddPathInput.Update(msg)
-	}
-	return m, cmd
 }
 
 // handleProjectAddThemePickerKeys handles keys within the theme picker sub-modal.
@@ -1386,99 +1212,6 @@ func (m Model) handleProjectAddCommunityKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		resolved := theme.ResolveTheme(m.cfg, m.ui.WorkDir)
 		theme.ApplyResolved(resolved)
 		return m, nil
-	}
-
-	return m, nil
-}
-
-// blurProjectAddInputs blurs all project add textinputs.
-func (m *Model) blurProjectAddInputs() {
-	m.projectAddNameInput.Blur()
-	m.projectAddPathInput.Blur()
-}
-
-// focusProjectAddInput focuses the appropriate textinput based on projectAddFocus.
-func (m *Model) focusProjectAddInput() {
-	switch m.projectAddFocus {
-	case 0:
-		m.projectAddNameInput.Focus()
-	case 1:
-		m.projectAddPathInput.Focus()
-	}
-}
-
-// handleProjectAddMouse handles mouse events for the project add sub-mode.
-func (m Model) handleProjectAddMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	// Layout: Title(1) + blank(1) + Name:(1) + input(2) + blank(1) + Path:(1) + input(2) +
-	//         blank(1) + Theme:(1) + input(2) + blank(1) + blank(1) + buttons(1) + blank(1) + help(1)
-	modalContentLines := 18  // Without error
-	linesBeforeButtons := 14 // Without error
-	if m.projectAddError != "" {
-		modalContentLines = 21
-		linesBeforeButtons = 17 // With error (add 3: blank + error + blank)
-	}
-	modalHeight := modalContentLines + 4 // ModalBox padding/border
-	modalWidth := 50
-
-	modalX := (m.width - modalWidth) / 2
-	modalY := (m.height - modalHeight) / 2
-
-	// Button Y position: modalY + 2 (border/padding) + lines before buttons
-	buttonY := modalY + 2 + linesBeforeButtons
-
-	// Check if click is inside modal
-	if msg.X >= modalX && msg.X < modalX+modalWidth &&
-		msg.Y >= modalY && msg.Y < modalY+modalHeight {
-
-		if msg.Y == buttonY {
-			// Rough button X positions within the modal
-			addBtnStart := modalX + 3    // border + padding + small indent
-			addBtnEnd := addBtnStart + 7 // " Add " width
-			cancelBtnStart := addBtnEnd + 3
-			cancelBtnEnd := cancelBtnStart + 10 // " Cancel " width
-
-			switch msg.Action {
-			case tea.MouseActionPress:
-				if msg.Button == tea.MouseButtonLeft {
-					if msg.X >= addBtnStart && msg.X < addBtnEnd {
-						// Click Add
-						if errMsg := m.validateProjectAdd(); errMsg != "" {
-							m.projectAddError = errMsg
-							return m, nil
-						}
-						cmd := m.saveProjectAdd()
-						m.resetProjectAdd()
-						return m, cmd
-					}
-					if msg.X >= cancelBtnStart && msg.X < cancelBtnEnd {
-						// Click Cancel
-						m.resetProjectAdd()
-						return m, nil
-					}
-				}
-			case tea.MouseActionMotion:
-				m.projectAddButtonHover = 0
-				if msg.X >= addBtnStart && msg.X < addBtnEnd {
-					m.projectAddButtonHover = 1
-				} else if msg.X >= cancelBtnStart && msg.X < cancelBtnEnd {
-					m.projectAddButtonHover = 2
-				}
-			}
-		} else if msg.Action == tea.MouseActionMotion {
-			m.projectAddButtonHover = 0
-		}
-
-		return m, nil
-	}
-
-	// Click outside modal - cancel add mode
-	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-		m.resetProjectAdd()
-		return m, nil
-	}
-
-	if msg.Action == tea.MouseActionMotion {
-		m.projectAddButtonHover = 0
 	}
 
 	return m, nil

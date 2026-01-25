@@ -70,11 +70,11 @@ Also see `docs/guides/ui-feature-guide.md` for the modal initialization pattern.
 | Quit Confirm | Confirmation | ✓ |
 | Command Palette | Search | N/A* |
 | Help Modal | Info | ✓ |
-| Diagnostics | Info | ○ |
-| Project Switcher | Selection | ○ |
-| Project Add | Form | ○ |
-| Theme Switcher | Selection | ○ |
-| Community Browser | Search | ○ |
+| Diagnostics | Info | ✓ |
+| Project Switcher | Selection | ✓ |
+| Project Add | Form | ✓ |
+| Theme Switcher | Selection | ✓ |
+| Community Browser | Search | ✓ |
 
 ---
 
@@ -128,5 +128,5 @@ Also see `docs/guides/ui-feature-guide.md` for the modal initialization pattern.
 ## Summary
 
 **Total Modals:** 27 (excluding N/A)
-**Converted:** 13 (48%)
-**Remaining:** 14 (52%)
+**Converted:** 22 (81%)
+**Remaining:** 5 (19%)

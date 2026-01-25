@@ -71,13 +71,13 @@ func (m Model) View() string {
 	case ModalHelp:
 		return m.renderHelpModal(bg)
 	case ModalDiagnostics:
-		return m.renderDiagnosticsOverlay(bg)
+		return m.renderDiagnosticsModal(bg)
 	case ModalQuitConfirm:
 		return m.renderQuitConfirmOverlay(bg)
 	case ModalProjectSwitcher:
 		return m.renderProjectSwitcherOverlay(bg)
 	case ModalThemeSwitcher:
-		return m.renderThemeSwitcherOverlay(bg)
+		return m.renderThemeSwitcherModal(bg)
 	}
 
 	return bg
@@ -100,237 +100,193 @@ func (m Model) renderQuitConfirmOverlay(content string) string {
 	return ui.OverlayModal(content, rendered, m.width, m.height)
 }
 
-// renderProjectSwitcherOverlay renders the project switcher modal.
-func (m Model) renderProjectSwitcherOverlay(content string) string {
-	var b strings.Builder
-
-	b.WriteString(styles.ModalTitle.Render("Switch Project"))
-	b.WriteString("\n\n")
-
-	allProjects := m.cfg.Projects.List
-	projects := m.projectSwitcherFiltered
-
-	// Render search input
-	b.WriteString(m.projectSwitcherInput.View())
-	b.WriteString("\n")
-
-	// Count line (always reserve a line)
-	if m.projectSwitcherInput.Value() != "" {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("%d of %d projects", len(projects), len(allProjects))))
-	} else if len(allProjects) > 0 {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("%d projects", len(allProjects))))
+// ensureProjectSwitcherModal builds/rebuilds the project switcher modal.
+func (m *Model) ensureProjectSwitcherModal() {
+	modalW := 60
+	if modalW > m.width-4 {
+		modalW = m.width - 4
 	}
-	b.WriteString("\n")
-
-	if len(allProjects) == 0 {
-		b.WriteString("\n")
-		b.WriteString(styles.Muted.Render("No projects configured"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.KeyHint.Render("ctrl+a"))
-		b.WriteString(styles.Muted.Render(" add  "))
-		b.WriteString(styles.KeyHint.Render("y"))
-		b.WriteString(styles.Muted.Render(" copy prompt  "))
-		b.WriteString(styles.KeyHint.Render("esc"))
-		b.WriteString(styles.Muted.Render(" close"))
-
-		modal := styles.ModalBox.Render(b.String())
-		base := ui.OverlayModal(content, modal, m.width, m.height)
-		if m.projectAddMode {
-			return m.renderProjectAddOverlay(base)
-		}
-		return base
+	if modalW < 20 {
+		modalW = 20
 	}
 
-	// Empty filtered state
-	if len(projects) == 0 {
-		b.WriteString("\n")
-		b.WriteString(styles.Muted.Render("No matches"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.KeyHint.Render("esc"))
-		b.WriteString(styles.Muted.Render(" clear filter  "))
-		b.WriteString(styles.KeyHint.Render("@"))
-		b.WriteString(styles.Muted.Render(" close"))
-
-		modal := styles.ModalBox.Render(b.String())
-		base := ui.OverlayModal(content, modal, m.width, m.height)
-		if m.projectAddMode {
-			return m.renderProjectAddOverlay(base)
-		}
-		return base
+	// Only rebuild if modal doesn't exist or width changed
+	if m.projectSwitcherModal != nil && m.projectSwitcherModalWidth == modalW {
+		return
 	}
+	m.projectSwitcherModalWidth = modalW
 
-	maxVisible := 8
-	visibleCount := len(projects)
-	if visibleCount > maxVisible {
-		visibleCount = maxVisible
-	}
-	scrollOffset := m.projectSwitcherScroll
-
-	if scrollOffset > 0 {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↑ %d more above", scrollOffset)))
-		b.WriteString("\n")
-	}
-
-	cursorStyle := lipgloss.NewStyle().Foreground(styles.Primary)
-	nameNormalStyle := lipgloss.NewStyle().Foreground(styles.Secondary)
-	nameSelectedStyle := lipgloss.NewStyle().Foreground(styles.Primary).Bold(true)
-	nameCurrentStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
-	nameCurrentSelectedStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
-
-	for i := scrollOffset; i < scrollOffset+visibleCount && i < len(projects); i++ {
-		project := projects[i]
-		isCursor := i == m.projectSwitcherCursor
-		isHover := i == m.projectSwitcherHover
-		isCurrent := project.Path == m.ui.WorkDir
-
-		if isCursor {
-			b.WriteString(cursorStyle.Render("> "))
-		} else {
-			b.WriteString("  ")
-		}
-
-		var nameStyle lipgloss.Style
-		if isCurrent {
-			if isCursor || isHover {
-				nameStyle = nameCurrentSelectedStyle
-			} else {
-				nameStyle = nameCurrentStyle
-			}
-		} else if isCursor || isHover {
-			nameStyle = nameSelectedStyle
-		} else {
-			nameStyle = nameNormalStyle
-		}
-
-		b.WriteString(nameStyle.Render(project.Name))
-		if isCurrent {
-			b.WriteString(styles.Muted.Render(" (current)"))
-		}
-		b.WriteString("\n")
-		b.WriteString(styles.Muted.Render("  " + project.Path))
-		b.WriteString("\n")
-	}
-
-	remaining := len(projects) - (scrollOffset + visibleCount)
-	if remaining > 0 {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↓ %d more below", remaining)))
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\n")
-	b.WriteString(styles.KeyHint.Render("enter"))
-	b.WriteString(styles.Muted.Render(" switch  "))
-	b.WriteString(styles.KeyHint.Render("↑/↓"))
-	b.WriteString(styles.Muted.Render(" navigate  "))
-	b.WriteString(styles.KeyHint.Render("ctrl+a"))
-	b.WriteString(styles.Muted.Render(" add  "))
-	b.WriteString(styles.KeyHint.Render("esc"))
-	b.WriteString(styles.Muted.Render(" close"))
-
-	modal := styles.ModalBox.Render(b.String())
-	base := ui.OverlayModal(content, modal, m.width, m.height)
-	if m.projectAddMode {
-		return m.renderProjectAddOverlay(base)
-	}
-	return base
+	m.projectSwitcherModal = modal.New("Switch Project",
+		modal.WithWidth(modalW),
+		modal.WithHints(false),
+	).
+		AddSection(m.projectSwitcherInputSection()).
+		AddSection(m.projectSwitcherCountSection()).
+		AddSection(m.projectSwitcherListSection()).
+		AddSection(m.projectSwitcherHintsSection())
 }
 
-// renderProjectAddOverlay renders the project add form as a sub-mode.
-func (m Model) renderProjectAddOverlay(content string) string {
-	var b strings.Builder
+// projectSwitcherInputSection renders the filter input.
+func (m *Model) projectSwitcherInputSection() modal.Section {
+	return modal.Input("project-filter", &m.projectSwitcherInput)
+}
 
-	b.WriteString(styles.ModalTitle.Render("Add Project"))
-	b.WriteString("\n\n")
+// projectSwitcherCountSection renders the project count.
+func (m *Model) projectSwitcherCountSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		allProjects := m.cfg.Projects.List
+		projects := m.projectSwitcherFiltered
 
-	// Input field styles
-	inputStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(styles.TextMuted).
-		Padding(0, 1)
-	inputFocusedStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(styles.Primary).
-		Padding(0, 1)
+		var countText string
+		if m.projectSwitcherInput.Value() != "" {
+			countText = fmt.Sprintf("%d of %d projects", len(projects), len(allProjects))
+		} else if len(allProjects) > 0 {
+			countText = fmt.Sprintf("%d projects", len(allProjects))
+		}
+		return modal.RenderedSection{Content: styles.Muted.Render(countText)}
+	}, nil)
+}
 
-	// Name field
-	nameLabel := "Name:"
-	nameStyle := inputStyle
-	if m.projectAddFocus == 0 {
-		nameStyle = inputFocusedStyle
-	}
-	b.WriteString(nameLabel)
-	b.WriteString("\n")
-	b.WriteString(nameStyle.Render(m.projectAddNameInput.View()))
-	b.WriteString("\n\n")
+// projectSwitcherListSection renders the project list with scroll.
+func (m *Model) projectSwitcherListSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		allProjects := m.cfg.Projects.List
+		projects := m.projectSwitcherFiltered
 
-	// Path field
-	pathLabel := "Path:"
-	pathStyle := inputStyle
-	if m.projectAddFocus == 1 {
-		pathStyle = inputFocusedStyle
-	}
-	b.WriteString(pathLabel)
-	b.WriteString("\n")
-	b.WriteString(pathStyle.Render(m.projectAddPathInput.View()))
-	b.WriteString("\n\n")
+		var b strings.Builder
 
-	// Theme field
-	themeLabel := "Theme:"
-	themeValue := "(use global)"
-	if m.projectAddThemeSelected != "" {
-		themeValue = m.projectAddThemeSelected
-	}
-	themeFieldStyle := inputStyle
-	if m.projectAddFocus == 2 {
-		themeFieldStyle = inputFocusedStyle
-	}
-	b.WriteString(themeLabel)
-	b.WriteString("\n")
-	b.WriteString(themeFieldStyle.Render(themeValue))
-	b.WriteString("\n")
+		// No projects configured
+		if len(allProjects) == 0 {
+			b.WriteString(styles.Muted.Render("No projects configured"))
+			return modal.RenderedSection{Content: b.String()}
+		}
 
-	// Error message
-	if m.projectAddError != "" {
-		errStyle := lipgloss.NewStyle().Foreground(styles.Error)
+		// Empty filtered state
+		if len(projects) == 0 {
+			b.WriteString(styles.Muted.Render("No matches"))
+			return modal.RenderedSection{Content: b.String()}
+		}
+
+		maxVisible := 8
+		visibleCount := len(projects)
+		if visibleCount > maxVisible {
+			visibleCount = maxVisible
+		}
+		scrollOffset := m.projectSwitcherScroll
+
+		if scrollOffset > 0 {
+			b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↑ %d more above", scrollOffset)))
+			b.WriteString("\n")
+		}
+
+		cursorStyle := lipgloss.NewStyle().Foreground(styles.Primary)
+		nameNormalStyle := lipgloss.NewStyle().Foreground(styles.Secondary)
+		nameSelectedStyle := lipgloss.NewStyle().Foreground(styles.Primary).Bold(true)
+		nameCurrentStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
+		nameCurrentSelectedStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
+
+		for i := scrollOffset; i < scrollOffset+visibleCount && i < len(projects); i++ {
+			project := projects[i]
+			isCursor := i == m.projectSwitcherCursor
+			isCurrent := project.Path == m.ui.WorkDir
+
+			if isCursor {
+				b.WriteString(cursorStyle.Render("> "))
+			} else {
+				b.WriteString("  ")
+			}
+
+			var nameStyle lipgloss.Style
+			if isCurrent {
+				if isCursor {
+					nameStyle = nameCurrentSelectedStyle
+				} else {
+					nameStyle = nameCurrentStyle
+				}
+			} else if isCursor {
+				nameStyle = nameSelectedStyle
+			} else {
+				nameStyle = nameNormalStyle
+			}
+
+			b.WriteString(nameStyle.Render(project.Name))
+			if isCurrent {
+				b.WriteString(styles.Muted.Render(" (current)"))
+			}
+			b.WriteString("\n")
+			b.WriteString(styles.Muted.Render("  " + project.Path))
+			if i < scrollOffset+visibleCount-1 && i < len(projects)-1 {
+				b.WriteString("\n")
+			}
+		}
+
+		remaining := len(projects) - (scrollOffset + visibleCount)
+		if remaining > 0 {
+			b.WriteString("\n")
+			b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↓ %d more below", remaining)))
+		}
+
+		return modal.RenderedSection{Content: b.String()}
+	}, nil)
+}
+
+// projectSwitcherHintsSection renders the keyboard hints.
+func (m *Model) projectSwitcherHintsSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		allProjects := m.cfg.Projects.List
+		projects := m.projectSwitcherFiltered
+
+		var b strings.Builder
 		b.WriteString("\n")
-		b.WriteString(errStyle.Render(m.projectAddError))
-		b.WriteString("\n")
+
+		// No projects configured
+		if len(allProjects) == 0 {
+			b.WriteString(styles.KeyHint.Render("ctrl+a"))
+			b.WriteString(styles.Muted.Render(" add  "))
+			b.WriteString(styles.KeyHint.Render("y"))
+			b.WriteString(styles.Muted.Render(" copy prompt  "))
+			b.WriteString(styles.KeyHint.Render("esc"))
+			b.WriteString(styles.Muted.Render(" close"))
+			return modal.RenderedSection{Content: b.String()}
+		}
+
+		// Empty filtered state
+		if len(projects) == 0 {
+			b.WriteString(styles.KeyHint.Render("esc"))
+			b.WriteString(styles.Muted.Render(" clear filter  "))
+			b.WriteString(styles.KeyHint.Render("@"))
+			b.WriteString(styles.Muted.Render(" close"))
+			return modal.RenderedSection{Content: b.String()}
+		}
+
+		// Normal hints
+		b.WriteString(styles.KeyHint.Render("enter"))
+		b.WriteString(styles.Muted.Render(" switch  "))
+		b.WriteString(styles.KeyHint.Render("↑/↓"))
+		b.WriteString(styles.Muted.Render(" navigate  "))
+		b.WriteString(styles.KeyHint.Render("ctrl+a"))
+		b.WriteString(styles.Muted.Render(" add  "))
+		b.WriteString(styles.KeyHint.Render("esc"))
+		b.WriteString(styles.Muted.Render(" close"))
+		return modal.RenderedSection{Content: b.String()}
+	}, nil)
+}
+
+// renderProjectSwitcherOverlay renders the project switcher modal.
+func (m *Model) renderProjectSwitcherOverlay(content string) string {
+	m.ensureProjectSwitcherModal()
+	if m.projectSwitcherModal == nil {
+		return content
 	}
 
-	b.WriteString("\n")
-
-	// Buttons
-	addBtnStyle := styles.Button
-	cancelBtnStyle := styles.Button
-	if m.projectAddFocus == 3 {
-		addBtnStyle = styles.ButtonFocused
-	} else if m.projectAddButtonHover == 1 {
-		addBtnStyle = styles.ButtonHover
+	if m.projectSwitcherMouseHandler == nil {
+		m.projectSwitcherMouseHandler = mouse.NewHandler()
 	}
-	if m.projectAddFocus == 4 {
-		cancelBtnStyle = styles.ButtonFocused
-	} else if m.projectAddButtonHover == 2 {
-		cancelBtnStyle = styles.ButtonHover
-	}
-	b.WriteString(addBtnStyle.Render(" Add "))
-	b.WriteString("  ")
-	b.WriteString(cancelBtnStyle.Render(" Cancel "))
-	b.WriteString("\n\n")
+	modalContent := m.projectSwitcherModal.Render(m.width, m.height, m.projectSwitcherMouseHandler)
+	base := ui.OverlayModal(content, modalContent, m.width, m.height)
 
-	// Help text
-	b.WriteString(styles.KeyHint.Render("tab"))
-	b.WriteString(styles.Muted.Render(" next  "))
-	b.WriteString(styles.KeyHint.Render("enter"))
-	b.WriteString(styles.Muted.Render(" confirm  "))
-	b.WriteString(styles.KeyHint.Render("esc"))
-	b.WriteString(styles.Muted.Render(" back"))
-
-	modal := styles.ModalBox.Render(b.String())
-	base := ui.OverlayModal(content, modal, m.width, m.height)
-
-	// If theme picker is open, render it on top
-	if m.projectAddThemeMode {
-		return m.renderProjectAddThemePickerOverlay(base)
+	if m.projectAddMode {
+		return m.renderProjectAddModal(base)
 	}
 	return base
 }
@@ -425,164 +381,6 @@ func (m Model) renderProjectAddThemePickerOverlay(content string) string {
 		b.WriteString(styles.KeyHint.Render("esc"))
 		b.WriteString(styles.Muted.Render(" back"))
 	}
-
-	modal := styles.ModalBox.Render(b.String())
-	return ui.OverlayModal(content, modal, m.width, m.height)
-}
-
-// renderThemeSwitcherOverlay renders the theme switcher modal.
-func (m Model) renderThemeSwitcherOverlay(content string) string {
-	if m.showCommunityBrowser {
-		return m.renderCommunityBrowserOverlay(content)
-	}
-
-	var b strings.Builder
-
-	// Title
-	b.WriteString(styles.ModalTitle.Render("Switch Theme"))
-	b.WriteString("\n\n")
-
-	allThemes := styles.ListThemes()
-
-	// Render search input
-	b.WriteString(m.themeSwitcherInput.View())
-	b.WriteString("\n")
-
-	// Show count if filtering
-	themes := m.themeSwitcherFiltered
-	if m.themeSwitcherInput.Value() != "" {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("%d of %d themes", len(themes), len(allThemes))))
-	} else if m.themeSwitcherCommunityName != "" {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("Community theme: %s", m.themeSwitcherCommunityName)))
-	}
-	b.WriteString("\n")
-
-	// Empty filtered state
-	if len(themes) == 0 {
-		b.WriteString("\n")
-		b.WriteString(styles.Muted.Render("No matches"))
-		b.WriteString("\n\n")
-		b.WriteString(styles.KeyHint.Render("esc"))
-		b.WriteString(styles.Muted.Render(" clear filter  "))
-		b.WriteString(styles.KeyHint.Render("#"))
-		b.WriteString(styles.Muted.Render(" close"))
-
-		modal := styles.ModalBox.Render(b.String())
-		return ui.OverlayModal(content, modal, m.width, m.height)
-	}
-
-	// Calculate visible window for scrolling
-	maxVisible := 8
-	visibleCount := len(themes)
-	if visibleCount > maxVisible {
-		visibleCount = maxVisible
-	}
-
-	scrollOffset := m.themeSwitcherScroll
-
-	// Render scroll indicator if needed (top)
-	if scrollOffset > 0 {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↑ %d more above", scrollOffset)))
-		b.WriteString("\n")
-	}
-
-	// Styles for theme items
-	cursorStyle := lipgloss.NewStyle().Foreground(styles.Primary)
-	nameNormalStyle := lipgloss.NewStyle().Foreground(styles.Secondary)
-	nameSelectedStyle := lipgloss.NewStyle().Foreground(styles.Primary).Bold(true)
-	nameCurrentStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
-	nameCurrentSelectedStyle := lipgloss.NewStyle().Foreground(styles.Success).Bold(true)
-
-	currentTheme := m.themeSwitcherOriginal
-	if m.themeSwitcherCommunityName != "" {
-		currentTheme = ""
-	}
-
-	// Render theme list
-	for i := scrollOffset; i < scrollOffset+visibleCount && i < len(themes); i++ {
-		themeName := themes[i]
-		isCursor := i == m.themeSwitcherCursor
-		isHover := i == m.themeSwitcherHover
-		isCurrent := themeName == currentTheme
-
-		// Cursor indicator
-		if isCursor {
-			b.WriteString(cursorStyle.Render("> "))
-		} else {
-			b.WriteString("  ")
-		}
-
-		// Theme name styling
-		var nameStyle lipgloss.Style
-		if isCurrent {
-			if isCursor || isHover {
-				nameStyle = nameCurrentSelectedStyle
-			} else {
-				nameStyle = nameCurrentStyle
-			}
-		} else if isCursor || isHover {
-			nameStyle = nameSelectedStyle
-		} else {
-			nameStyle = nameNormalStyle
-		}
-
-		// Get display name from theme
-		theme := styles.GetTheme(themeName)
-		displayName := theme.DisplayName
-		if displayName == "" {
-			displayName = themeName
-		}
-		b.WriteString(nameStyle.Render(displayName))
-
-		// Current indicator
-		if isCurrent {
-			b.WriteString(styles.Muted.Render(" (current)"))
-		}
-		b.WriteString("\n")
-	}
-
-	// Render scroll indicator if needed (bottom)
-	remaining := len(themes) - (scrollOffset + visibleCount)
-	if remaining > 0 {
-		b.WriteString(styles.Muted.Render(fmt.Sprintf("  ↓ %d more below", remaining)))
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\n")
-
-	// Scope selector (only shown if current project is in the project list)
-	if m.currentProjectConfig() != nil {
-		scopeGlobal := "Set globally"
-		scopeProject := "Set for this project"
-		if m.themeSwitcherScope == "project" {
-			b.WriteString(styles.Muted.Render("  scope: "))
-			b.WriteString(styles.Muted.Render(scopeGlobal))
-			b.WriteString(styles.Muted.Render(" | "))
-			b.WriteString(lipgloss.NewStyle().Foreground(styles.Primary).Bold(true).Render(scopeProject))
-		} else {
-			b.WriteString(styles.Muted.Render("  scope: "))
-			b.WriteString(lipgloss.NewStyle().Foreground(styles.Primary).Bold(true).Render(scopeGlobal))
-			b.WriteString(styles.Muted.Render(" | "))
-			b.WriteString(styles.Muted.Render(scopeProject))
-		}
-		b.WriteString("\n")
-		b.WriteString(styles.Subtle.Render("  (projects with own themes unaffected)"))
-		b.WriteString("\n\n")
-	}
-
-	// Help text
-	b.WriteString(styles.KeyHint.Render("enter"))
-	b.WriteString(styles.Muted.Render(" select  "))
-	b.WriteString(styles.KeyHint.Render("↑/↓"))
-	b.WriteString(styles.Muted.Render(" navigate  "))
-	b.WriteString(styles.KeyHint.Render("tab"))
-	b.WriteString(styles.Muted.Render(" community  "))
-	if m.currentProjectConfig() != nil {
-		b.WriteString(styles.KeyHint.Render("←/→"))
-		b.WriteString(styles.Muted.Render(" scope  "))
-	}
-	b.WriteString(styles.KeyHint.Render("esc"))
-	b.WriteString(styles.Muted.Render(" cancel"))
 
 	modal := styles.ModalBox.Render(b.String())
 	return ui.OverlayModal(content, modal, m.width, m.height)
@@ -1159,162 +957,6 @@ func formatCommandName(cmd string) string {
 	// Convert kebab-case to readable format
 	name := strings.ReplaceAll(cmd, "-", " ")
 	return name
-}
-
-// renderDiagnosticsOverlay renders the diagnostics modal.
-func (m Model) renderDiagnosticsOverlay(content string) string {
-	diag := m.buildDiagnosticsContent()
-	modal := styles.ModalBox.Render(diag)
-	return ui.OverlayModal(content, modal, m.width, m.height)
-}
-
-// buildDiagnosticsContent creates the diagnostics modal content.
-func (m Model) buildDiagnosticsContent() string {
-	var b strings.Builder
-
-	logo := `
-   _____ _     __                    
-  / ___/(_)___/ /__  _________ ______
-  \__ \/ / __  / _ \/ ___/ __ \/ ___/
- ___/ / / /_/ /  __/ /__/ /_/ / /    
-/____/_/\__,_/\___/\___/\__,_/_/     
-`
-	b.WriteString(styles.Logo.Render(logo))
-	b.WriteString("\n\n")
-
-	// Plugins status
-	b.WriteString(styles.Title.Render("Plugins"))
-	b.WriteString("\n")
-
-	plugins := m.registry.Plugins()
-	for _, p := range plugins {
-		status := styles.StatusCompleted.Render("✓")
-		b.WriteString(fmt.Sprintf("  %s %s: active\n", status, p.Name()))
-
-		// Check for plugin-specific diagnostics
-		if dp, ok := p.(plugin.DiagnosticProvider); ok {
-			for _, d := range dp.Diagnostics() {
-				statusIcon := "•"
-				switch d.Status {
-				case "ok":
-					statusIcon = styles.StatusCompleted.Render("•")
-				case "warning":
-					statusIcon = styles.StatusModified.Render("•")
-				case "error":
-					statusIcon = styles.StatusBlocked.Render("•")
-				default:
-					statusIcon = styles.Muted.Render("•")
-				}
-				b.WriteString(fmt.Sprintf("    %s %s\n", statusIcon, d.Detail))
-			}
-		}
-	}
-
-	unavail := m.registry.Unavailable()
-	for id, reason := range unavail {
-		status := styles.StatusBlocked.Render("✗")
-		b.WriteString(fmt.Sprintf("  %s %s: %s\n", status, id, reason))
-	}
-
-	if len(plugins) == 0 && len(unavail) == 0 {
-		b.WriteString(styles.Muted.Render("  No plugins registered\n"))
-	}
-
-	b.WriteString("\n")
-
-	// System info
-	b.WriteString(styles.Title.Render("System"))
-	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("  WorkDir: %s\n", styles.Muted.Render(m.ui.WorkDir)))
-	b.WriteString(fmt.Sprintf("  Refresh: %s\n", styles.Muted.Render(m.ui.LastRefresh.Format("15:04:05"))))
-	b.WriteString("\n")
-
-	// Version info
-	b.WriteString(styles.Title.Render("Version"))
-	b.WriteString("\n")
-
-	// Sidecar version
-	if m.updateAvailable != nil {
-		b.WriteString(fmt.Sprintf("  sidecar: %s → %s ",
-			styles.Muted.Render(m.currentVersion),
-			m.updateAvailable.LatestVersion))
-		b.WriteString(styles.StatusModified.Render("available"))
-		b.WriteString("\n")
-	} else {
-		b.WriteString(fmt.Sprintf("  sidecar: %s ", styles.Muted.Render(m.currentVersion)))
-		b.WriteString(styles.StatusCompleted.Render("✓"))
-		b.WriteString("\n")
-	}
-
-	// td version
-	if m.tdVersionInfo != nil {
-		if !m.tdVersionInfo.Installed {
-			b.WriteString(fmt.Sprintf("  td:      %s\n", styles.Muted.Render("not installed")))
-		} else if m.tdVersionInfo.HasUpdate {
-			b.WriteString(fmt.Sprintf("  td:      %s → %s ",
-				styles.Muted.Render(m.tdVersionInfo.CurrentVersion),
-				m.tdVersionInfo.LatestVersion))
-			b.WriteString(styles.StatusModified.Render("available"))
-			b.WriteString("\n")
-		} else {
-			b.WriteString(fmt.Sprintf("  td:      %s ", styles.Muted.Render(m.tdVersionInfo.CurrentVersion)))
-			b.WriteString(styles.StatusCompleted.Render("✓"))
-			b.WriteString("\n")
-		}
-	}
-
-	// Show update controls if any updates available
-	if m.updateAvailable != nil || (m.tdVersionInfo != nil && m.tdVersionInfo.HasUpdate) {
-		b.WriteString("\n")
-
-		if m.updateInProgress {
-			spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			spinner := spinnerFrames[m.updateSpinnerFrame%len(spinnerFrames)]
-			b.WriteString("  ")
-			b.WriteString(styles.StatusInProgress.Render(spinner + " "))
-			b.WriteString("Installing update...")
-			b.WriteString("\n")
-		} else if m.needsRestart {
-			b.WriteString("  ")
-			b.WriteString(styles.StatusCompleted.Render("✓ "))
-			b.WriteString("Update complete. ")
-			b.WriteString(styles.StatusModified.Render("Restart sidecar to use new version"))
-			b.WriteString("\n")
-		} else {
-			// Show Update button (click or press u)
-			buttonStyle := styles.Button
-			if m.updateButtonFocus {
-				buttonStyle = styles.ButtonFocused
-			}
-			label := m.buildUpdateLabel()
-			b.WriteString("  ")
-			b.WriteString(buttonStyle.Render(" Update "))
-			b.WriteString("  ")
-			b.WriteString(styles.Muted.Render(label))
-			b.WriteString("  ")
-			b.WriteString(styles.KeyHint.Render("u"))
-			b.WriteString("\n")
-		}
-
-		if m.updateError != "" {
-			b.WriteString("  ")
-			b.WriteString(styles.StatusBlocked.Render("✗ " + m.updateError))
-			b.WriteString("\n")
-		}
-	}
-	b.WriteString("\n")
-
-	// Last error
-	if m.lastError != nil {
-		b.WriteString(styles.Title.Render("Last Error"))
-		b.WriteString("\n")
-		b.WriteString(styles.StatusBlocked.Render(fmt.Sprintf("  %s\n", m.lastError.Error())))
-		b.WriteString("\n")
-	}
-
-	b.WriteString(styles.Subtle.Render("Press ! or esc to close"))
-
-	return b.String()
 }
 
 // buildUpdateLabel returns a description of what will be updated.

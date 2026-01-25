@@ -87,8 +87,11 @@ type Model struct {
 	helpModal        *modal.Modal
 	helpModalWidth   int
 	helpMouseHandler *mouse.Handler
-	showDiagnostics  bool
-	showFooter       bool
+	showDiagnostics         bool
+	diagnosticsModal        *modal.Modal
+	diagnosticsModalWidth   int
+	diagnosticsMouseHandler *mouse.Handler
+	showFooter              bool
 	showPalette      bool
 	showQuitConfirm  bool
 	quitModal        *modal.Modal
@@ -96,20 +99,20 @@ type Model struct {
 	palette          palette.Model
 
 	// Project switcher modal
-	showProjectSwitcher     bool
-	projectSwitcherCursor   int
-	projectSwitcherScroll   int
-	projectSwitcherHover    int // -1 = no hover, 0+ = hovered project index
-	projectSwitcherInput    textinput.Model
-	projectSwitcherFiltered []config.ProjectConfig
+	showProjectSwitcher         bool
+	projectSwitcherCursor       int
+	projectSwitcherScroll       int // scroll offset for list
+	projectSwitcherInput        textinput.Model
+	projectSwitcherFiltered     []config.ProjectConfig
+	projectSwitcherModal        *modal.Modal
+	projectSwitcherModalWidth   int
+	projectSwitcherMouseHandler *mouse.Handler
 
 	// Project add sub-mode (within project switcher)
 	projectAddMode         bool
 	projectAddNameInput    textinput.Model
 	projectAddPathInput    textinput.Model
 	projectAddError        string
-	projectAddFocus        int // 0=name, 1=path, 2=theme, 3=add, 4=cancel
-	projectAddButtonHover  int // 0=none, 1=add, 2=cancel
 	projectAddModal        *modal.Modal
 	projectAddModalWidth   int
 	projectAddMouseHandler *mouse.Handler
@@ -128,9 +131,13 @@ type Model struct {
 
 	// Theme switcher modal
 	showThemeSwitcher          bool
-	themeSwitcherCursor        int
-	themeSwitcherScroll        int
-	themeSwitcherHover         int // -1 = no hover, 0+ = hovered theme index
+	themeSwitcherModal         *modal.Modal
+	themeSwitcherModalWidth    int
+	themeSwitcherMouseHandler  *mouse.Handler
+	themeSwitcherCursor        int // cursor position in theme list
+	themeSwitcherScroll        int // scroll offset in theme list
+	themeSwitcherHover         int // hovered theme index (-1 = none)
+	themeSwitcherSelectedIdx   int
 	themeSwitcherInput         textinput.Model
 	themeSwitcherFiltered      []string
 	themeSwitcherOriginal      string // original theme to restore on cancel
@@ -144,7 +151,10 @@ type Model struct {
 	communityBrowserHover    int
 	communityBrowserInput    textinput.Model
 	communityBrowserFiltered []string
-	communityBrowserOriginal string // theme state to restore on cancel
+	communityBrowserOriginal     string // theme state to restore on cancel
+	communityBrowserModal        *modal.Modal
+	communityBrowserModalWidth   int
+	communityBrowserMouseHandler *mouse.Handler
 
 	// Header/footer
 	ui *UIState
@@ -166,11 +176,9 @@ type Model struct {
 	tdVersionInfo   *version.TdVersionMsg
 
 	// Update feature state
-	updateButtonFocus  bool
 	updateInProgress   bool
 	updateError        string
 	needsRestart       bool
-	updateButtonBounds mouse.Rect
 	updateSpinnerFrame int
 
 	// Intro animation
@@ -207,8 +215,6 @@ func New(reg *plugin.Registry, km *keymap.Registry, cfg *config.Config, currentV
 		ready:                 false,
 		intro:                 NewIntroModel(repoName),
 		currentVersion:        currentVersion,
-		projectSwitcherHover:  -1, // No hover initially
-		themeSwitcherHover:    -1, // No hover initially
 		communityBrowserHover: -1,
 	}
 }
@@ -387,90 +393,29 @@ func (m *Model) doUpdate() tea.Cmd {
 	}
 }
 
-// updateDiagnosticsButtonBounds calculates the button bounds for mouse clicks.
-// Call this when diagnostics modal is shown or window is resized.
-func (m *Model) updateDiagnosticsButtonBounds() {
-	if !m.hasUpdatesAvailable() || m.updateInProgress || m.needsRestart {
-		m.updateButtonBounds = mouse.Rect{} // No clickable button
-		return
-	}
-
-	// The modal content has a known structure:
-	// - Logo: 7 lines
-	// - Blank: 1
-	// - Plugins section: 1 (title) + N (one per plugin with potential diagnostics)
-	// - Blank: 1
-	// - System section: 1 (title) + 2 (workdir, refresh)
-	// - Blank: 1
-	// - Version section: 1 (title) + 2-3 (sidecar, td)
-	// - Blank: 1
-	// - Button line (this is what we need)
-
-	// Count lines dynamically
-	lineCount := 7 + 1 // logo + blank
-	lineCount++        // plugins title
-	for _, p := range m.registry.Plugins() {
-		lineCount++
-		if dp, ok := p.(plugin.DiagnosticProvider); ok {
-			lineCount += len(dp.Diagnostics())
-		}
-	}
-	lineCount++    // blank after plugins
-	lineCount += 3 // system section (title + 2 lines)
-	lineCount++    // blank
-	lineCount++    // version title
-	lineCount++    // sidecar version line
-	if m.tdVersionInfo != nil {
-		lineCount++ // td version line
-	}
-	lineCount++ // blank before button
-	// Now we're at the button line
-
-	buttonLineInModal := lineCount
-
-	// ModalBox has 1 cell padding all around, plus 1 cell border
-	modalPadding := 1
-	modalBorder := 1
-	buttonIndent := 2 // "  " before button
-
-	// Estimate modal dimensions (will be close enough for click detection)
-	// Logo width is approximately 45 chars
-	modalWidth := 50 + (modalPadding * 2) + (modalBorder * 2)
-	modalHeight := lineCount + 4 + (modalPadding * 2) + (modalBorder * 2) // +4 for lines after button
-
-	// Calculate modal position (centered)
-	modalX := (m.width - modalWidth) / 2
-	modalY := (m.height - modalHeight) / 2
-	if modalX < 0 {
-		modalX = 0
-	}
-	if modalY < 0 {
-		modalY = 0
-	}
-
-	// Calculate button position
-	buttonX := modalX + modalBorder + modalPadding + buttonIndent
-	buttonY := modalY + modalBorder + modalPadding + buttonLineInModal
-	buttonWidth := 8 // " Update "
-
-	m.updateButtonBounds = mouse.Rect{X: buttonX, Y: buttonY, W: buttonWidth, H: 1}
-}
-
 // resetProjectSwitcher resets the project switcher modal state.
 func (m *Model) resetProjectSwitcher() {
 	m.showProjectSwitcher = false
 	m.projectSwitcherCursor = 0
 	m.projectSwitcherScroll = 0
-	m.projectSwitcherHover = -1
 	m.projectSwitcherFiltered = nil
+	m.clearProjectSwitcherModal()
 	m.resetProjectAdd()
 	// Restore current project's theme (undo any live preview)
 	resolved := theme.ResolveTheme(m.cfg, m.ui.WorkDir)
 	theme.ApplyResolved(resolved)
 }
 
+// clearProjectSwitcherModal clears the modal cache.
+func (m *Model) clearProjectSwitcherModal() {
+	m.projectSwitcherModal = nil
+	m.projectSwitcherModalWidth = 0
+	m.projectSwitcherMouseHandler = nil
+}
+
 // initProjectSwitcher initializes the project switcher modal.
 func (m *Model) initProjectSwitcher() {
+	m.clearProjectSwitcherModal()
 	ti := textinput.New()
 	ti.Placeholder = "Filter projects..."
 	ti.Focus()
@@ -480,7 +425,6 @@ func (m *Model) initProjectSwitcher() {
 	m.projectSwitcherFiltered = m.cfg.Projects.List
 	m.projectSwitcherCursor = 0
 	m.projectSwitcherScroll = 0
-	m.projectSwitcherHover = -1
 
 	// Set cursor to current project if found
 	for i, proj := range m.projectSwitcherFiltered {
@@ -646,8 +590,7 @@ My code is located at: [TELL ME WHERE YOUR CODE DIRECTORIES ARE]`
 func (m *Model) initProjectAdd() {
 	m.projectAddMode = true
 	m.projectAddError = ""
-	m.projectAddFocus = 0
-	m.projectAddButtonHover = 0
+	m.clearProjectAddModal()
 
 	nameInput := textinput.New()
 	nameInput.Placeholder = "project-name"
@@ -667,9 +610,8 @@ func (m *Model) initProjectAdd() {
 func (m *Model) resetProjectAdd() {
 	m.projectAddMode = false
 	m.projectAddError = ""
-	m.projectAddFocus = 0
-	m.projectAddButtonHover = 0
 	m.projectAddThemeSelected = ""
+	m.clearProjectAddModal()
 	m.resetProjectAddThemePicker()
 }
 
@@ -806,13 +748,19 @@ func (m *Model) saveProjectAdd() tea.Cmd {
 // resetThemeSwitcher resets the theme switcher modal state.
 func (m *Model) resetThemeSwitcher() {
 	m.showThemeSwitcher = false
-	m.themeSwitcherCursor = 0
-	m.themeSwitcherScroll = 0
-	m.themeSwitcherHover = -1
+	m.themeSwitcherSelectedIdx = 0
 	m.themeSwitcherFiltered = nil
 	m.themeSwitcherScope = ""
 	m.themeSwitcherOriginal = ""
 	m.themeSwitcherCommunityName = ""
+	m.clearThemeSwitcherModal()
+}
+
+// clearThemeSwitcherModal clears the theme switcher modal state.
+func (m *Model) clearThemeSwitcherModal() {
+	m.themeSwitcherModal = nil
+	m.themeSwitcherModalWidth = 0
+	m.themeSwitcherMouseHandler = nil
 }
 
 // initThemeSwitcher initializes the theme switcher modal.
@@ -826,12 +774,11 @@ func (m *Model) initThemeSwitcher() {
 	ti.Width = 40
 	m.themeSwitcherInput = ti
 	m.themeSwitcherFiltered = styles.ListThemes()
-	m.themeSwitcherCursor = 0
-	m.themeSwitcherScroll = 0
-	m.themeSwitcherHover = -1
+	m.themeSwitcherSelectedIdx = 0
 	m.themeSwitcherOriginal = styles.GetCurrentThemeName()
 	m.themeSwitcherCommunityName = ""
 	m.themeSwitcherScope = "global" // default scope
+	m.clearThemeSwitcherModal()
 
 	if freshCfg, err := config.Load(); err == nil {
 		if freshCfg.UI.Theme.Name != "" {
@@ -844,7 +791,7 @@ func (m *Model) initThemeSwitcher() {
 	if m.themeSwitcherCommunityName == "" {
 		for i, name := range m.themeSwitcherFiltered {
 			if name == m.themeSwitcherOriginal {
-				m.themeSwitcherCursor = i
+				m.themeSwitcherSelectedIdx = i
 				break
 			}
 		}
@@ -904,6 +851,14 @@ func (m *Model) resetCommunityBrowser() {
 	m.communityBrowserHover = -1
 	m.communityBrowserFiltered = nil
 	m.communityBrowserOriginal = ""
+	m.clearCommunityBrowserModal()
+}
+
+// clearCommunityBrowserModal clears the modal to force rebuild on next render.
+func (m *Model) clearCommunityBrowserModal() {
+	m.communityBrowserModal = nil
+	m.communityBrowserModalWidth = 0
+	m.communityBrowserMouseHandler = nil
 }
 
 // filterCommunitySchemes filters scheme names by substring match.

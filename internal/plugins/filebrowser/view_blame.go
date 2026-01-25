@@ -13,10 +13,9 @@ import (
 const (
 	// blameModalHeaderFooterLines accounts for:
 	// - Modal title + border (3 lines)
-	// - Footer hints (1 line)
 	// - Modal padding/margins (4 lines)
 	// - Section spacing (2 lines)
-	blameModalHeaderFooterLines = 10
+	blameModalHeaderFooterLines = 9
 	// blameMinVisibleLines is the minimum number of blame lines to display.
 	blameMinVisibleLines = 5
 	// blameMaxVisibleLines is the maximum number of blame lines to display.
@@ -83,9 +82,7 @@ func (p *Plugin) ensureBlameModal() {
 		AddSection(modal.When(func() bool { return !p.blameState.IsLoading && p.blameState.Error == nil && len(p.blameState.Lines) > 0 }, p.blameContentSection(resultsHeight))).
 		AddSection(modal.When(func() bool { return p.blameState.IsLoading }, p.blameLoadingSection())).
 		AddSection(modal.When(func() bool { return p.blameState.Error != nil }, p.blameErrorSection())).
-		AddSection(modal.When(func() bool { return !p.blameState.IsLoading && p.blameState.Error == nil && len(p.blameState.Lines) == 0 }, p.blameEmptySection())).
-		AddSection(modal.Spacer()).
-		AddSection(p.blameFooterSection(resultsHeight))
+		AddSection(modal.When(func() bool { return !p.blameState.IsLoading && p.blameState.Error == nil && len(p.blameState.Lines) == 0 }, p.blameEmptySection()))
 }
 
 // blameHeaderSection is intentionally empty - title is in modal header
@@ -172,21 +169,6 @@ func (p *Plugin) blameContentSection(resultsHeight int) modal.Section {
 		}
 
 		return modal.RenderedSection{Content: sb.String()}
-	}, nil)
-}
-
-// blameFooterSection shows position and navigation hints.
-func (p *Plugin) blameFooterSection(resultsHeight int) modal.Section {
-	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
-		if p.blameState == nil || len(p.blameState.Lines) == 0 {
-			content := styles.Muted.Render("esc/q=close")
-			return modal.RenderedSection{Content: content}
-		}
-
-		position := fmt.Sprintf("%d/%d", p.blameState.Cursor+1, len(p.blameState.Lines))
-		footer := fmt.Sprintf("%s  j/k=scroll  enter=details  y=yank hash  esc=close", position)
-		content := styles.Muted.Render(footer)
-		return modal.RenderedSection{Content: content}
 	}, nil)
 }
 

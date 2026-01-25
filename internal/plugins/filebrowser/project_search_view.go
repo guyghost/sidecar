@@ -16,6 +16,7 @@ const (
 	projectSearchToggleRegexID = "project-search-toggle-regex"
 	projectSearchToggleCaseID  = "project-search-toggle-case"
 	projectSearchToggleWordID  = "project-search-toggle-word"
+	projectSearchOpenActionID  = "project-search-open"
 	projectSearchFilePrefix    = "project-search-file-"
 	projectSearchMatchPrefix   = "project-search-match-"
 )
@@ -87,6 +88,7 @@ func (p *Plugin) ensureProjectSearchModal() {
 
 	p.projectSearchModal = modal.New("",
 		modal.WithWidth(modalW),
+		modal.WithPrimaryAction(projectSearchOpenActionID),
 		modal.WithHints(false),
 	).
 		AddSection(p.projectSearchHeaderSection()).
@@ -201,7 +203,7 @@ func (p *Plugin) projectSearchOptionsUpdate(msg tea.Msg, focusID string) (string
 	}
 
 	switch keyMsg.String() {
-	case "enter", " ":
+	case " ":
 		return focusID, nil
 	}
 

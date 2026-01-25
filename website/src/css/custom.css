@@ -191,7 +191,7 @@ html[data-theme="dark"] .footer {
   background: var(--sc-panel-2);
 }
 
-/* Full-page gradient background - vivid version */
+/* Full-page gradient background - vivid version with slow spotlight */
 html[data-theme="dark"]::before {
   content: "";
   position: fixed;
@@ -202,6 +202,44 @@ html[data-theme="dark"]::before {
     radial-gradient(ellipse 60vw 40vh at 80% 60%, var(--sc-glow), transparent 70%),
     radial-gradient(ellipse 60vw 40vh at 20% 80%, var(--sc-glow), transparent 70%);
   pointer-events: none;
+  animation: sc-page-spotlight 15s ease-in-out infinite;
+}
+
+@keyframes sc-page-spotlight {
+  0%, 100% {
+    background:
+      radial-gradient(ellipse 80vw 50vh at 50% -20%, var(--sc-glow), transparent 50%),
+      radial-gradient(ellipse 60vw 40vh at 80% 60%, var(--sc-glow), transparent 70%),
+      radial-gradient(ellipse 60vw 40vh at 20% 80%, var(--sc-glow), transparent 70%);
+    opacity: 1;
+  }
+  25% {
+    background:
+      radial-gradient(ellipse 85vw 55vh at 45% -15%, var(--sc-glow), transparent 50%),
+      radial-gradient(ellipse 65vw 45vh at 75% 55%, var(--sc-glow), transparent 70%),
+      radial-gradient(ellipse 55vw 35vh at 25% 85%, var(--sc-glow), transparent 70%);
+    opacity: 0.9;
+  }
+  50% {
+    background:
+      radial-gradient(ellipse 75vw 45vh at 55% -25%, var(--sc-glow), transparent 50%),
+      radial-gradient(ellipse 55vw 35vh at 85% 65%, var(--sc-glow), transparent 70%),
+      radial-gradient(ellipse 65vw 45vh at 15% 75%, var(--sc-glow), transparent 70%);
+    opacity: 1;
+  }
+  75% {
+    background:
+      radial-gradient(ellipse 85vw 55vh at 48% -18%, var(--sc-glow), transparent 50%),
+      radial-gradient(ellipse 70vw 50vh at 70% 50%, var(--sc-glow), transparent 70%),
+      radial-gradient(ellipse 60vw 40vh at 30% 90%, var(--sc-glow), transparent 70%);
+    opacity: 0.95;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="dark"]::before {
+    animation: none;
+  }
 }
 
 /* Terminal-bright links */
@@ -252,6 +290,44 @@ a:hover {
     radial-gradient(900px 420px at 65% 10%, rgba(102, 217, 239, 0.28), transparent 60%),
     radial-gradient(900px 520px at 50% 85%, rgba(166, 226, 46, 0.20), transparent 60%);
   pointer-events: none;
+  animation: sc-hero-spotlight 12s ease-in-out infinite;
+}
+
+@keyframes sc-hero-spotlight {
+  0%, 100% {
+    background:
+      radial-gradient(520px 260px at 50% 8%, rgba(174, 129, 255, 0.42), transparent 60%),
+      radial-gradient(900px 420px at 35% 12%, rgba(249, 38, 114, 0.32), transparent 60%),
+      radial-gradient(900px 420px at 65% 10%, rgba(102, 217, 239, 0.28), transparent 60%),
+      radial-gradient(900px 520px at 50% 85%, rgba(166, 226, 46, 0.20), transparent 60%);
+  }
+  25% {
+    background:
+      radial-gradient(550px 280px at 45% 12%, rgba(174, 129, 255, 0.38), transparent 60%),
+      radial-gradient(950px 450px at 30% 8%, rgba(249, 38, 114, 0.28), transparent 60%),
+      radial-gradient(850px 400px at 70% 15%, rgba(102, 217, 239, 0.32), transparent 60%),
+      radial-gradient(850px 480px at 55% 80%, rgba(166, 226, 46, 0.18), transparent 60%);
+  }
+  50% {
+    background:
+      radial-gradient(580px 290px at 55% 5%, rgba(174, 129, 255, 0.35), transparent 60%),
+      radial-gradient(880px 400px at 40% 15%, rgba(249, 38, 114, 0.35), transparent 60%),
+      radial-gradient(920px 440px at 60% 8%, rgba(102, 217, 239, 0.25), transparent 60%),
+      radial-gradient(920px 540px at 45% 88%, rgba(166, 226, 46, 0.22), transparent 60%);
+  }
+  75% {
+    background:
+      radial-gradient(540px 270px at 48% 10%, rgba(174, 129, 255, 0.40), transparent 60%),
+      radial-gradient(920px 430px at 32% 10%, rgba(249, 38, 114, 0.30), transparent 60%),
+      radial-gradient(870px 410px at 68% 12%, rgba(102, 217, 239, 0.30), transparent 60%),
+      radial-gradient(880px 500px at 52% 82%, rgba(166, 226, 46, 0.18), transparent 60%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-hero::before {
+    animation: none;
+  }
 }
 
 .sc-hero::after {

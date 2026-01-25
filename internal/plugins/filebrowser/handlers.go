@@ -919,13 +919,6 @@ func (p *Plugin) handleProjectSearchKey(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd)
 		return p, nil
 	}
 
-	if key == "tab" {
-		if state != nil {
-			state.ToggleFileCollapse()
-		}
-		return p, nil
-	}
-
 	action, cmd := p.projectSearchModal.HandleKey(msg)
 	if action == "cancel" {
 		p.projectSearchMode = false
@@ -936,6 +929,8 @@ func (p *Plugin) handleProjectSearchKey(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd)
 
 	if action != "" && state != nil {
 		switch action {
+		case projectSearchOpenActionID:
+			return p.openProjectSearchResult()
 		case projectSearchToggleRegexID:
 			return p.toggleProjectSearchOption(state, &state.UseRegex)
 		case projectSearchToggleCaseID:
@@ -969,6 +964,22 @@ func (p *Plugin) handleProjectSearchKey(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd)
 		// Open selected file/match
 		if state != nil && len(state.Results) > 0 {
 			return p.openProjectSearchResult()
+		}
+
+	case "left":
+		// Collapse file group at cursor
+		if state != nil {
+			if fileIdx, _, isFile := state.FlatItem(state.Cursor); isFile && fileIdx >= 0 && fileIdx < len(state.Results) {
+				state.Results[fileIdx].Collapsed = true
+			}
+		}
+
+	case "right":
+		// Expand file group at cursor
+		if state != nil {
+			if fileIdx, _, isFile := state.FlatItem(state.Cursor); isFile && fileIdx >= 0 && fileIdx < len(state.Results) {
+				state.Results[fileIdx].Collapsed = false
+			}
 		}
 
 	case "down", "ctrl+n":
