@@ -20,6 +20,9 @@ func TestNew(t *testing.T) {
 	if m.variant != VariantDefault {
 		t.Errorf("expected VariantDefault, got %v", m.variant)
 	}
+	if !m.closeOnBackdrop {
+		t.Errorf("expected closeOnBackdrop true, got %v", m.closeOnBackdrop)
+	}
 }
 
 func TestNewWithOptions(t *testing.T) {
@@ -28,6 +31,7 @@ func TestNewWithOptions(t *testing.T) {
 		WithVariant(VariantDanger),
 		WithHints(false),
 		WithPrimaryAction("submit"),
+		WithCloseOnBackdropClick(false),
 	)
 
 	if m.width != 60 {
@@ -41,6 +45,9 @@ func TestNewWithOptions(t *testing.T) {
 	}
 	if m.primaryAction != "submit" {
 		t.Errorf("expected primaryAction 'submit', got %q", m.primaryAction)
+	}
+	if m.closeOnBackdrop {
+		t.Errorf("expected closeOnBackdrop false, got %v", m.closeOnBackdrop)
 	}
 }
 
@@ -321,6 +328,39 @@ func TestHandleMouseClick(t *testing.T) {
 	}
 }
 
+func TestHandleMouseBackdropClick(t *testing.T) {
+	m := New("Test", WithWidth(40)).
+		AddSection(Text("Click outside"))
+
+	handler := mouse.NewHandler()
+	m.Render(80, 24, handler)
+
+	action := m.HandleMouse(tea.MouseMsg{
+		X:      0,
+		Y:      0,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	}, handler)
+	if action != "cancel" {
+		t.Errorf("expected 'cancel' on backdrop click, got %q", action)
+	}
+
+	m = New("Test", WithWidth(40), WithCloseOnBackdropClick(false)).
+		AddSection(Text("Click outside"))
+	handler = mouse.NewHandler()
+	m.Render(80, 24, handler)
+
+	action = m.HandleMouse(tea.MouseMsg{
+		X:      0,
+		Y:      0,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	}, handler)
+	if action != "" {
+		t.Errorf("expected no action on backdrop click when disabled, got %q", action)
+	}
+}
+
 func TestHandleMouseHover(t *testing.T) {
 	m := New("Test", WithWidth(40)).
 		AddSection(Buttons(Btn(" OK ", "ok")))
@@ -526,18 +566,21 @@ func TestSliceLines(t *testing.T) {
 
 	cases := []struct {
 		offset, height int
+		padToHeight    bool
 		want           string
 	}{
-		{0, 2, "line 0\nline 1"},
-		{1, 2, "line 1\nline 2"},
-		{3, 3, "line 3\nline 4\n"},                                  // Padded with empty
-		{0, 10, "line 0\nline 1\nline 2\nline 3\nline 4\n\n\n\n\n"}, // Padded
+		{0, 2, true, "line 0\nline 1"},
+		{1, 2, true, "line 1\nline 2"},
+		{3, 3, true, "line 3\nline 4\n"},                                  // Padded with empty
+		{0, 10, true, "line 0\nline 1\nline 2\nline 3\nline 4\n\n\n\n\n"}, // Padded
+		{3, 3, false, "line 3\nline 4"},
+		{0, 10, false, "line 0\nline 1\nline 2\nline 3\nline 4"},
 	}
 
 	for _, tc := range cases {
-		got := sliceLines(content, tc.offset, tc.height)
+		got := sliceLines(content, tc.offset, tc.height, tc.padToHeight)
 		if got != tc.want {
-			t.Errorf("sliceLines(offset=%d, height=%d) = %q, want %q", tc.offset, tc.height, got, tc.want)
+			t.Errorf("sliceLines(offset=%d, height=%d, pad=%v) = %q, want %q", tc.offset, tc.height, tc.padToHeight, got, tc.want)
 		}
 	}
 }

@@ -74,10 +74,7 @@ func (m *Modal) buildLayout(screenW, screenH int, handler *mouse.Handler) string
 	fullContent := strings.Join(parts, "\n")
 
 	// 3. Compute scroll viewport
-	totalContentHeight := 0
-	for _, r := range visible {
-		totalContentHeight += r.height
-	}
+	totalContentHeight := measureHeight(fullContent)
 
 	modalInnerHeight := desiredModalInnerHeight(screenH)
 	headerLines := 0
@@ -85,14 +82,21 @@ func (m *Modal) buildLayout(screenW, screenH int, handler *mouse.Handler) string
 		headerLines = 2 // title + blank line
 	}
 	footerLines := hintLines(m.showHints)
-	viewportHeight := max(1, modalInnerHeight-headerLines-footerLines)
+	maxViewportHeight := max(1, modalInnerHeight-headerLines-footerLines)
+
+	viewportHeight := maxViewportHeight
+	padToHeight := true
+	if totalContentHeight <= maxViewportHeight {
+		viewportHeight = max(1, totalContentHeight)
+		padToHeight = false
+	}
 
 	// Clamp scroll offset
 	maxScroll := max(0, totalContentHeight-viewportHeight)
 	m.scrollOffset = clamp(m.scrollOffset, 0, maxScroll)
 
 	// Slice content to viewport
-	viewport := sliceLines(fullContent, m.scrollOffset, viewportHeight)
+	viewport := sliceLines(fullContent, m.scrollOffset, viewportHeight, padToHeight)
 
 	// 4. Build modal content
 	var inner strings.Builder
@@ -208,8 +212,8 @@ func desiredModalInnerHeight(screenH int) int {
 }
 
 // sliceLines extracts a viewport from content starting at offset for height lines.
-// Pads with empty lines if content is shorter than height.
-func sliceLines(content string, offset, height int) string {
+// Pads with empty lines if padToHeight is true.
+func sliceLines(content string, offset, height int, padToHeight bool) string {
 	lines := strings.Split(content, "\n")
 
 	// Handle offset
@@ -224,8 +228,10 @@ func sliceLines(content string, offset, height int) string {
 	}
 
 	// Pad if needed
-	for len(lines) < height {
-		lines = append(lines, "")
+	if padToHeight {
+		for len(lines) < height {
+			lines = append(lines, "")
+		}
 	}
 
 	return strings.Join(lines, "\n")

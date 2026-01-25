@@ -41,10 +41,18 @@ func WithPrimaryAction(actionID string) Option {
 	}
 }
 
+// WithCloseOnBackdropClick controls whether clicking the backdrop dismisses the modal.
+// Defaults to true.
+func WithCloseOnBackdropClick(close bool) Option {
+	return func(m *Modal) {
+		m.closeOnBackdrop = close
+	}
+}
+
 // Default modal dimensions
 const (
-	DefaultWidth   = 50
-	MinModalWidth  = 30
-	MaxModalWidth  = 120
-	ModalPadding   = 6 // border(2) + horizontal padding(4)
+	DefaultWidth  = 50
+	MinModalWidth = 30
+	MaxModalWidth = 120
+	ModalPadding  = 6 // border(2) + horizontal padding(4)
 )

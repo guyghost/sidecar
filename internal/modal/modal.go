@@ -7,12 +7,13 @@ import (
 
 // Modal represents a declarative modal dialog with automatic hit region management.
 type Modal struct {
-	title         string
-	variant       Variant
-	width         int
-	sections      []Section
-	showHints     bool
-	primaryAction string
+	title           string
+	variant         Variant
+	width           int
+	sections        []Section
+	showHints       bool
+	primaryAction   string
+	closeOnBackdrop bool
 
 	// State (managed internally)
 	focusIdx     int      // Current focused element index in focusIDs
@@ -24,10 +25,11 @@ type Modal struct {
 // New creates a new Modal with the given title and options.
 func New(title string, opts ...Option) *Modal {
 	m := &Modal{
-		title:     title,
-		variant:   VariantDefault,
-		width:     DefaultWidth,
-		showHints: true,
+		title:           title,
+		variant:         VariantDefault,
+		width:           DefaultWidth,
+		showHints:       true,
+		closeOnBackdrop: true,
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -101,8 +103,16 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg, handler *mouse.Handler) string {
 		}
 		id := action.Region.ID
 
-		// Ignore backdrop/body clicks (they absorb but don't trigger actions)
-		if id == "modal-backdrop" || id == "modal-body" {
+		// Backdrop click optionally dismisses the modal.
+		if id == "modal-backdrop" {
+			if m.closeOnBackdrop {
+				return "cancel"
+			}
+			return ""
+		}
+
+		// Body clicks absorb but don't trigger actions.
+		if id == "modal-body" {
 			return ""
 		}
 
