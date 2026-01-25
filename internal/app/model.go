@@ -525,6 +525,23 @@ func (m *Model) switchProject(projectPath string) tea.Cmd {
 	// This stops all plugins, updates the context, and starts them again
 	startCmds := m.registry.Reinit(projectPath)
 
+	// Send WindowSizeMsg to all plugins so they recalculate layout/bounds.
+	// Without this, plugins like td-monitor lose mouse interactivity because
+	// their panel bounds are only calculated on WindowSizeMsg receipt.
+	adjustedHeight := m.height - headerHeight
+	if m.showFooter {
+		adjustedHeight -= footerHeight
+	}
+	sizeMsg := tea.WindowSizeMsg{Width: m.width, Height: adjustedHeight}
+	plugins := m.registry.Plugins()
+	for i, p := range plugins {
+		newPlugin, cmd := p.Update(sizeMsg)
+		plugins[i] = newPlugin
+		if cmd != nil {
+			startCmds = append(startCmds, cmd)
+		}
+	}
+
 	// Restore active plugin for the new workdir if saved, otherwise keep current
 	newActivePluginID := state.GetActivePlugin(projectPath)
 	if newActivePluginID != "" {
