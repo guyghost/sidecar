@@ -30,6 +30,10 @@ func Convert(scheme *CommunityScheme) styles.ColorPalette {
 	textPrimary := EnsureContrast(fg, bg, 4.5)
 	textSecondary := EnsureContrast(Blend(fg, bg, 0.25), bg, 3.5)
 
+	// Compute selection text color with guaranteed contrast against BgTertiary.
+	// This is independent of main background - selection text must always be readable.
+	textSelection := EnsureContrast(fg, bgTertiary, 4.5)
+
 	// Improve contrast on tertiary backgrounds if we can keep main background contrast.
 	if ContrastRatio(textPrimary, bgTertiary) < 4.5 {
 		adjusted := EnsureContrast(textPrimary, bgTertiary, 4.5)
@@ -58,6 +62,7 @@ func Convert(scheme *CommunityScheme) styles.ColorPalette {
 		TextSecondary: textSecondary,
 		TextMuted:     textMuted,
 		TextSubtle:    textSubtle,
+		TextSelection: textSelection,
 		TextHighlight: scheme.BrightWhite,
 
 		BgPrimary:   bg,
@@ -106,6 +111,7 @@ func PaletteToOverrides(p styles.ColorPalette) map[string]interface{} {
 		"textSecondary":    p.TextSecondary,
 		"textMuted":        p.TextMuted,
 		"textSubtle":       p.TextSubtle,
+		"textSelection":    p.TextSelection,
 		"textHighlight":    p.TextHighlight,
 		"bgPrimary":        p.BgPrimary,
 		"bgSecondary":      p.BgSecondary,

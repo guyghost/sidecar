@@ -32,6 +32,7 @@ type ColorPalette struct {
 	TextSecondary string `json:"textSecondary"`
 	TextMuted     string `json:"textMuted"`
 	TextSubtle    string `json:"textSubtle"`
+	TextSelection string `json:"textSelection"` // Text on selection backgrounds (BgTertiary)
 
 	// Background colors
 	BgPrimary   string `json:"bgPrimary"`
@@ -116,6 +117,7 @@ var (
 			TextSecondary: "#9CA3AF",
 			TextMuted:     "#6B7280",
 			TextSubtle:    "#4B5563",
+			TextSelection: "#F9FAFB", // Same as TextPrimary for built-in themes
 
 			// Background colors
 			BgPrimary:   "#111827",
@@ -192,6 +194,7 @@ var (
 			TextSecondary: "#BFBFBF",
 			TextMuted:     "#6272A4", // Comment
 			TextSubtle:    "#44475A", // Current Line
+			TextSelection: "#F8F8F2", // Same as TextPrimary for built-in themes
 
 			// Background colors
 			BgPrimary:   "#282A36", // Background
@@ -265,6 +268,7 @@ var (
 			TextSecondary: "#CFD0C2",
 			TextMuted:     "#75715E",
 			TextSubtle:    "#465457",
+			TextSelection: "#F8F8F2", // Same as TextPrimary for built-in themes
 
 			BgPrimary:   "#1B1D1E",
 			BgSecondary: "#272822",
@@ -331,6 +335,7 @@ var (
 			TextSecondary: "#E5E9F0", // Snow Storm 2
 			TextMuted:     "#4C566A", // Polar Night 4
 			TextSubtle:    "#434C5E", // Polar Night 3
+			TextSelection: "#D8DEE9", // Same as TextPrimary for built-in themes
 
 			BgPrimary:   "#2E3440", // Polar Night 1
 			BgSecondary: "#3B4252", // Polar Night 2
@@ -397,6 +402,7 @@ var (
 			TextSecondary: "#839496", // Base0
 			TextMuted:     "#586E75", // Base01
 			TextSubtle:    "#073642", // Base02
+			TextSelection: "#93A1A1", // Same as TextPrimary for built-in themes
 
 			BgPrimary:   "#002B36", // Base03
 			BgSecondary: "#073642", // Base02
@@ -463,6 +469,7 @@ var (
 			TextSecondary: "#A9B1D6",
 			TextMuted:     "#565F89",
 			TextSubtle:    "#414868",
+			TextSelection: "#C0CAF5", // Same as TextPrimary for built-in themes
 
 			BgPrimary:   "#1A1B26",
 			BgSecondary: "#24283B",
@@ -688,6 +695,8 @@ func applySingleOverride(palette *ColorPalette, key, value string) {
 		palette.TextMuted = value
 	case "textSubtle":
 		palette.TextSubtle = value
+	case "textSelection":
+		palette.TextSelection = value
 	case "bgPrimary":
 		palette.BgPrimary = value
 	case "bgSecondary":
@@ -801,6 +810,12 @@ func ApplyThemeColors(theme Theme) {
 	TextSecondary = lipgloss.Color(c.TextSecondary)
 	TextMuted = lipgloss.Color(c.TextMuted)
 	TextSubtle = lipgloss.Color(c.TextSubtle)
+	// TextSelectionColor with fallback to TextPrimary
+	if c.TextSelection != "" {
+		TextSelectionColor = lipgloss.Color(c.TextSelection)
+	} else {
+		TextSelectionColor = lipgloss.Color(c.TextPrimary)
+	}
 
 	BgPrimary = lipgloss.Color(c.BgPrimary)
 	BgSecondary = lipgloss.Color(c.BgSecondary)
@@ -973,7 +988,7 @@ func rebuildStyles() {
 		Foreground(TextPrimary)
 
 	ListItemSelected = lipgloss.NewStyle().
-		Foreground(TextPrimary).
+		Foreground(TextSelectionColor).
 		Background(BgTertiary)
 
 	ListItemFocused = lipgloss.NewStyle().
@@ -1059,14 +1074,14 @@ func rebuildStyles() {
 		Foreground(TextPrimary)
 
 	QuickOpenItemSelected = lipgloss.NewStyle().
-		Foreground(TextPrimary).
+		Foreground(TextSelectionColor).
 		Background(BgTertiary)
 
 	PaletteEntry = lipgloss.NewStyle().
 		Foreground(TextPrimary)
 
 	PaletteEntrySelected = lipgloss.NewStyle().
-		Foreground(TextPrimary).
+		Foreground(TextSelectionColor).
 		Background(BgTertiary)
 
 	PaletteKey = lipgloss.NewStyle().
@@ -1076,7 +1091,7 @@ func rebuildStyles() {
 
 	TextSelection = lipgloss.NewStyle().
 		Background(BgTertiary).
-		Foreground(TextPrimary)
+		Foreground(TextSelectionColor)
 
 	// Footer and header
 	Footer = lipgloss.NewStyle().

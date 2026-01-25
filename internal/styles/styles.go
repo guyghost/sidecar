@@ -16,10 +16,11 @@ var (
 	Info    = lipgloss.Color("#3B82F6") // Blue
 
 	// Text colors
-	TextPrimary   = lipgloss.Color("#F9FAFB")
-	TextSecondary = lipgloss.Color("#9CA3AF")
-	TextMuted     = lipgloss.Color("#6B7280")
-	TextSubtle    = lipgloss.Color("#4B5563")
+	TextPrimary        = lipgloss.Color("#F9FAFB")
+	TextSecondary      = lipgloss.Color("#9CA3AF")
+	TextMuted          = lipgloss.Color("#6B7280")
+	TextSubtle         = lipgloss.Color("#4B5563")
+	TextSelectionColor = lipgloss.Color("#F9FAFB") // Text on selection backgrounds (BgTertiary)
 
 	// Background colors
 	BgPrimary   = lipgloss.Color("#111827")
@@ -179,7 +180,7 @@ var (
 			Foreground(TextPrimary)
 
 	ListItemSelected = lipgloss.NewStyle().
-				Foreground(TextPrimary).
+				Foreground(TextSelectionColor).
 				Background(BgTertiary)
 
 	ListItemFocused = lipgloss.NewStyle().
@@ -285,7 +286,7 @@ var (
 
 	// Quick open result row (selected)
 	QuickOpenItemSelected = lipgloss.NewStyle().
-				Foreground(TextPrimary).
+				Foreground(TextSelectionColor).
 				Background(BgTertiary)
 
 	// Palette entry styles (reusable for modals)
@@ -293,7 +294,7 @@ var (
 			Foreground(TextPrimary)
 
 	PaletteEntrySelected = lipgloss.NewStyle().
-				Foreground(TextPrimary).
+				Foreground(TextSelectionColor).
 				Background(BgTertiary)
 
 	PaletteKey = lipgloss.NewStyle().
@@ -304,7 +305,7 @@ var (
 	// Text selection for preview pane drag selection
 	TextSelection = lipgloss.NewStyle().
 			Background(BgTertiary).
-			Foreground(TextPrimary)
+			Foreground(TextSelectionColor)
 )
 
 // Footer and header
