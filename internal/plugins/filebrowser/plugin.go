@@ -15,6 +15,7 @@ import (
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/plugin"
 	"github.com/marcus/sidecar/internal/state"
+	"github.com/marcus/sidecar/internal/tty"
 )
 
 const (
@@ -227,6 +228,20 @@ type Plugin struct {
 
 	// State restoration flag
 	stateRestored bool
+
+	// Inline editor state (tmux-based editing)
+	inlineEditor        *tty.Model  // Embeddable tty model for inline editing
+	inlineEditMode      bool        // True when inline editing is active
+	inlineEditSession   string      // Tmux session name for editor
+	inlineEditFile      string      // Path of file being edited
+	inlineEditOrigMtime time.Time   // Original file mtime (to detect changes)
+	inlineEditEditor    string      // Editor command used (vim, nano, emacs, etc.)
+
+	// Exit confirmation state (when clicking away from editor)
+	showExitConfirmation bool        // True when confirmation dialog is shown
+	pendingClickRegion   string      // Region that was clicked (regionTreePane, etc)
+	pendingClickData     interface{} // Data associated with the click
+	exitConfirmSelection int         // 0=Save&Exit, 1=Exit without saving, 2=Cancel
 }
 
 // New creates a new File Browser plugin.
@@ -236,6 +251,7 @@ func New() *Plugin {
 		imageRenderer: image.New(), // Detect terminal graphics protocol once
 		treeVisible:   true,        // Tree pane visible by default
 		showIgnored:   true,        // Show git-ignored files by default
+		inlineEditor:  tty.New(nil), // Initialize inline editor with default config
 	}
 }
 
@@ -406,6 +422,66 @@ func (p *Plugin) refresh() tea.Cmd {
 
 // Update handles messages.
 func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
+	// Handle exit confirmation dialog first
+	if p.showExitConfirmation {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.String() {
+			case "j", "down":
+				p.exitConfirmSelection = (p.exitConfirmSelection + 1) % 3
+				return p, nil
+			case "k", "up":
+				p.exitConfirmSelection = (p.exitConfirmSelection + 2) % 3
+				return p, nil
+			case "enter":
+				return p.handleExitConfirmationChoice()
+			case "esc", "q":
+				// Cancel - return to editing
+				p.showExitConfirmation = false
+				p.pendingClickRegion = ""
+				p.pendingClickData = nil
+				return p, nil
+			}
+		}
+		return p, nil
+	}
+
+	// Handle inline edit mode - delegate most messages to tty model
+	if p.inlineEditMode && p.inlineEditor != nil {
+		// Check if editor became inactive (vim exited normally)
+		// Also check if tmux session died (handles :wq case before SessionDeadMsg arrives)
+		if !p.inlineEditor.IsActive() || !p.isInlineEditSessionAlive() {
+			editedFile := p.inlineEditFile // Save before exitInlineEditMode clears it
+			p.exitInlineEditMode()
+			// Refresh preview to show updated file
+			if editedFile != "" {
+				return p, LoadPreview(p.ctx.WorkDir, editedFile)
+			}
+			return p, p.refresh()
+		}
+
+		switch msg := msg.(type) {
+		case tea.WindowSizeMsg:
+			p.width = msg.Width
+			p.height = msg.Height
+			// Update inline editor dimensions
+			return p, p.inlineEditor.SetDimensions(p.calculateInlineEditorWidth(), p.calculateInlineEditorHeight())
+
+		case tea.MouseMsg:
+			// Route mouse through handleMouse for click-away detection
+			return p.handleMouse(msg)
+
+		case tea.KeyMsg, tty.EscapeTimerMsg, tty.CaptureResultMsg,
+			tty.PollTickMsg, tty.PaneResizedMsg, tty.SessionDeadMsg, tty.PasteResultMsg:
+			cmd := p.inlineEditor.Update(msg)
+			// Check if editor exited
+			if !p.inlineEditor.IsActive() {
+				p.exitInlineEditMode()
+				return p, tea.Batch(cmd, p.refresh())
+			}
+			return p, cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case app.PluginFocusedMsg:
 		// Refresh tree when plugin gains focus to pick up external file changes
@@ -598,6 +674,19 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 			}
 		}
 
+	case InlineEditStartedMsg:
+		return p, p.handleInlineEditStarted(msg)
+
+	case InlineEditExitedMsg:
+		// Check if there was a pending click action (from Save & Exit)
+		if p.pendingClickRegion != "" {
+			return p.processPendingClickAction()
+		}
+		// Normal exit - refresh preview after editing
+		if msg.FilePath != "" {
+			return p, LoadPreview(p.ctx.WorkDir, msg.FilePath)
+		}
+
 	case tea.KeyMsg:
 		return p.handleKey(msg)
 	}
@@ -629,6 +718,8 @@ func (p *Plugin) Commands() []plugin.Command {
 		{ID: "new-tab", Name: "Tab+", Description: "Open file in new tab", Category: plugin.CategoryNavigation, Context: "file-browser-tree", Priority: 2},
 		{ID: "project-search", Name: "Find", Description: "Search in project", Category: plugin.CategorySearch, Context: "file-browser-tree", Priority: 2},
 		{ID: "info", Name: "Info", Description: "Show file info", Category: plugin.CategoryActions, Context: "file-browser-tree", Priority: 2},
+		{ID: "edit", Name: "Edit", Description: "Edit file inline", Category: plugin.CategoryActions, Context: "file-browser-tree", Priority: 2},
+		{ID: "edit-external", Name: "Edit+", Description: "Edit in full terminal", Category: plugin.CategoryActions, Context: "file-browser-tree", Priority: 2},
 		{ID: "blame", Name: "Blame", Description: "Show git blame", Category: plugin.CategoryView, Context: "file-browser-tree", Priority: 3},
 		{ID: "search", Name: "Filter", Description: "Filter files by name", Category: plugin.CategorySearch, Context: "file-browser-tree", Priority: 3},
 		{ID: "close-tab", Name: "Close", Description: "Close active tab", Category: plugin.CategoryActions, Context: "file-browser-tree", Priority: 4},
@@ -651,6 +742,8 @@ func (p *Plugin) Commands() []plugin.Command {
 		{ID: "quick-open", Name: "Open", Description: "Quick open file by name", Category: plugin.CategorySearch, Context: "file-browser-preview", Priority: 1},
 		{ID: "project-search", Name: "Find", Description: "Search in project", Category: plugin.CategorySearch, Context: "file-browser-preview", Priority: 2},
 		{ID: "info", Name: "Info", Description: "Show file info", Category: plugin.CategoryActions, Context: "file-browser-preview", Priority: 2},
+		{ID: "edit", Name: "Edit", Description: "Edit file inline", Category: plugin.CategoryActions, Context: "file-browser-preview", Priority: 2},
+		{ID: "edit-external", Name: "Edit+", Description: "Edit in full terminal", Category: plugin.CategoryActions, Context: "file-browser-preview", Priority: 2},
 		{ID: "prev-tab", Name: "Tab←", Description: "Previous tab", Category: plugin.CategoryNavigation, Context: "file-browser-preview", Priority: 3},
 		{ID: "next-tab", Name: "Tab→", Description: "Next tab", Category: plugin.CategoryNavigation, Context: "file-browser-preview", Priority: 3},
 		{ID: "blame", Name: "Blame", Description: "Show git blame", Category: plugin.CategoryView, Context: "file-browser-preview", Priority: 3},
@@ -695,6 +788,9 @@ func (p *Plugin) Commands() []plugin.Command {
 
 // FocusContext returns the current focus context.
 func (p *Plugin) FocusContext() string {
+	if p.inlineEditMode {
+		return "file-browser-inline-edit"
+	}
 	if p.projectSearchMode {
 		return "file-browser-project-search"
 	}

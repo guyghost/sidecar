@@ -1,0 +1,422 @@
+# Inline Editor Implementation Guide
+
+## Overview
+
+The inline editor feature (`tmux_inline_edit`) allows users to edit files directly within the Sidecar preview pane using their preferred terminal editor (vim, nvim, etc.) without leaving the TUI. The file tree remains visible during editing, providing context and enabling navigation.
+
+**Core Principle**: This is NOT a terminal emulator. Tmux manages the PTY backend; Sidecar acts as an input/output relay, similar to the workspace plugin's interactive mode.
+
+## Architecture
+
+### Components
+
+1. **Entry Layer** (`inline_edit.go`): Creates tmux sessions and manages editor lifecycle
+2. **Rendering Layer** (`view.go`, `inline_edit.go`): Renders editor content within preview pane
+3. **Input Layer** (`plugin.go`, `mouse.go`): Routes keys/clicks to editor or confirmation dialog
+4. **TTY Model** (`internal/tty/tty.go`): Handles tmux capture, cursor overlay, and input forwarding
+
+### Data Flow
+
+```
+User presses 'e' on file
+    → enterInlineEditMode()
+    → tmux new-session -d -s {sessionName} {editor} {path}
+    → InlineEditStartedMsg
+    → handleInlineEditStarted()
+    → tty.Model.Enter()
+    → Start polling tmux capture-pane
+    → renderInlineEditorContent() in preview pane
+    → User types → tty.Model forwards to tmux
+    → User exits → SessionDeadMsg or exit keys
+    → exitInlineEditMode()
+    → Refresh preview
+```
+
+## Critical Implementation Details
+
+### 1. Preview Pane Rendering (Not Full-Screen)
+
+**Key Pattern**: The editor renders within `renderPreviewPane()`, not as a full-screen takeover.
+
+```go
+// view.go - renderPreviewPane()
+func (p *Plugin) renderPreviewPane(visibleHeight int) string {
+    // Handle inline edit mode - render editor within preview pane
+    if p.inlineEditMode && p.inlineEditor != nil && p.inlineEditor.IsActive() {
+        return p.renderInlineEditorContent(visibleHeight)
+    }
+    // ... normal preview rendering
+}
+```
+
+**Why this matters**: The file tree remains visible, providing context and enabling click-away exit.
+
+### 2. Dimension Calculations
+
+The tty.Model needs exact dimensions matching the preview pane content area:
+
+```go
+// inline_edit.go
+func (p *Plugin) calculateInlineEditorWidth() int {
+    if !p.treeVisible {
+        return p.width - 4 // borders + padding
+    }
+    p.calculatePaneWidths()
+    return p.previewWidth - 4
+}
+
+func (p *Plugin) calculateInlineEditorHeight() int {
+    paneHeight := p.height
+    innerHeight := paneHeight - 2 // pane borders
+    contentHeight := innerHeight - 2 // header lines
+    if len(p.tabs) > 1 {
+        contentHeight-- // tab line
+    }
+    return contentHeight
+}
+```
+
+**Critical**: These must stay in sync with `renderInlineEditorContent()` layout calculations.
+
+### 3. File Modification Detection
+
+The editor tracks the file's modification time (mtime) before editing starts. When the user clicks away, we compare mtimes to determine if the file was changed:
+
+```go
+// State in plugin.go
+inlineEditOrigMtime time.Time // File mtime before editing
+
+// In enterInlineEditMode() - capture original mtime
+var origMtime time.Time
+if info, err := os.Stat(fullPath); err == nil {
+    origMtime = info.ModTime()
+}
+
+// InlineEditStartedMsg carries the mtime
+return InlineEditStartedMsg{
+    SessionName:   sessionName,
+    FilePath:      path,
+    OriginalMtime: origMtime,
+}
+
+// isFileModifiedSinceEdit() checks if mtime changed
+func (p *Plugin) isFileModifiedSinceEdit() bool {
+    if p.inlineEditFile == "" || p.inlineEditOrigMtime.IsZero() {
+        return false // Can't determine, assume not modified
+    }
+    fullPath := filepath.Join(p.ctx.WorkDir, p.inlineEditFile)
+    info, err := os.Stat(fullPath)
+    if err != nil {
+        return false
+    }
+    return info.ModTime().After(p.inlineEditOrigMtime)
+}
+```
+
+**Why mtime**: This avoids reading/hashing file contents. If the user opens a file but makes no changes, clicking away exits immediately without confirmation.
+
+### 3b. Session Alive Detection
+
+When vim exits via `:wq`, the tmux session dies. However, the tty model's `SessionDeadMsg` may not arrive before the user clicks away. We check if the tmux session is still alive before showing confirmation:
+
+```go
+// isInlineEditSessionAlive() checks if the tmux session still exists
+func (p *Plugin) isInlineEditSessionAlive() bool {
+    if p.inlineEditSession == "" {
+        return false
+    }
+    // Check if the tmux session exists using has-session
+    err := exec.Command("tmux", "has-session", "-t", p.inlineEditSession).Run()
+    return err == nil
+}
+```
+
+This is checked:
+1. At the start of Update() when in inline edit mode - if session is dead, exit immediately
+2. In click-away handling - if session is dead, skip confirmation and clean up
+
+**Why this matters**: Without this check, users would see "Exit editor?" confirmation after vim had already exited, which is confusing.
+
+### 4. Exit Confirmation Dialog
+
+When users click away from the editor **and the file was modified**, a confirmation dialog prevents accidental data loss:
+
+```go
+// State fields in plugin.go
+showExitConfirmation bool        // Dialog visible
+pendingClickRegion   string      // Where user clicked
+pendingClickData     interface{} // Click data (tree index, tab index)
+exitConfirmSelection int         // 0=Save&Exit, 1=Exit without saving, 2=Cancel
+```
+
+**Options**:
+- **Save & Exit**: Sends `Escape :wq Enter` to vim, waits for session death
+- **Exit without saving**: Kills tmux session immediately
+- **Cancel**: Returns to editing
+
+### 5. Click-Away Detection
+
+```go
+// mouse.go - handleMouse()
+if p.inlineEditMode && p.inlineEditor != nil && p.inlineEditor.IsActive() {
+    action := p.mouseHandler.HandleMouse(msg)
+
+    handleClickAway := func(regionID string, regionData interface{}) (*Plugin, tea.Cmd) {
+        // First check if session is still alive (vim may have exited via :wq)
+        if !p.isInlineEditSessionAlive() {
+            // Session is dead - just clean up and process click
+            p.exitInlineEditMode()
+            p.pendingClickRegion = regionID
+            p.pendingClickData = regionData
+            return p.processPendingClickAction()
+        }
+
+        if p.isFileModifiedSinceEdit() {
+            // File was modified and session is alive - show confirmation
+            p.pendingClickRegion = regionID
+            p.pendingClickData = regionData
+            p.showExitConfirmation = true
+            p.exitConfirmSelection = 0
+            return p, nil
+        }
+        // File not modified - exit immediately
+        p.pendingClickRegion = regionID
+        p.pendingClickData = regionData
+        p.exitInlineEditMode()
+        return p.processPendingClickAction()
+    }
+
+    if action.Type == mouse.ActionClick {
+        // Check registered regions
+        if action.Region != nil {
+            switch action.Region.ID {
+            case regionTreePane, regionTreeItem, regionPreviewTab:
+                return handleClickAway(action.Region.ID, action.Region.Data)
+            }
+        }
+
+        // Fallback: position-based detection
+        if p.treeVisible && action.X < p.treeWidth {
+            return handleClickAway(regionTreePane, nil)
+        }
+    }
+
+    // Forward to tty model
+    return p, p.inlineEditor.Update(msg)
+}
+```
+
+**Why position-based fallback**: Mouse regions are registered during render. Clicks between specific items may not hit a region, so we fall back to X-position checking.
+
+### 6. Gradient Border Feedback
+
+Visual indicator that edit mode is active:
+
+```go
+// view.go - renderNormalPanes()
+if p.inlineEditMode && p.inlineEditor != nil && p.inlineEditor.IsActive() {
+    rightPane = styles.RenderPanelWithGradient(previewContent, p.previewWidth,
+        paneHeight, styles.GetInteractiveGradient())
+} else {
+    rightPane = styles.RenderPanel(previewContent, p.previewWidth,
+        paneHeight, previewActive)
+}
+```
+
+## Exit Paths
+
+| Method | Confirmation | Description |
+|--------|--------------|-------------|
+| `Ctrl+\` | No | Immediate exit (tty.Config.ExitKey) |
+| Double-ESC | No | Exit with 150ms delay (vim ESC compatibility) |
+| `:q`, `:wq` in vim | No | Normal editor exit, session death detected |
+| Click tree/tab | If modified | Shows confirmation only if file was modified; exits immediately otherwise |
+
+## State Management
+
+### Plugin State (plugin.go)
+
+```go
+// Inline editor state
+inlineEditor         *tty.Model // Embeddable tty model
+inlineEditMode       bool       // Currently editing
+inlineEditSession    string     // Tmux session name
+inlineEditFile       string     // File being edited
+inlineEditOrigMtime  time.Time  // Original file mtime (for modification detection)
+
+// Exit confirmation state
+showExitConfirmation bool
+pendingClickRegion   string
+pendingClickData     interface{}
+exitConfirmSelection int
+```
+
+### Update Priority (plugin.go)
+
+```go
+func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
+    // 1. Handle exit confirmation dialog FIRST
+    if p.showExitConfirmation {
+        // j/k navigation, Enter confirm, Esc cancel
+    }
+
+    // 2. Handle inline edit mode
+    if p.inlineEditMode && p.inlineEditor.IsActive() {
+        // Delegate to tty.Model
+    }
+
+    // 3. Normal plugin handling
+}
+```
+
+## Common Pitfalls
+
+### Don't Render Full-Screen
+
+The old implementation took over the entire view:
+
+```go
+// WRONG - hides file tree
+func (p *Plugin) renderView() string {
+    if p.inlineEditMode {
+        return p.renderInlineEditView() // Full-screen takeover
+    }
+}
+```
+
+The correct approach renders within the preview pane only.
+
+### Don't Forget Position-Based Click Detection
+
+Mouse regions may not cover every pixel. Always include fallback:
+
+```go
+// Without fallback, clicks between tree items are ignored
+if p.treeVisible && action.X < p.treeWidth {
+    // Handle as tree pane click
+}
+```
+
+### Don't Skip Confirmation for Click-Away
+
+Direct exits (Ctrl+\, :q) don't need confirmation - the user explicitly chose to exit. But click-away should always confirm to prevent accidental data loss.
+
+### Don't Forget to Check IsActive() on Every Message
+
+The tty model can become inactive asynchronously (when vim exits normally). Check at the start of inline edit mode handling:
+
+```go
+// plugin.go - Update()
+if p.inlineEditMode && p.inlineEditor != nil {
+    // Check if editor became inactive (vim exited normally)
+    if !p.inlineEditor.IsActive() {
+        editedFile := p.inlineEditFile
+        p.exitInlineEditMode()
+        return p, LoadPreview(p.ctx.WorkDir, editedFile)
+    }
+    // ... rest of inline edit handling
+}
+```
+
+Without this check, the user gets a blank screen after vim exits normally.
+
+### Don't Block on Subprocess in View()
+
+The tty.Model handles async polling. Never query tmux synchronously during render:
+
+```go
+// WRONG
+func (p *Plugin) renderInlineEditorContent() string {
+    output, _ := exec.Command("tmux", "capture-pane", ...).Output() // Blocks!
+}
+
+// RIGHT - use cached content from tty.Model
+func (p *Plugin) renderInlineEditorContent() string {
+    content := p.inlineEditor.View() // Returns cached content
+}
+```
+
+## Keyboard Shortcuts
+
+| Key | Command | Description |
+|-----|---------|-------------|
+| `e` | `edit` | Edit file inline (within preview pane) |
+| `E` | `edit-external` | Edit in full terminal (suspends TUI, full vim experience) |
+
+Both shortcuts work in tree and preview panes. The `E` shortcut is useful when inline editing isn't working well or when you need the full terminal editor experience.
+
+These are registered in:
+- `internal/plugins/filebrowser/plugin.go` - `Commands()` method (for footer hint and command palette)
+- `internal/plugins/filebrowser/handlers.go` - Key handling in tree and preview handlers
+- `internal/keymap/bindings.go` - Key bindings for `file-browser-tree` and `file-browser-preview` contexts
+
+## Feature Flag
+
+Gated behind `tmux_inline_edit`:
+
+```go
+if !features.IsEnabled(features.TmuxInlineEdit.Name) {
+    return p.openFile(path) // Fall back to external editor
+}
+```
+
+Enable in `~/.config/sidecar/config.json`:
+
+```json
+{
+  "features": {
+    "tmux_inline_edit": true
+  }
+}
+```
+
+## Files to Know
+
+| File | Purpose |
+|------|---------|
+| `internal/plugins/filebrowser/inline_edit.go` | Editor lifecycle, confirmation dialog, dimension calculations |
+| `internal/plugins/filebrowser/view.go` | Preview pane rendering, gradient border |
+| `internal/plugins/filebrowser/mouse.go` | Click-away detection |
+| `internal/plugins/filebrowser/plugin.go` | State management, Update routing |
+| `internal/tty/tty.go` | TTY model for tmux interaction (shared with workspace) |
+
+## Testing Checklist
+
+1. **Basic functionality**:
+   - [ ] Press `e` on a file to enter inline edit mode
+   - [ ] File tree remains visible on the left
+   - [ ] Gradient border appears on preview pane
+   - [ ] Header shows "Editing: {filename}"
+   - [ ] Press `E` (shift+e) opens file in full terminal editor (TUI suspends)
+
+2. **Exit scenarios**:
+   - [ ] `Ctrl+\` exits immediately
+   - [ ] Double-ESC exits immediately
+   - [ ] `:wq` in vim saves and exits
+   - [ ] `:q!` in vim exits without saving
+   - [ ] Click on file tree (with unsaved changes) shows confirmation dialog
+   - [ ] Click on file tree (no changes made) exits immediately without confirmation
+
+3. **Modification detection**:
+   - [ ] Open file with `e`, make no changes, click away → exits immediately
+   - [ ] Open file with `e`, make changes, click away → shows confirmation
+   - [ ] Open file with `e`, make changes, save with `:w`, click away → exits immediately (mtime updated)
+
+4. **Confirmation dialog**:
+   - [ ] j/k navigates options
+   - [ ] Enter confirms selected option
+   - [ ] Esc cancels and returns to editing
+   - [ ] "Save & Exit" saves file then processes click
+   - [ ] "Exit without saving" discards and processes click
+
+5. **Edge cases**:
+   - [ ] Window resize updates editor dimensions
+   - [ ] Multiple tabs: clicking different tab triggers confirmation (if modified)
+   - [ ] Binary files don't allow inline edit (falls back to external)
+
+## References
+
+- Original interactive shell guide: `docs/guides/interactive-shell-implementation.md`
+- TTY model implementation: `internal/tty/tty.go`
+- Feature flag system: `internal/features/features.go`
+- Related task: td-284383 (epic), td-b520d0d7 (original implementation)

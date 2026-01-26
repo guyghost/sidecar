@@ -24,6 +24,67 @@ const (
 
 // handleMouse processes mouse events and dispatches to appropriate handlers.
 func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
+	// Handle exit confirmation dialog if active
+	if p.showExitConfirmation {
+		return p.handleExitConfirmationMouse(msg)
+	}
+
+	// Handle inline edit mode - detect click away from editor
+	if p.inlineEditMode && p.inlineEditor != nil && p.inlineEditor.IsActive() {
+		action := p.mouseHandler.HandleMouse(msg)
+
+		if action.Type == mouse.ActionClick {
+			// Helper to handle click-away: show confirmation only if file was modified AND session alive
+			handleClickAway := func(regionID string, regionData interface{}) (*Plugin, tea.Cmd) {
+				// First check if the editor session is still alive
+				// (vim may have exited via :wq before this click)
+				if !p.isInlineEditSessionAlive() {
+					// Session is dead - just clean up and process click
+					p.exitInlineEditMode()
+					p.pendingClickRegion = regionID
+					p.pendingClickData = regionData
+					return p.processPendingClickAction()
+				}
+
+				if p.isFileModifiedSinceEdit() {
+					// File was modified and session is alive - show confirmation
+					p.pendingClickRegion = regionID
+					p.pendingClickData = regionData
+					p.showExitConfirmation = true
+					p.exitConfirmSelection = 0 // Default to Save & Exit
+					return p, nil
+				}
+				// File not modified - exit immediately and process click
+				p.pendingClickRegion = regionID
+				p.pendingClickData = regionData
+				p.exitInlineEditMode()
+				return p.processPendingClickAction()
+			}
+
+			// Check if region was hit
+			if action.Region != nil {
+				switch action.Region.ID {
+				case regionTreePane, regionTreeItem, regionPreviewTab:
+					return handleClickAway(action.Region.ID, action.Region.Data)
+				case regionPreviewPane, regionPreviewLine:
+					// Click in preview area - forward to tty for selection/interaction
+					cmd := p.inlineEditor.Update(msg)
+					return p, cmd
+				}
+			}
+
+			// Fallback: use X position to detect tree pane clicks
+			// This handles cases where specific regions weren't hit
+			if p.treeVisible && action.X < p.treeWidth {
+				return handleClickAway(regionTreePane, nil)
+			}
+		}
+
+		// Forward other mouse events to tty model
+		cmd := p.inlineEditor.Update(msg)
+		return p, cmd
+	}
+
 	// Handle project search modal first if active
 	if p.projectSearchMode {
 		return p.handleProjectSearchMouse(msg)
@@ -588,5 +649,13 @@ func (p *Plugin) handleBlameModalMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 		p.blameModalWidth = 0
 		return p, nil
 	}
+	return p, nil
+}
+
+// handleExitConfirmationMouse handles mouse events in the exit confirmation dialog.
+func (p *Plugin) handleExitConfirmationMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
+	// For now, clicks anywhere in the confirmation just select the option under cursor
+	// The keyboard handling does the main interaction
+	// We could add clickable option detection here if needed
 	return p, nil
 }
