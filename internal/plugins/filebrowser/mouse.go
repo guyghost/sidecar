@@ -29,63 +29,124 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 		return p.handleExitConfirmationMouse(msg)
 	}
 
-	// Handle inline edit mode - detect click away from editor
+	// Handle inline edit mode - mouse events for editor and click-away detection
 	if p.inlineEditMode && p.inlineEditor != nil && p.inlineEditor.IsActive() {
 		action := p.mouseHandler.HandleMouse(msg)
 
-		if action.Type == mouse.ActionClick {
-			// Helper to handle click-away: show confirmation only if file was modified AND session alive
-			handleClickAway := func(regionID string, regionData interface{}) (*Plugin, tea.Cmd) {
-				// First check if the editor session is still alive
-				// (vim may have exited via :wq before this click)
-				if !p.isInlineEditSessionAlive() {
-					// Session is dead - just clean up and process click
-					p.exitInlineEditMode()
-					p.pendingClickRegion = regionID
-					p.pendingClickData = regionData
-					return p.processPendingClickAction()
-				}
-
-				if p.isFileModifiedSinceEdit() {
-					// File was modified and session is alive - show confirmation
-					p.pendingClickRegion = regionID
-					p.pendingClickData = regionData
-					p.showExitConfirmation = true
-					p.exitConfirmSelection = 0 // Default to Save & Exit
-					return p, nil
-				}
-				// File not modified - exit immediately and process click
+		// Helper to handle click-away: always show confirmation when session is alive
+		// (we can't detect unsaved changes in vim, so always confirm to be safe)
+		handleClickAway := func(regionID string, regionData interface{}) (*Plugin, tea.Cmd) {
+			p.inlineEditorDragging = false // Cancel any drag in progress
+			// First check if the editor session is still alive
+			// (vim may have exited via :wq before this click)
+			if !p.isInlineEditSessionAlive() {
+				// Session is dead - just clean up and process click
+				p.exitInlineEditMode()
 				p.pendingClickRegion = regionID
 				p.pendingClickData = regionData
-				p.exitInlineEditMode()
 				return p.processPendingClickAction()
 			}
 
-			// Check if region was hit
+			// Session is alive - always show confirmation
+			// (can't detect unsaved vim changes, so always ask to be safe)
+			p.pendingClickRegion = regionID
+			p.pendingClickData = regionData
+			p.showExitConfirmation = true
+			p.exitConfirmSelection = 0 // Default to Save & Exit
+			return p, nil
+		}
+
+		// Handle click (mouse press) - start potential drag
+		if action.Type == mouse.ActionClick {
+			// Check for tab row clicks FIRST (before forwarding to vim)
+			// This is needed because regionPreviewPane encompasses tabs
+			if len(p.tabs) > 1 {
+				inputBarHeight := 0
+				if p.contentSearchMode || p.fileOpMode != FileOpNone || p.lineJumpMode {
+					inputBarHeight = 1
+					if p.fileOpMode != FileOpNone && p.fileOpError != "" {
+						inputBarHeight = 2
+					}
+				}
+				tabY := inputBarHeight + 1 // pane border + first content row
+				previewX := 0
+				if p.treeVisible {
+					p.calculatePaneWidths()
+					previewX = p.treeWidth + dividerWidth
+				}
+				// Check if click is in tab row area (allow +/- 1 for tolerance)
+				if action.Y >= tabY-1 && action.Y <= tabY+1 && action.X >= previewX {
+					// Find which tab was clicked based on X position
+					tabX := previewX + 2 // left border + padding
+					for _, hit := range p.tabHits {
+						hitStart := tabX + hit.X
+						hitEnd := hitStart + hit.Width
+						if action.X >= hitStart && action.X < hitEnd {
+							return handleClickAway(regionPreviewTab, hit.Index)
+						}
+					}
+					// Fallback: find the closest tab based on X position
+					if len(p.tabHits) > 0 {
+						clickX := action.X - tabX
+						bestIdx := p.tabHits[0].Index
+						bestDist := -1
+						for _, hit := range p.tabHits {
+							mid := hit.X + hit.Width/2
+							dist := clickX - mid
+							if dist < 0 {
+								dist = -dist
+							}
+							if bestDist < 0 || dist < bestDist {
+								bestDist = dist
+								bestIdx = hit.Index
+							}
+						}
+						return handleClickAway(regionPreviewTab, bestIdx)
+					}
+					return handleClickAway(regionPreviewTab, nil)
+				}
+			}
+
 			if action.Region != nil {
 				switch action.Region.ID {
 				case regionTreePane, regionTreeItem, regionPreviewTab:
 					return handleClickAway(action.Region.ID, action.Region.Data)
 				case regionPreviewPane, regionPreviewLine:
-					// Forward mouse click to vim
-					// Note: Always try forwarding because tmux capture-pane doesn't
-					// capture mouse mode enable sequences, so detection doesn't work.
-					// Vim will ignore clicks if mouse mode isn't enabled.
+					// Forward mouse press to vim and start tracking drag
 					col, row, ok := p.calculateInlineEditorMouseCoords(action.X, action.Y)
 					if ok {
-						return p, p.forwardMouseToInlineEditor(col, row)
+						p.inlineEditorDragging = true
+						return p, p.forwardMousePressToInlineEditor(col, row)
 					}
-					// Click outside editor content - forward to tty
 					cmd := p.inlineEditor.Update(msg)
 					return p, cmd
 				}
 			}
 
 			// Fallback: use X position to detect tree pane clicks
-			// This handles cases where specific regions weren't hit
 			if p.treeVisible && action.X < p.treeWidth {
 				return handleClickAway(regionTreePane, nil)
 			}
+		}
+
+		// Handle mouse motion/hover - forward drag events to vim for text selection
+		if action.Type == mouse.ActionHover && p.inlineEditorDragging {
+			col, row, ok := p.calculateInlineEditorMouseCoords(action.X, action.Y)
+			if ok {
+				return p, p.forwardMouseDragToInlineEditor(col, row)
+			}
+		}
+
+		// Handle mouse release - end drag
+		if msg.Action == tea.MouseActionRelease {
+			if p.inlineEditorDragging {
+				p.inlineEditorDragging = false
+				col, row, ok := p.calculateInlineEditorMouseCoords(msg.X, msg.Y)
+				if ok {
+					return p, p.forwardMouseReleaseToInlineEditor(col, row)
+				}
+			}
+			return p, nil
 		}
 
 		// Forward other mouse events to tty model

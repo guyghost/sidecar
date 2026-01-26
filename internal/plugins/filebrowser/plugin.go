@@ -230,12 +230,13 @@ type Plugin struct {
 	stateRestored bool
 
 	// Inline editor state (tmux-based editing)
-	inlineEditor        *tty.Model  // Embeddable tty model for inline editing
-	inlineEditMode      bool        // True when inline editing is active
-	inlineEditSession   string      // Tmux session name for editor
-	inlineEditFile      string      // Path of file being edited
-	inlineEditOrigMtime time.Time   // Original file mtime (to detect changes)
-	inlineEditEditor    string      // Editor command used (vim, nano, emacs, etc.)
+	inlineEditor         *tty.Model // Embeddable tty model for inline editing
+	inlineEditMode       bool       // True when inline editing is active
+	inlineEditSession    string     // Tmux session name for editor
+	inlineEditFile       string     // Path of file being edited
+	inlineEditOrigMtime  time.Time  // Original file mtime (to detect changes)
+	inlineEditEditor     string     // Editor command used (vim, nano, emacs, etc.)
+	inlineEditorDragging bool       // True when mouse is being dragged in editor (for text selection)
 
 	// Exit confirmation state (when clicking away from editor)
 	showExitConfirmation bool        // True when confirmation dialog is shown

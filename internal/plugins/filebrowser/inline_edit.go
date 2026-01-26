@@ -129,6 +129,7 @@ func (p *Plugin) exitInlineEditMode() {
 	p.inlineEditFile = ""
 	p.inlineEditOrigMtime = time.Time{}
 	p.inlineEditEditor = ""
+	p.inlineEditorDragging = false
 	p.inlineEditor.Exit()
 }
 
@@ -443,21 +444,53 @@ func (p *Plugin) processPendingClickAction() (*Plugin, tea.Cmd) {
 		if idx, ok := data.(int); ok {
 			return p.selectTreeItem(idx)
 		}
+		// Fallback: if data is missing, load preview for current selection
+		return p, p.loadCurrentTreeItemPreview()
 	case "tree-pane":
-		// User clicked tree pane background - focus tree
+		// User clicked tree pane background - focus tree and refresh preview
 		p.activePane = PaneTree
-		return p, nil
+		return p, p.loadCurrentTreeItemPreview()
 	case "preview-tab":
 		// User clicked a tab - switch to it
 		if idx, ok := data.(int); ok {
 			p.activeTab = idx
 			if idx < len(p.tabs) {
+				// Update previewFile so PreviewLoadedMsg is accepted
+				p.previewFile = p.tabs[idx].Path
 				return p, LoadPreview(p.ctx.WorkDir, p.tabs[idx].Path)
+			}
+		} else if len(p.tabs) > 1 {
+			// Fallback: if we don't know which tab was clicked but user clicked
+			// in the tab area, switch to a different tab than current
+			// (they were editing current tab and want to switch away)
+			newTab := 0
+			if p.activeTab == 0 {
+				newTab = 1
+			}
+			p.activeTab = newTab
+			if newTab < len(p.tabs) {
+				// Update previewFile so PreviewLoadedMsg is accepted
+				p.previewFile = p.tabs[newTab].Path
+				return p, LoadPreview(p.ctx.WorkDir, p.tabs[newTab].Path)
 			}
 		}
 	}
 
 	return p, nil
+}
+
+// loadCurrentTreeItemPreview returns a Cmd to load the preview for the currently selected tree item.
+func (p *Plugin) loadCurrentTreeItemPreview() tea.Cmd {
+	if p.tree == nil || p.treeCursor < 0 || p.treeCursor >= p.tree.Len() {
+		return nil
+	}
+	node := p.tree.GetNode(p.treeCursor)
+	if node == nil || node.IsDir {
+		return nil
+	}
+	// Update previewFile so PreviewLoadedMsg is accepted
+	p.previewFile = node.Path
+	return LoadPreview(p.ctx.WorkDir, node.Path)
 }
 
 // calculateInlineEditorMouseCoords converts screen coordinates to editor-relative coordinates.
@@ -520,9 +553,9 @@ func (p *Plugin) calculateInlineEditorMouseCoords(x, y int) (col, row int, ok bo
 	return relX + 1, relY + 1, true
 }
 
-// forwardMouseToInlineEditor sends a mouse click to the inline editor's tmux session.
+// forwardMousePressToInlineEditor sends a mouse press event to the inline editor.
 // col and row are 1-indexed coordinates relative to the editor content area.
-func (p *Plugin) forwardMouseToInlineEditor(col, row int) tea.Cmd {
+func (p *Plugin) forwardMousePressToInlineEditor(col, row int) tea.Cmd {
 	if p.inlineEditor == nil || !p.inlineEditor.IsActive() {
 		return nil
 	}
@@ -532,13 +565,51 @@ func (p *Plugin) forwardMouseToInlineEditor(col, row int) tea.Cmd {
 
 	sessionName := p.inlineEditSession
 	return func() tea.Msg {
-		// Send SGR mouse press and release for a click
+		// Send SGR mouse press (button 0 = left button)
 		if err := tty.SendSGRMouse(sessionName, 0, col, row, false); err != nil {
 			if tty.IsSessionDeadError(err) {
 				return tty.SessionDeadMsg{}
 			}
-			return nil
 		}
+		return nil
+	}
+}
+
+// forwardMouseDragToInlineEditor sends a mouse drag/motion event to the inline editor.
+// col and row are 1-indexed coordinates relative to the editor content area.
+func (p *Plugin) forwardMouseDragToInlineEditor(col, row int) tea.Cmd {
+	if p.inlineEditor == nil || !p.inlineEditor.IsActive() {
+		return nil
+	}
+	if p.inlineEditSession == "" {
+		return nil
+	}
+
+	sessionName := p.inlineEditSession
+	return func() tea.Msg {
+		// Send SGR mouse motion with button held (button 32 = motion + left button)
+		if err := tty.SendSGRMouse(sessionName, 32, col, row, false); err != nil {
+			if tty.IsSessionDeadError(err) {
+				return tty.SessionDeadMsg{}
+			}
+		}
+		return nil
+	}
+}
+
+// forwardMouseReleaseToInlineEditor sends a mouse release event to the inline editor.
+// col and row are 1-indexed coordinates relative to the editor content area.
+func (p *Plugin) forwardMouseReleaseToInlineEditor(col, row int) tea.Cmd {
+	if p.inlineEditor == nil || !p.inlineEditor.IsActive() {
+		return nil
+	}
+	if p.inlineEditSession == "" {
+		return nil
+	}
+
+	sessionName := p.inlineEditSession
+	return func() tea.Msg {
+		// Send SGR mouse release (button 0 = left button, release=true)
 		if err := tty.SendSGRMouse(sessionName, 0, col, row, true); err != nil {
 			if tty.IsSessionDeadError(err) {
 				return tty.SessionDeadMsg{}

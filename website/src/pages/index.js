@@ -22,6 +22,7 @@ const MINI_FEATURES = [
   { icon: 'git-fork', title: 'Worktree Switcher', description: 'Switch between git worktrees instantly. Keep multiple branches checked out simultaneously.' },
   { icon: 'refresh-cw', title: 'Global Refresh', description: 'Press R to refresh all plugins at once. Git status, files, and tasks update together.' },
   { icon: 'sun', title: 'Theme Switching', description: 'Cycle through themes or browse the community gallery. Changes apply instantly.' },
+  { icon: 'gauge', title: 'Lightweight', description: 'Minimal CPU and memory footprint. Runs in the background without slowing down your machine like heavy editors.' },
 ];
 
 // For a cleaner install command, consider setting up a custom domain:
