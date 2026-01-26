@@ -461,6 +461,12 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 				Status:      AgentStatusRunning,
 			}
 			p.managedSessions[msg.SessionName] = true
+
+			// td-f88fdd: Update manifest to reflect shell is no longer orphaned
+			if p.shellManifest != nil {
+				_ = p.shellManifest.UpdateShell(shellToDefinition(existingShell))
+			}
+
 			p.shellSelected = true
 			p.selectedShellIdx = existingIdx
 			p.saveSelectionState()
