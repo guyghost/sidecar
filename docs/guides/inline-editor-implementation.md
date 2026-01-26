@@ -358,6 +358,23 @@ if action.Region != nil {
 
 Without this ordering, tab clicks may be incorrectly handled as preview pane clicks.
 
+### Don't Forget App-Level Key Routing
+
+The app intercepts global shortcuts (like `q`, `1-5`, `` ` ``, `~`, `?`, `!`, `@`) before they reach plugins. For inline edit mode to receive ALL keys, the context must be handled specially in `internal/app/update.go`:
+
+```go
+// update.go - must include file-browser-inline-edit alongside workspace-interactive
+if m.activeContext == "workspace-interactive" || m.activeContext == "file-browser-inline-edit" {
+    // Forward ALL keys to plugin (exit keys and ctrl+c handled by plugin)
+    if p := m.ActivePlugin(); p != nil {
+        newPlugin, cmd := p.Update(msg)
+        // ...
+    }
+}
+```
+
+Without this, typing `q` in vim triggers the quit confirmation instead of inserting the character. The plugin correctly returns `"file-browser-inline-edit"` from `FocusContext()`, but the app must recognize this context for full key forwarding.
+
 ## Keyboard Shortcuts
 
 | Key | Command | Description |
@@ -401,6 +418,7 @@ Enable in `~/.config/sidecar/config.json`:
 | `internal/plugins/filebrowser/mouse.go` | Click-away detection |
 | `internal/plugins/filebrowser/plugin.go` | State management, Update routing |
 | `internal/tty/tty.go` | TTY model for tmux interaction (shared with workspace) |
+| `internal/app/update.go` | App-level key routing (must forward ALL keys for inline edit context) |
 
 ## Testing Checklist
 
@@ -434,6 +452,14 @@ Enable in `~/.config/sidecar/config.json`:
    - [ ] Window resize updates editor dimensions
    - [ ] Multiple tabs: clicking different tab triggers confirmation (if session alive)
    - [ ] Binary files don't allow inline edit (falls back to external)
+
+6. **Global shortcuts bypassed** (keys reach vim, not app):
+   - [ ] `q` types 'q' in vim (doesn't trigger quit)
+   - [ ] `1-5` types numbers in vim (doesn't switch plugins)
+   - [ ] `` ` `` and `~` type characters in vim (doesn't switch plugins)
+   - [ ] `?` types '?' in vim (doesn't open command palette)
+   - [ ] `!` types '!' in vim (doesn't open diagnostics)
+   - [ ] `@` types '@' in vim (doesn't open project switcher)
 
 ## References
 

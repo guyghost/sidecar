@@ -109,6 +109,7 @@ Complete shortcut listings and context reference. For implementation patterns, s
 | `file-browser-quick-open` | Fuzzy file finder |
 | `file-browser-project-search` | Ripgrep search modal |
 | `file-browser-file-op` | File operation input |
+| `file-browser-inline-edit` | Inline vim editor (all keys forwarded, global shortcuts bypassed) |
 
 ### Tree Shortcuts
 | Key | Command | Description |
