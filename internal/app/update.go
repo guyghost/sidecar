@@ -197,6 +197,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Switch to requested plugin
 		return m, m.FocusPluginByID(msg.PluginID)
 
+	case SwitchToMainWorktreeMsg:
+		// Current worktree was deleted - switch to main worktree
+		if msg.MainWorktreePath != "" && msg.MainWorktreePath != m.ui.WorkDir {
+			return m, tea.Batch(
+				m.switchProject(msg.MainWorktreePath),
+				func() tea.Msg {
+					return ToastMsg{
+						Message:  "Worktree deleted, switched to main repo",
+						Duration: 3 * time.Second,
+					}
+				},
+			)
+		}
+		return m, nil
+
 	case plugin.OpenFileMsg:
 		// Open file in editor using tea.ExecProcess
 		// Most editors support +lineNo syntax for opening at a line
