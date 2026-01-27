@@ -32,6 +32,7 @@ import (
 	"github.com/marcus/sidecar/internal/plugins/tdmonitor"
 	"github.com/marcus/sidecar/internal/plugins/workspace"
 	"github.com/marcus/sidecar/internal/state"
+	"github.com/marcus/sidecar/internal/styles"
 	"github.com/marcus/sidecar/internal/theme"
 )
 
@@ -119,6 +120,9 @@ func main() {
 	// Apply theme from config (after workDir is known for per-project themes)
 	resolved := theme.ResolveTheme(cfg, workDir)
 	theme.ApplyResolved(resolved)
+
+	// Apply UI settings (Nerd Font features)
+	styles.PillTabsEnabled = cfg.UI.NerdFontsEnabled
 
 	// Create keymap registry first (plugins may register bindings during Init)
 	km := keymap.NewRegistry()

@@ -219,10 +219,28 @@ Sidecar runs with sensible defaults. Create `~/.config/sidecar/config.json` only
   },
   "ui": {
     "showFooter": true,
-    "showClock": true
+    "showClock": true,
+    "nerdFontsEnabled": false
   }
 }
 ```
+
+### UI Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `showFooter` | `true` | Show keyboard hints in footer bar |
+| `showClock` | `true` | Show clock in header bar |
+| `nerdFontsEnabled` | `false` | Enable Nerd Font glyphs for enhanced visuals |
+
+### Nerd Fonts
+
+Set `"nerdFontsEnabled": true` if you have a [Nerd Font](https://www.nerdfonts.com/) installed in your terminal. This enables:
+
+- **Pill-shaped tabs** - Rounded edges on header tabs
+- **Pill-shaped buttons** - Rounded buttons in sidebars
+
+Popular Nerd Fonts: JetBrains Mono, FiraCode, Hack, Meslo. Without a Nerd Font, leave this `false` or the glyphs will render as boxes.
 
 **Plugin-specific config:** Workspace prompts support project-level overrides via `.sidecar/config.json`. See [Workspaces documentation](./workspaces-plugin#custom-prompts) for details.
 

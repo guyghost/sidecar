@@ -83,9 +83,10 @@ type KeymapConfig struct {
 
 // UIConfig configures UI appearance.
 type UIConfig struct {
-	ShowFooter bool        `json:"showFooter"`
-	ShowClock  bool        `json:"showClock"`
-	Theme      ThemeConfig `json:"theme"`
+	ShowFooter       bool        `json:"showFooter"`
+	ShowClock        bool        `json:"showClock"`
+	Theme            ThemeConfig `json:"theme"`
+	NerdFontsEnabled bool        `json:"nerdFontsEnabled"` // enables Nerd Font glyphs (pill tabs, icons, etc.)
 }
 
 // ThemeConfig configures the color theme.

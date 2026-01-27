@@ -70,6 +70,9 @@ var (
 	CurrentTabColors = []RGB{{220, 60, 60}, {60, 220, 60}, {60, 60, 220}, {156, 60, 220}} // Default rainbow
 )
 
+// PillTabsEnabled enables rounded pill-style tabs (requires Nerd Font)
+var PillTabsEnabled = false
+
 // Panel styles
 var (
 	// Active panel with highlighted border
@@ -444,6 +447,68 @@ func colorToRGB(c lipgloss.Color) RGB {
 	return HexToRGB(string(c))
 }
 
+// Pill tab cap characters (Powerline/Nerd Font)
+const (
+	pillLeftCap  = "\ue0b6" //
+	pillRightCap = "\ue0b4" //
+)
+
+// RenderPill renders text with pill-shaped caps when NerdFontsEnabled (PillTabsEnabled) is true.
+// fg is the text color, bg is the pill background, outerBg is the surrounding background.
+// If outerBg is empty, defaults to BgSecondary.
+func RenderPill(text string, fg, bg, outerBg lipgloss.Color) string {
+	if outerBg == "" {
+		outerBg = BgSecondary
+	}
+
+	style := lipgloss.NewStyle().Foreground(fg).Background(bg).Padding(0, 1)
+	content := style.Render(text)
+
+	if !PillTabsEnabled {
+		return content
+	}
+
+	leftCap := lipgloss.NewStyle().Foreground(bg).Background(outerBg).Render(pillLeftCap)
+	rightCap := lipgloss.NewStyle().Foreground(bg).Background(outerBg).Render(pillRightCap)
+
+	// Re-render content without horizontal padding since caps provide visual space
+	style = lipgloss.NewStyle().Foreground(fg).Background(bg)
+	content = style.Render(" " + text + " ")
+
+	return leftCap + content + rightCap
+}
+
+// RenderPillWithStyle renders text with pill-shaped caps using the provided lipgloss.Style.
+// The style's background color is used for the pill caps.
+// outerBg is the surrounding background; if empty, defaults to BgSecondary.
+func RenderPillWithStyle(text string, style lipgloss.Style, outerBg lipgloss.Color) string {
+	if outerBg == "" {
+		outerBg = BgSecondary
+	}
+
+	// Get background from style for pill caps
+	bg, _ := style.GetBackground().(lipgloss.Color)
+	if bg == "" {
+		bg = BgTertiary // fallback
+	}
+
+	content := style.Render(text)
+
+	if !PillTabsEnabled {
+		return content
+	}
+
+	leftCap := lipgloss.NewStyle().Foreground(bg).Background(outerBg).Render(pillLeftCap)
+	rightCap := lipgloss.NewStyle().Foreground(bg).Background(outerBg).Render(pillRightCap)
+
+	// Re-render content - adjust padding for pill caps
+	// Remove existing padding and add single space padding
+	innerStyle := style.Padding(0, 0)
+	content = innerStyle.Render(" " + text + " ")
+
+	return leftCap + content + rightCap
+}
+
 // renderGradientTab renders a tab with per-character gradient coloring.
 func renderGradientTab(label string, tabIndex, totalTabs int, isActive bool, colors []RGB) string {
 	if totalTabs == 0 {
@@ -458,8 +523,11 @@ func renderGradientTab(label string, tabIndex, totalTabs int, isActive bool, col
 	startPos := float64(tabIndex) * tabWidth
 	endPos := startPos + tabWidth
 
-	// Add padding to label
-	padded := "  " + label + "  "
+	// Add padding to label (less if using pill caps since they add visual width)
+	padded := " " + label + " "
+	if !PillTabsEnabled {
+		padded = "  " + label + "  "
+	}
 	chars := []rune(padded)
 	backgrounds := make([]RGB, len(chars))
 	result := ""
@@ -480,6 +548,13 @@ func renderGradientTab(label string, tabIndex, totalTabs int, isActive bool, col
 		backgrounds[i] = RGB{float64(r), float64(g), float64(b)}
 	}
 
+	// Left pill cap: foreground = first char's bg, background = header bg
+	if PillTabsEnabled {
+		leftBg := lipgloss.Color(RGBToHex(backgrounds[0]))
+		leftCap := lipgloss.NewStyle().Foreground(leftBg).Background(BgSecondary).Render(pillLeftCap)
+		result += leftCap
+	}
+
 	textColor := tabTextColor(isActive, backgrounds)
 	for i, ch := range chars {
 		bg := lipgloss.Color(RGBToHex(backgrounds[i]))
@@ -490,6 +565,13 @@ func renderGradientTab(label string, tabIndex, totalTabs int, isActive bool, col
 			style = lipgloss.NewStyle().Background(bg).Foreground(textColor)
 		}
 		result += style.Render(string(ch))
+	}
+
+	// Right pill cap: foreground = last char's bg, background = header bg
+	if PillTabsEnabled {
+		rightBg := lipgloss.Color(RGBToHex(backgrounds[len(backgrounds)-1]))
+		rightCap := lipgloss.NewStyle().Foreground(rightBg).Background(BgSecondary).Render(pillRightCap)
+		result += rightCap
 	}
 
 	return result
@@ -520,7 +602,11 @@ func renderPerTabColor(label string, tabIndex int, isActive bool, colors []RGB) 
 	bgColor := RGB{float64(r), float64(g), float64(b)}
 	textColor := tabTextColor(isActive, []RGB{bgColor})
 	bg := lipgloss.Color(RGBToHex(bgColor))
-	padded := "  " + label + "  "
+
+	padded := " " + label + " "
+	if !PillTabsEnabled {
+		padded = "  " + label + "  "
+	}
 
 	var style lipgloss.Style
 	if isActive {
@@ -529,12 +615,20 @@ func renderPerTabColor(label string, tabIndex int, isActive bool, colors []RGB) 
 		style = lipgloss.NewStyle().Background(bg).Foreground(textColor)
 	}
 
+	if PillTabsEnabled {
+		leftCap := lipgloss.NewStyle().Foreground(bg).Background(BgSecondary).Render(pillLeftCap)
+		rightCap := lipgloss.NewStyle().Foreground(bg).Background(BgSecondary).Render(pillRightCap)
+		return leftCap + style.Render(padded) + rightCap
+	}
 	return style.Render(padded)
 }
 
 // renderSolidTab renders a tab with the theme's primary/tertiary colors.
 func renderSolidTab(label string, isActive bool) string {
-	padded := "  " + label + "  "
+	padded := " " + label + " "
+	if !PillTabsEnabled {
+		padded = "  " + label + "  "
+	}
 
 	var bg lipgloss.Color
 	if isActive {
@@ -549,6 +643,11 @@ func renderSolidTab(label string, isActive bool) string {
 		style = style.Bold(true)
 	}
 
+	if PillTabsEnabled {
+		leftCap := lipgloss.NewStyle().Foreground(bg).Background(BgSecondary).Render(pillLeftCap)
+		rightCap := lipgloss.NewStyle().Foreground(bg).Background(BgSecondary).Render(pillRightCap)
+		return leftCap + style.Render(padded) + rightCap
+	}
 	return style.Render(padded)
 }
 

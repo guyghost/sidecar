@@ -217,7 +217,7 @@ func (p *Plugin) renderSidebarContent(width, height int) string {
 	if p.hoverNewButton {
 		buttonStyle = styles.ButtonHover
 	}
-	styledButton := buttonStyle.Render(buttonText)
+	styledButton := styles.RenderPillWithStyle(buttonText, buttonStyle, "")
 	buttonWidth := lipgloss.Width(styledButton)
 
 	// Calculate spacing between title and button
@@ -275,7 +275,7 @@ func (p *Plugin) renderSidebarContent(width, height int) string {
 		if p.hoverShellsPlusButton {
 			shellsPlusStyle = styles.ButtonHover
 		}
-		shellsPlusBtn := shellsPlusStyle.Render("+")
+		shellsPlusBtn := styles.RenderPillWithStyle("+", shellsPlusStyle, "")
 		shellsPlusBtnWidth := lipgloss.Width(shellsPlusBtn)
 		// Right-align button with fill spacing
 		spacing := width - shellsTitleWidth - shellsPlusBtnWidth
@@ -354,7 +354,7 @@ func (p *Plugin) renderSidebarContent(width, height int) string {
 			if p.hoverWorkspacesPlusButton {
 				workspacesPlusStyle = styles.ButtonHover
 			}
-			workspacesPlusBtn := workspacesPlusStyle.Render("+")
+			workspacesPlusBtn := styles.RenderPillWithStyle("+", workspacesPlusStyle, "")
 			workspacesPlusBtnWidth := lipgloss.Width(workspacesPlusBtn)
 			// Right-align button with fill spacing
 			spacing := width - workspacesTitleWidth - workspacesPlusBtnWidth

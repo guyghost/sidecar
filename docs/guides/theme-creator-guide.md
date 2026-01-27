@@ -1,8 +1,54 @@
 # Theme Creator Guide
 
-This guide explains how to create custom themes for Sidecar.
+This guide explains how to create custom themes for Sidecar and configure UI appearance options.
 
-## Quick Start
+## UI Configuration
+
+The `ui` section of your config controls visual appearance:
+
+```json
+{
+  "ui": {
+    "showFooter": true,
+    "showClock": true,
+    "nerdFontsEnabled": false,
+    "theme": { ... }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `showFooter` | bool | `true` | Show keyboard hints in footer bar |
+| `showClock` | bool | `true` | Show clock in header bar |
+| `nerdFontsEnabled` | bool | `false` | Enable Nerd Font glyphs for enhanced UI |
+
+### Nerd Fonts
+
+When `nerdFontsEnabled` is `true`, Sidecar uses [Nerd Font](https://www.nerdfonts.com/) glyphs for:
+
+- **Pill-shaped tabs** - Rounded tab edges in the header bar using Powerline characters
+- **Pill-shaped buttons** - Rounded buttons in the workspace sidebar (New, +)
+- **Future enhancements** - File type icons, status indicators, etc.
+
+**Requirements:** You must have a Nerd Font installed and configured in your terminal (e.g., JetBrains Mono Nerd Font, FiraCode Nerd Font, Hack Nerd Font).
+
+**Example:**
+
+```json
+{
+  "ui": {
+    "nerdFontsEnabled": true,
+    "theme": {
+      "name": "dracula"
+    }
+  }
+}
+```
+
+Without a Nerd Font, these characters will render as boxes or question marks. Leave `nerdFontsEnabled` as `false` (the default) if you're unsure.
+
+## Themes
 
 Themes are configured in your `~/.config/sidecar/config.json`:
 
