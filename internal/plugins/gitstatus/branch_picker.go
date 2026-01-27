@@ -94,13 +94,14 @@ func (p *Plugin) doSwitchBranch(branchName string) tea.Cmd {
 
 // loadBranches loads the branch list.
 func (p *Plugin) loadBranches() tea.Cmd {
+	epoch := p.epoch
 	workDir := p.repoRoot
 	return func() tea.Msg {
 		branches, err := GetBranches(workDir)
 		if err != nil {
 			return BranchErrorMsg{Err: err}
 		}
-		return BranchListLoadedMsg{Branches: branches}
+		return BranchListLoadedMsg{Epoch: epoch, Branches: branches}
 	}
 }
 

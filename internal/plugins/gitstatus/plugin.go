@@ -56,6 +56,7 @@ const commitHistoryPageSize = 50
 type Plugin struct {
 	ctx       *plugin.Context
 	repoRoot  string // Resolved git repo root (may differ from ctx.WorkDir if started in subdirectory)
+	epoch     uint64 // Incremented on Init() to invalidate stale async messages
 	tree      *FileTree
 	focused   bool
 	cursor    int
@@ -244,6 +245,7 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 	mouseHandler := p.mouseHandler
 	truncateCache := p.truncateCache
 	width, height := p.width, p.height
+	epoch := p.epoch + 1 // Increment epoch to invalidate stale async messages
 
 	// Reset ALL state by zeroing the struct, then restore preserved fields
 	*p = Plugin{
@@ -251,6 +253,7 @@ func (p *Plugin) Init(ctx *plugin.Context) error {
 		truncateCache:  truncateCache,
 		width:          width,
 		height:         height,
+		epoch:          epoch,
 		sidebarVisible: true,
 		activePane:     PaneSidebar,
 		sidebarRestore: PaneSidebar,
@@ -378,6 +381,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		return p, nil
 
 	case DiffLoadedMsg:
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		p.diffContent = msg.Content
 		p.diffRaw = msg.Raw
 		// Always parse diff for built-in rendering (even if delta is available)
@@ -401,6 +407,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		return p, nil
 
 	case InlineDiffLoadedMsg:
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		// Only update if this is still the selected file
 		if msg.File == p.selectedDiffFile {
 			p.diffPaneParsedDiff = msg.Parsed
@@ -409,6 +418,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		return p, nil
 
 	case RecentCommitsLoadedMsg:
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		if msg.Commits == nil {
 			if msg.PushStatus != nil {
 				p.pushStatus = msg.PushStatus
@@ -459,6 +471,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 
 	case MoreCommitsLoadedMsg:
 		p.loadingMoreCommits = false
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		if msg.Commits != nil && len(msg.Commits) > 0 {
 			if len(msg.Commits) < commitHistoryPageSize {
 				p.moreCommitsAvailable = false
@@ -475,6 +490,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		return p, nil
 
 	case FilteredCommitsLoadedMsg:
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		if msg.Commits != nil {
 			p.filteredCommits = msg.Commits
 			p.pushStatus = msg.PushStatus
@@ -494,6 +512,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		return p, nil
 
 	case CommitStatsLoadedMsg:
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		// Find commit and update its stats
 		for _, c := range p.recentCommits {
 			if c.Hash == msg.Hash {
@@ -511,6 +532,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		return p, nil
 
 	case CommitPreviewLoadedMsg:
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		// Commit preview loaded for right pane (in status view)
 		p.previewCommit = msg.Commit
 		p.previewCommitCursor = 0
@@ -576,6 +600,9 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		)
 
 	case BranchListLoadedMsg:
+		if msg.Epoch != p.epoch {
+			return p, nil // Ignore stale message from previous project
+		}
 		p.branches = msg.Branches
 		// Position cursor on current branch
 		for i, b := range p.branches {
@@ -665,6 +692,7 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 
 // CommitPreviewLoadedMsg is sent when commit preview is loaded.
 type CommitPreviewLoadedMsg struct {
+	Epoch  uint64 // Epoch when request was issued (for stale detection)
 	Commit *Commit
 }
 
@@ -965,6 +993,7 @@ type WatchEventMsg struct{}
 type WatchStartedMsg struct{ Watcher *Watcher }
 type ErrorMsg struct{ Err error }
 type DiffLoadedMsg struct {
+	Epoch   uint64 // Epoch when request was issued (for stale detection)
 	Content string // Rendered content (may be from delta)
 	Raw     string // Raw diff for built-in rendering
 }
@@ -978,6 +1007,7 @@ type CommitErrorMsg struct {
 
 // InlineDiffLoadedMsg is sent when an inline diff finishes loading.
 type InlineDiffLoadedMsg struct {
+	Epoch  uint64 // Epoch when request was issued (for stale detection)
 	File   string
 	Raw    string
 	Parsed *ParsedDiff
@@ -985,24 +1015,28 @@ type InlineDiffLoadedMsg struct {
 
 // RecentCommitsLoadedMsg is sent when recent commits are loaded for sidebar.
 type RecentCommitsLoadedMsg struct {
+	Epoch      uint64 // Epoch when request was issued (for stale detection)
 	Commits    []*Commit
 	PushStatus *PushStatus
 }
 
 // MoreCommitsLoadedMsg is sent when additional commits are fetched for infinite scroll.
 type MoreCommitsLoadedMsg struct {
+	Epoch      uint64 // Epoch when request was issued (for stale detection)
 	Commits    []*Commit
 	PushStatus *PushStatus
 }
 
 // FilteredCommitsLoadedMsg is sent when filtered commits are fetched.
 type FilteredCommitsLoadedMsg struct {
+	Epoch      uint64 // Epoch when request was issued (for stale detection)
 	Commits    []*Commit
 	PushStatus *PushStatus
 }
 
 // CommitStatsLoadedMsg is sent when commit stats are loaded.
 type CommitStatsLoadedMsg struct {
+	Epoch uint64 // Epoch when request was issued (for stale detection)
 	Hash  string
 	Stats CommitStats
 }
@@ -1034,6 +1068,7 @@ type StashResultMsg struct {
 
 // BranchListLoadedMsg is sent when branch list is loaded.
 type BranchListLoadedMsg struct {
+	Epoch    uint64 // Epoch when request was issued (for stale detection)
 	Branches []*Branch
 }
 
