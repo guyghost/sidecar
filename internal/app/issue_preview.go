@@ -36,13 +36,16 @@ type IssueSearchResultMsg struct {
 
 // issueSearchCmd runs `td search <query> --json -n 50` asynchronously.
 // When includeClosed is false, filters to non-closed statuses.
-func issueSearchCmd(query string, includeClosed bool) tea.Cmd {
+// workDir sets the command's working directory so td uses the correct project database.
+func issueSearchCmd(workDir, query string, includeClosed bool) tea.Cmd {
 	return func() tea.Msg {
 		args := []string{"search", query, "--json", "-n", "50"}
 		if !includeClosed {
 			args = append(args, "-s", "open", "-s", "in_progress", "-s", "blocked", "-s", "in_review")
 		}
-		out, err := exec.Command("td", args...).Output()
+		cmd := exec.Command("td", args...)
+		cmd.Dir = workDir
+		out, err := cmd.Output()
 		if err != nil {
 			return IssueSearchResultMsg{Query: query, Error: err}
 		}
@@ -92,9 +95,12 @@ type OpenFullIssueMsg struct {
 }
 
 // fetchIssuePreviewCmd runs `td show <id> -f json` and returns the result.
-func fetchIssuePreviewCmd(issueID string) tea.Cmd {
+// workDir sets the command's working directory so td uses the correct project database.
+func fetchIssuePreviewCmd(workDir, issueID string) tea.Cmd {
 	return func() tea.Msg {
-		out, err := exec.Command("td", "show", issueID, "-f", "json").Output()
+		cmd := exec.Command("td", "show", issueID, "-f", "json")
+		cmd.Dir = workDir
+		out, err := cmd.Output()
 		if err != nil {
 			return IssuePreviewResultMsg{Error: err}
 		}

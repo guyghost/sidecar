@@ -966,7 +966,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.issueInputModalWidth = 0
 			if len(strings.TrimSpace(m.issueInputInput.Value())) >= 2 {
 				m.issueSearchLoading = true
-				return m, issueSearchCmd(strings.TrimSpace(m.issueInputInput.Value()), m.issueSearchIncludeClosed)
+				return m, issueSearchCmd(m.ui.WorkDir, strings.TrimSpace(m.issueInputInput.Value()), m.issueSearchIncludeClosed)
 			}
 			return m, nil
 		}
@@ -1032,7 +1032,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Keep previous results visible while loading to avoid modal shrink/grow flicker.
 			// Results are replaced when the new IssueSearchResultMsg arrives.
 			m.issueSearchCursor = -1
-			return m, tea.Batch(cmd, issueSearchCmd(newValue, m.issueSearchIncludeClosed))
+			return m, tea.Batch(cmd, issueSearchCmd(m.ui.WorkDir, newValue, m.issueSearchIncludeClosed))
 		}
 		if len(newValue) < 2 {
 			m.issueSearchResults = nil
@@ -1947,7 +1947,7 @@ func (m *Model) issueInputSubmit() (tea.Model, tea.Cmd) {
 	m.issuePreviewModal = nil
 	m.issuePreviewModalWidth = 0
 	m.issuePreviewMouseHandler = mouse.NewHandler()
-	return m, fetchIssuePreviewCmd(issueID)
+	return m, fetchIssuePreviewCmd(m.ui.WorkDir, issueID)
 }
 
 // handleIssueInputMouse handles mouse events for the issue input modal.
