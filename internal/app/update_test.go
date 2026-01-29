@@ -98,6 +98,7 @@ func TestIsTextInputContext(t *testing.T) {
 		{"file-browser-file-op", true},
 		{"file-browser-project-search", true},
 		{"td-search", true},
+		{"td-form", true},
 		{"workspace-create", true},
 		{"workspace-task-link", true},
 		{"workspace-rename-shell", true},
