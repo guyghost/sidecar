@@ -36,7 +36,9 @@ const (
 	ModalQuitConfirm                       // Quit confirmation dialog
 	ModalProjectSwitcher                   // Project switcher
 	ModalWorktreeSwitcher                  // Worktree switcher
-	ModalThemeSwitcher                     // Theme switcher (lowest priority)
+	ModalThemeSwitcher                     // Theme switcher
+	ModalIssueInput                        // Issue ID text input
+	ModalIssuePreview                      // Issue preview display (lowest priority)
 )
 
 // activeModal returns the highest-priority open modal.
@@ -59,6 +61,10 @@ func (m *Model) activeModal() ModalKind {
 		return ModalWorktreeSwitcher
 	case m.showThemeSwitcher:
 		return ModalThemeSwitcher
+	case m.showIssueInput:
+		return ModalIssueInput
+	case m.showIssuePreview:
+		return ModalIssuePreview
 	default:
 		return ModalNone
 	}
@@ -162,6 +168,28 @@ type Model struct {
 	themeSwitcherOriginal      string // original theme to restore on cancel
 	themeSwitcherCommunityName string
 	themeSwitcherScope         string // "global" or "project"
+
+	// Issue preview - input phase
+	showIssueInput         bool
+	issueInputInput        textinput.Model
+	issueInputModal        *modal.Modal
+	issueInputModalWidth   int
+	issueInputMouseHandler *mouse.Handler
+
+	// Issue input auto-complete
+	issueSearchResults []IssueSearchResult
+	issueSearchQuery   string // last query sent to td search
+	issueSearchLoading bool
+	issueSearchCursor  int // selected result index (-1 = none/input focused)
+
+	// Issue preview - preview phase
+	showIssuePreview         bool
+	issuePreviewData         *IssuePreviewData
+	issuePreviewLoading      bool
+	issuePreviewError        error
+	issuePreviewModal        *modal.Modal
+	issuePreviewModalWidth   int
+	issuePreviewMouseHandler *mouse.Handler
 
 	// Community theme browser (sub-mode of theme switcher)
 	showCommunityBrowser     bool
@@ -1004,6 +1032,46 @@ func (m *Model) clearThemeSwitcherModal() {
 	m.themeSwitcherModal = nil
 	m.themeSwitcherModalWidth = 0
 	m.themeSwitcherMouseHandler = nil
+}
+
+// initIssueInput initializes the issue input modal.
+func (m *Model) initIssueInput() {
+	ti := textinput.New()
+	ti.Placeholder = "Issue ID or search text"
+	ti.Focus()
+	ti.CharLimit = 50
+	ti.Width = 50
+	m.issueInputInput = ti
+	m.issueInputModal = nil
+	m.issueInputModalWidth = 0
+	m.issueInputMouseHandler = mouse.NewHandler()
+	m.issueSearchResults = nil
+	m.issueSearchQuery = ""
+	m.issueSearchLoading = false
+	m.issueSearchCursor = -1
+}
+
+// resetIssueInput resets the issue input modal state.
+func (m *Model) resetIssueInput() {
+	m.showIssueInput = false
+	m.issueInputModal = nil
+	m.issueInputModalWidth = 0
+	m.issueInputMouseHandler = nil
+	m.issueSearchResults = nil
+	m.issueSearchQuery = ""
+	m.issueSearchLoading = false
+	m.issueSearchCursor = -1
+}
+
+// resetIssuePreview resets the issue preview modal state.
+func (m *Model) resetIssuePreview() {
+	m.showIssuePreview = false
+	m.issuePreviewData = nil
+	m.issuePreviewLoading = false
+	m.issuePreviewError = nil
+	m.issuePreviewModal = nil
+	m.issuePreviewModalWidth = 0
+	m.issuePreviewMouseHandler = nil
 }
 
 // initThemeSwitcher initializes the theme switcher modal.

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -101,6 +102,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m.handleCommunityBrowserMouse(msg)
 			}
 			return m.handleThemeSwitcherMouse(msg)
+		case ModalIssueInput:
+			return m.handleIssueInputMouse(msg)
+		case ModalIssuePreview:
+			return m.handleIssuePreviewMouse(msg)
 		}
 
 		// Handle header tab clicks (Y < 2 means header area)
@@ -362,6 +367,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 		return m, nil
+
+	case IssuePreviewResultMsg:
+		m.issuePreviewLoading = false
+		if msg.Error != nil {
+			m.issuePreviewError = msg.Error
+		} else {
+			m.issuePreviewData = msg.Data
+		}
+		// Clear modal cache to trigger rebuild
+		m.issuePreviewModal = nil
+		m.issuePreviewModalWidth = 0
+		return m, nil
+
+	case IssueSearchResultMsg:
+		// Discard stale results
+		if msg.Query != m.issueSearchQuery || !m.showIssueInput {
+			return m, nil
+		}
+		m.issueSearchLoading = false
+		if msg.Error == nil {
+			m.issueSearchResults = msg.Results
+		}
+		m.issueInputModal = nil
+		m.issueInputModalWidth = 0
+		return m, nil
 	}
 
 	// Forward other messages to ALL plugins (not just active)
@@ -440,6 +470,14 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.resetWorktreeSwitcher()
+			m.updateContext()
+			return m, nil
+		case ModalIssueInput:
+			m.resetIssueInput()
+			m.updateContext()
+			return m, nil
+		case ModalIssuePreview:
+			m.resetIssuePreview()
 			m.updateContext()
 			return m, nil
 		case ModalThemeSwitcher:
@@ -948,6 +986,111 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Handle issue input modal keys
+	if m.showIssueInput {
+		switch msg.Type {
+		case tea.KeyEnter:
+			return m.issueInputSubmit()
+		case tea.KeyUp:
+			if len(m.issueSearchResults) > 0 {
+				m.issueSearchCursor--
+				if m.issueSearchCursor < -1 {
+					m.issueSearchCursor = -1
+				}
+				m.issueInputModal = nil
+				m.issueInputModalWidth = 0
+				return m, nil
+			}
+		case tea.KeyDown:
+			if len(m.issueSearchResults) > 0 {
+				m.issueSearchCursor++
+				if m.issueSearchCursor >= len(m.issueSearchResults) {
+					m.issueSearchCursor = len(m.issueSearchResults) - 1
+				}
+				m.issueInputModal = nil
+				m.issueInputModalWidth = 0
+				return m, nil
+			}
+		case tea.KeyTab:
+			if m.issueSearchCursor >= 0 && m.issueSearchCursor < len(m.issueSearchResults) {
+				m.issueInputInput.SetValue(m.issueSearchResults[m.issueSearchCursor].ID)
+				m.issueInputInput.CursorEnd()
+				m.issueInputModal = nil
+				m.issueInputModalWidth = 0
+			}
+			// Tab is consumed (fill-in or no-op) — don't forward to textinput
+			return m, nil
+		}
+
+		if isMouseEscapeSequence(msg) {
+			return m, nil
+		}
+
+		// Forward key to text input, then clear modal cache so it rebuilds
+		var cmd tea.Cmd
+		m.issueInputInput, cmd = m.issueInputInput.Update(msg)
+		m.issueInputModal = nil
+		m.issueInputModalWidth = 0
+
+		// Trigger search if input changed (min 2 chars)
+		newValue := strings.TrimSpace(m.issueInputInput.Value())
+		if newValue != m.issueSearchQuery && len(newValue) >= 2 {
+			m.issueSearchQuery = newValue
+			m.issueSearchLoading = true
+			m.issueSearchResults = nil
+			m.issueSearchCursor = -1
+			return m, tea.Batch(cmd, issueSearchCmd(newValue))
+		}
+		if len(newValue) < 2 {
+			m.issueSearchResults = nil
+			m.issueSearchQuery = ""
+			m.issueSearchCursor = -1
+		}
+		return m, cmd
+	}
+
+	// Handle issue preview modal keys
+	if m.showIssuePreview {
+		m.ensureIssuePreviewModal()
+		if m.issuePreviewModal == nil {
+			return m, nil
+		}
+
+		// "o" shortcut to open in TD
+		if msg.String() == "o" && m.issuePreviewData != nil {
+			issueID := m.issuePreviewData.ID
+			m.resetIssuePreview()
+			m.updateContext()
+			return m, tea.Batch(
+				FocusPlugin("td-monitor"),
+				func() tea.Msg { return OpenFullIssueMsg{IssueID: issueID} },
+			)
+		}
+
+		action, cmd := m.issuePreviewModal.HandleKey(msg)
+		switch action {
+		case "open-in-td":
+			issueID := ""
+			if m.issuePreviewData != nil {
+				issueID = m.issuePreviewData.ID
+			}
+			m.resetIssuePreview()
+			m.updateContext()
+			if issueID != "" {
+				return m, tea.Batch(
+					FocusPlugin("td-monitor"),
+					func() tea.Msg { return OpenFullIssueMsg{IssueID: issueID} },
+				)
+			}
+			return m, nil
+		case "cancel":
+			m.resetIssuePreview()
+			m.updateContext()
+			return m, nil
+		}
+		return m, cmd
+	}
+
 	// If any modal is open, don't process plugin/toggle keys
 	if m.hasModal() {
 		return m, nil
@@ -1049,6 +1192,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.updateContext()
 		}
 		return m, nil
+	case "i":
+		if !m.hasModal() {
+			m.showIssueInput = true
+			m.activeContext = "issue-input"
+			m.initIssueInput()
+			return m, nil
+		}
 	case "ctrl+h":
 		m.showFooter = !m.showFooter
 		// Notify plugins of changed content area height
@@ -1953,5 +2103,101 @@ func (m *Model) handleCommunityBrowserMouse(msg tea.MouseMsg) (tea.Model, tea.Cm
 		m.communityBrowserHover = -1
 	}
 
+	return m, nil
+}
+
+// issueInputSubmit resolves the current issue input (selected result or typed ID)
+// and either opens the full issue in TD monitor or shows a lightweight preview.
+func (m *Model) issueInputSubmit() (tea.Model, tea.Cmd) {
+	var issueID string
+	if m.issueSearchCursor >= 0 && m.issueSearchCursor < len(m.issueSearchResults) {
+		issueID = m.issueSearchResults[m.issueSearchCursor].ID
+	} else {
+		issueID = strings.TrimSpace(m.issueInputInput.Value())
+	}
+	if issueID == "" {
+		return m, nil
+	}
+	m.resetIssueInput()
+	// Check if active plugin is TD monitor — go directly to rich modal
+	if p := m.ActivePlugin(); p != nil && p.ID() == "td-monitor" {
+		m.updateContext()
+		return m, tea.Batch(
+			func() tea.Msg { return OpenFullIssueMsg{IssueID: issueID} },
+		)
+	}
+	// Otherwise show lightweight preview (clear stale state)
+	m.showIssuePreview = true
+	m.issuePreviewLoading = true
+	m.issuePreviewData = nil
+	m.issuePreviewError = nil
+	m.issuePreviewModal = nil
+	m.issuePreviewModalWidth = 0
+	m.issuePreviewMouseHandler = mouse.NewHandler()
+	return m, fetchIssuePreviewCmd(issueID)
+}
+
+// handleIssueInputMouse handles mouse events for the issue input modal.
+func (m *Model) handleIssueInputMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	m.ensureIssueInputModal()
+	if m.issueInputModal == nil {
+		return m, nil
+	}
+	if m.issueInputMouseHandler == nil {
+		m.issueInputMouseHandler = mouse.NewHandler()
+	}
+	// Pre-render to sync hit regions and focusIDs on the (potentially rebuilt) modal.
+	// The issue input modal is nilled on every keystroke to fix a stale text-input
+	// pointer, so the modal object seen here may lack focusIDs from a prior Render.
+	m.issueInputModal.Render(m.width, m.height, m.issueInputMouseHandler)
+	action := m.issueInputModal.HandleMouse(msg, m.issueInputMouseHandler)
+	switch {
+	case action == "cancel":
+		m.resetIssueInput()
+		m.updateContext()
+	case action == "open":
+		return m.issueInputSubmit()
+	case strings.HasPrefix(action, issueSearchResultPrefix):
+		// Click on a search result — select it and submit
+		idxStr := strings.TrimPrefix(action, issueSearchResultPrefix)
+		if idx, err := strconv.Atoi(idxStr); err == nil && idx >= 0 && idx < len(m.issueSearchResults) {
+			m.issueSearchCursor = idx
+			return m.issueInputSubmit()
+		}
+	}
+	return m, nil
+}
+
+// handleIssuePreviewMouse handles mouse events for the issue preview modal.
+func (m *Model) handleIssuePreviewMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	m.ensureIssuePreviewModal()
+	if m.issuePreviewModal == nil {
+		return m, nil
+	}
+	if m.issuePreviewMouseHandler == nil {
+		m.issuePreviewMouseHandler = mouse.NewHandler()
+	}
+	// Pre-render to sync hit regions and focusIDs on the modal, which may have
+	// been rebuilt (e.g. after data/error arrival cleared the cache).
+	m.issuePreviewModal.Render(m.width, m.height, m.issuePreviewMouseHandler)
+	action := m.issuePreviewModal.HandleMouse(msg, m.issuePreviewMouseHandler)
+	switch action {
+	case "cancel":
+		m.resetIssuePreview()
+		m.updateContext()
+	case "open-in-td":
+		issueID := ""
+		if m.issuePreviewData != nil {
+			issueID = m.issuePreviewData.ID
+		}
+		m.resetIssuePreview()
+		m.updateContext()
+		if issueID != "" {
+			return m, tea.Batch(
+				FocusPlugin("td-monitor"),
+				func() tea.Msg { return OpenFullIssueMsg{IssueID: issueID} },
+			)
+		}
+	}
 	return m, nil
 }
