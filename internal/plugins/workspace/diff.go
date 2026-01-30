@@ -1,11 +1,9 @@
 package workspace
 
 import (
-	"context"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -235,8 +233,9 @@ func getWorktreeCommits(workdir, baseBranch string) ([]CommitStatusInfo, error) 
 		return []CommitStatusInfo{}, nil
 	}
 
-	// Get remote tracking branch to check pushed status
+	// Get remote tracking branch and find unpushed commits in one batch call
 	remoteBranch := getRemoteTrackingBranch(workdir)
+	unpushed := getUnpushedCommits(workdir, remoteBranch)
 
 	var commits []CommitStatusInfo
 	for _, line := range lines {
@@ -250,11 +249,8 @@ func getWorktreeCommits(workdir, baseBranch string) ([]CommitStatusInfo, error) 
 		hash := parts[0]
 		subject := parts[1]
 
-		// Check if pushed (exists in remote tracking branch)
-		pushed := false
-		if remoteBranch != "" {
-			pushed = isCommitInBranch(workdir, hash, remoteBranch)
-		}
+		// A commit is pushed if remote branch exists and commit is not in the unpushed set
+		pushed := remoteBranch != "" && !unpushed[hash]
 
 		commits = append(commits, CommitStatusInfo{
 			Hash:    hash,
@@ -321,20 +317,24 @@ func getRemoteTrackingBranch(workdir string) string {
 	return strings.TrimSpace(string(output))
 }
 
-// isCommitInBranch checks if a commit is reachable from a branch.
-// Uses git merge-base --is-ancestor with a 5-second timeout.
-// Returns false for empty inputs, non-existent refs, or if commit is not an ancestor.
-func isCommitInBranch(workdir, commit, branch string) bool {
-	if commit == "" || branch == "" || workdir == "" {
-		return false
+// getUnpushedCommits returns a set of short commit hashes that are in HEAD but not
+// in the remote tracking branch. Uses a single git call instead of per-commit checks.
+func getUnpushedCommits(workdir, remoteBranch string) map[string]bool {
+	if remoteBranch == "" || workdir == "" {
+		return nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "git", "merge-base", "--is-ancestor", commit, branch)
+	cmd := exec.Command("git", "log", remoteBranch+"..HEAD", "--format=%h")
 	cmd.Dir = workdir
-	err := cmd.Run()
-	return err == nil
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	result := make(map[string]bool)
+	for _, h := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if h != "" {
+			result[h] = true
+		}
+	}
+	return result
 }
 
