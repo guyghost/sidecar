@@ -689,11 +689,18 @@ func (p *Plugin) resizeForAttachCmd(target string) tea.Cmd {
 // tmux to process, then attaches. Centralizes resize-before-attach logic.
 func (p *Plugin) attachWithResize(target, sessionName, displayName string, onComplete func(error) tea.Msg) tea.Cmd {
 	c := exec.Command("tmux", "attach-session", "-t", sessionName)
+	termState, _ := term.GetState(int(os.Stdout.Fd()))
+	wrappedOnComplete := func(err error) tea.Msg {
+		if termState != nil {
+			term.Restore(int(os.Stdout.Fd()), termState)
+		}
+		return onComplete(err)
+	}
 	return tea.Sequence(
 		p.resizeForAttachCmd(target),
 		tea.Tick(50*time.Millisecond, func(time.Time) tea.Msg { return nil }),
 		tea.Printf("\nAttaching to %s. Press %s d to return to sidecar.\n", displayName, getTmuxPrefix()),
-		tea.ExecProcess(c, onComplete),
+		tea.ExecProcess(c, wrappedOnComplete),
 	)
 }
 
