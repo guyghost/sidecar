@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/marcus/sidecar/internal/features"
 	"github.com/marcus/sidecar/internal/styles"
 	"github.com/marcus/sidecar/internal/tty"
+	"golang.org/x/term"
 )
 
 // Interactive mode constants
@@ -669,12 +671,16 @@ func (p *Plugin) resizeForAttachCmd(target string) tea.Cmd {
 	if target == "" {
 		return nil
 	}
-	width, height := p.width, p.height
-	if width <= 0 || height <= 0 {
-		return nil
-	}
 	return func() tea.Msg {
-		p.resizeTmuxPane(target, width, height)
+		w, h, err := term.GetSize(int(os.Stdout.Fd()))
+		if err != nil || w <= 0 || h <= 0 {
+			// Fallback to plugin dimensions
+			w, h = p.width, p.height
+		}
+		if w <= 0 || h <= 0 {
+			return nil
+		}
+		p.resizeTmuxPane(target, w, h)
 		return nil
 	}
 }
