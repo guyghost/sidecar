@@ -52,6 +52,10 @@ var (
 	DangerHover  = lipgloss.Color("#B91C1C") // Darker red hover bg
 	TextInverse  = lipgloss.Color("#FFFFFF") // Inverse/contrast text
 
+	// Scrollbar colors (default to TextSubtle/TextMuted)
+	ScrollbarTrackColor = lipgloss.Color("#4B5563") // Same as TextSubtle
+	ScrollbarThumbColor = lipgloss.Color("#6B7280") // Same as TextMuted
+
 	// Blame age gradient colors
 	BlameAge1 = lipgloss.Color("#34D399") // < 1 week
 	BlameAge2 = lipgloss.Color("#84CC16") // < 1 month

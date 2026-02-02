@@ -75,6 +75,10 @@ type ColorPalette struct {
 	DangerHover  string `json:"dangerHover"`  // Darker red for hover danger button bg
 	TextInverse  string `json:"textInverse"`  // Inverse text (white on dark themes)
 
+	// Scrollbar colors
+	ScrollbarTrack string `json:"scrollbarTrack"` // Track color (default: TextSubtle)
+	ScrollbarThumb string `json:"scrollbarThumb"` // Thumb color (default: TextMuted)
+
 	// Blame age gradient colors (newest → oldest)
 	BlameAge1 string `json:"blameAge1"` // < 1 week (light green)
 	BlameAge2 string `json:"blameAge2"` // < 1 month (lime)
@@ -757,6 +761,10 @@ func applySingleOverride(palette *ColorPalette, key, value string) {
 		palette.BlameAge4 = value
 	case "blameAge5":
 		palette.BlameAge5 = value
+	case "scrollbarTrack":
+		palette.ScrollbarTrack = value
+	case "scrollbarThumb":
+		palette.ScrollbarThumb = value
 	}
 }
 
@@ -870,6 +878,18 @@ func ApplyThemeColors(theme Theme) {
 	}
 	if c.BlameAge5 != "" {
 		BlameAge5 = lipgloss.Color(c.BlameAge5)
+	}
+
+	// Scrollbar colors (with fallback to TextSubtle/TextMuted)
+	if c.ScrollbarTrack != "" {
+		ScrollbarTrackColor = lipgloss.Color(c.ScrollbarTrack)
+	} else {
+		ScrollbarTrackColor = TextSubtle
+	}
+	if c.ScrollbarThumb != "" {
+		ScrollbarThumbColor = lipgloss.Color(c.ScrollbarThumb)
+	} else {
+		ScrollbarThumbColor = TextMuted
 	}
 
 	// Store syntax/markdown theme names for external use

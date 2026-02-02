@@ -56,8 +56,8 @@ func RenderScrollbar(params ScrollbarParams) string {
 		thumbPos = params.TrackHeight - thumbSize
 	}
 
-	trackStyle := lipgloss.NewStyle().Foreground(styles.TextSubtle)
-	thumbStyle := lipgloss.NewStyle().Foreground(styles.TextMuted)
+	trackStyle := lipgloss.NewStyle().Foreground(styles.ScrollbarTrackColor)
+	thumbStyle := lipgloss.NewStyle().Foreground(styles.ScrollbarThumbColor)
 
 	trackChar := trackStyle.Render("│")
 	thumbChar := thumbStyle.Render("┃")
