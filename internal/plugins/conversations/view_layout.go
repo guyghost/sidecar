@@ -300,6 +300,10 @@ func (p *Plugin) renderSidebarPane(height int) string {
 	}
 	sb.WriteString(styles.Title.Render("Sessions"))
 	sb.WriteString(styles.Muted.Render(" " + countStr))
+	// Show loading indicator while adapters are still sending batches (td-7198a5)
+	if p.loadingAdapters {
+		sb.WriteString(styles.Muted.Render(" ⟳"))
+	}
 	sb.WriteString("\n")
 
 	linesUsed := 1

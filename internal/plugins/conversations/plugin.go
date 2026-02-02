@@ -102,6 +102,7 @@ type Plugin struct {
 	scrollOff       int
 	displayedCount  int  // sessions currently surfaced to UI (td-7198a5)
 	hasMoreSessions bool // displayedCount < len(sessions) (td-7198a5)
+	loadingAdapters bool // true while adapter batches are still arriving (td-7198a5)
 
 	// Message view state
 	selectedSession string
@@ -316,6 +317,7 @@ func (p *Plugin) resetState() {
 	p.scrollOff = 0
 	p.displayedCount = defaultSessionPageSize
 	p.hasMoreSessions = false
+	p.loadingAdapters = false
 
 	// Message view state
 	p.selectedSession = ""
@@ -541,6 +543,7 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 		if plugin.IsStale(p.ctx, msg) {
 			return p, nil
 		}
+		p.loadingAdapters = true
 		return p, p.listenForAdapterBatch()
 
 	case AdapterBatchMsg:
@@ -584,6 +587,8 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 			// Keep listening for more adapter batches
 			cmds = append(cmds, p.listenForAdapterBatch())
 		} else {
+			// All adapters done (td-7198a5)
+			p.loadingAdapters = false
 			// Final batch: update worktree cache
 			if msg.WorktreePaths != nil {
 				p.cachedWorktreePaths = msg.WorktreePaths
