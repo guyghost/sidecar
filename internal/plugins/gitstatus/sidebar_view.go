@@ -524,6 +524,10 @@ func (p *Plugin) renderRecentCommits(currentY *int, maxVisible int) string {
 			commitsSB.WriteString(styles.ListItemSelected.Render(plainLine))
 		} else {
 			line := fmt.Sprintf("%s%s%s %s", graphStr, indicator, hash, msg)
+			lineWidth := lipgloss.Width(line)
+			if lineWidth < maxWidth {
+				line += strings.Repeat(" ", maxWidth-lineWidth)
+			}
 			commitsSB.WriteString(styles.ListItemNormal.Render(line))
 		}
 		*currentY++

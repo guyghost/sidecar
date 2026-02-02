@@ -67,6 +67,7 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 		return p, nil
 
 	case regionFile:
+		p.activePane = PaneSidebar
 		// Click on file - select it, or toggle folder expansion
 		if idx, ok := action.Region.Data.(int); ok {
 			entries := p.tree.AllEntries()
@@ -93,6 +94,7 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) (*Plugin, tea.Cmd) {
 		return p, nil
 
 	case regionCommit:
+		p.activePane = PaneSidebar
 		// Click on commit - select it
 		// idx is now absolute index into recentCommits
 		if idx, ok := action.Region.Data.(int); ok {
