@@ -772,10 +772,11 @@ func (p *Plugin) renderDivider(height int) string {
 		Foreground(styles.BorderNormal).
 		MarginTop(1)
 
+	// Build vertical bar (height-2 to stop above bottom border)
 	var sb strings.Builder
-	for i := 0; i < height; i++ {
+	for i := 0; i < height-2; i++ {
 		sb.WriteString("│")
-		if i < height-1 {
+		if i < height-3 {
 			sb.WriteString("\n")
 		}
 	}
