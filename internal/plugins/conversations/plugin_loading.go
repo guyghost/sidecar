@@ -54,13 +54,11 @@ func (p *Plugin) loadSessions() tea.Cmd {
 		}
 		p.loadingSessions = true
 		p.loadingMu.Unlock()
-		defer func() {
+
+		if len(adapters) == 0 {
 			p.loadingMu.Lock()
 			p.loadingSessions = false
 			p.loadingMu.Unlock()
-		}()
-
-		if len(adapters) == 0 {
 			return SessionsLoadedMsg{Epoch: epoch}
 		}
 
@@ -127,13 +125,8 @@ func (p *Plugin) loadSessions() tea.Cmd {
 			currentPath = absPath
 		}
 
-		// Parallel adapter loading (td-7198a5: eliminates sequential bottleneck)
-		type adapterResult struct {
-			sessions []adapter.Session
-		}
-		resultCh := make(chan adapterResult, len(adapters))
+		// Launch per-adapter goroutines that send directly to channel (td-7198a5)
 		var wg sync.WaitGroup
-
 		for id, a := range adapters {
 			adapterID := id
 			adpt := a
@@ -168,48 +161,40 @@ func (p *Plugin) loadSessions() tea.Cmd {
 						adapterSess = append(adapterSess, wtSessions[i])
 					}
 				}
-				resultCh <- adapterResult{sessions: adapterSess}
+				// Mark sessions from deleted worktrees
+				for i := range adapterSess {
+					if adapterSess[i].WorktreePath != "" {
+						if _, err := os.Stat(adapterSess[i].WorktreePath); os.IsNotExist(err) {
+							adapterSess[i].WorktreeName = adapterSess[i].WorktreeName + " (deleted)"
+						}
+					}
+				}
+				p.adapterBatchChan <- AdapterBatchMsg{
+					Epoch:    epoch,
+					Sessions: adapterSess,
+				}
 			}()
 		}
 
-		wg.Wait()
-		close(resultCh)
+		// Coordinator goroutine: wait for all, send final signal, release lock
+		go func() {
+			wg.Wait()
+			fdmonitor.Check(nil)
 
-		// Collect results and deduplicate
-		seenSessions := make(map[string]bool)
-		var sessions []adapter.Session
-		for result := range resultCh {
-			for _, s := range result.sessions {
-				if !seenSessions[s.ID] {
-					seenSessions[s.ID] = true
-					sessions = append(sessions, s)
-				}
+			finalMsg := AdapterBatchMsg{Epoch: epoch, Final: true}
+			if cacheUpdated {
+				finalMsg.WorktreePaths = worktreePaths
+				finalMsg.WorktreeNames = worktreeNames
 			}
-		}
+			p.adapterBatchChan <- finalMsg
 
-		// Mark sessions from deleted worktrees
-		for i := range sessions {
-			if sessions[i].WorktreePath != "" {
-				if _, err := os.Stat(sessions[i].WorktreePath); os.IsNotExist(err) {
-					sessions[i].WorktreeName = sessions[i].WorktreeName + " (deleted)"
-				}
-			}
-		}
+			p.loadingMu.Lock()
+			p.loadingSessions = false
+			p.loadingMu.Unlock()
+		}()
 
-		sort.Slice(sessions, func(i, j int) bool {
-			return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
-		})
-
-		// Check FD count after session loading (td-023577)
-		fdmonitor.Check(nil) // Rate-limited, logs warning if threshold exceeded
-
-		// Return cache data only when updated (td-0e43c080: Update() stores safely)
-		msg := SessionsLoadedMsg{Epoch: epoch, Sessions: sessions}
-		if cacheUpdated {
-			msg.WorktreePaths = worktreePaths
-			msg.WorktreeNames = worktreeNames
-		}
-		return msg
+		// Return immediately — adapter goroutines will send results to channel
+		return LoadingStartedMsg{Epoch: epoch}
 	}
 }
 
@@ -437,6 +422,37 @@ func (p *Plugin) listenForWatchEvents() tea.Cmd {
 			return nil
 		}
 		return WatchEventMsg{Epoch: epoch, SessionID: evt.SessionID}
+	}
+}
+
+// AdapterBatchMsg delivers sessions from a single adapter incrementally (td-7198a5).
+type AdapterBatchMsg struct {
+	Epoch         uint64
+	Sessions      []adapter.Session
+	Final         bool // true when all adapters are done
+	WorktreePaths []string
+	WorktreeNames map[string]string
+}
+
+// GetEpoch implements plugin.EpochMessage.
+func (m AdapterBatchMsg) GetEpoch() uint64 { return m.Epoch }
+
+// LoadingStartedMsg signals that adapter goroutines have been launched (td-7198a5).
+type LoadingStartedMsg struct {
+	Epoch uint64
+}
+
+// GetEpoch implements plugin.EpochMessage.
+func (m LoadingStartedMsg) GetEpoch() uint64 { return m.Epoch }
+
+// listenForAdapterBatch waits for incremental adapter session batches (td-7198a5).
+func (p *Plugin) listenForAdapterBatch() tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-p.adapterBatchChan
+		if !ok {
+			return nil
+		}
+		return msg
 	}
 }
 

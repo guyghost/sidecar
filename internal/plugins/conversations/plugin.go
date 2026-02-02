@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -157,6 +158,9 @@ type Plugin struct {
 	coalesceChan      chan CoalescedRefreshMsg
 	coalesceChanClose sync.Once
 
+	// Incremental adapter session batches (td-7198a5)
+	adapterBatchChan chan AdapterBatchMsg
+
 	// Search state
 	searchMode    bool
 	searchQuery   string
@@ -268,6 +272,7 @@ func New() *Plugin {
 		mouseHandler:        mouse.NewHandler(),
 		contentRenderer:     renderer,
 		coalesceChan:        coalesceChan,
+		adapterBatchChan:    make(chan AdapterBatchMsg, 8),
 		renderCache:         make(map[renderCacheKey]string),
 		hitRegionsDirty:     true, // Start dirty to ensure first render builds regions
 		sidebarVisible:      true, // Sidebar visible by default
@@ -390,6 +395,9 @@ func (p *Plugin) resetState() {
 	p.coalesceChanClose = sync.Once{}
 	p.coalesceChan = make(chan CoalescedRefreshMsg, 8)
 	p.coalescer = NewEventCoalescer(0, p.coalesceChan)
+
+	// Recreate adapter batch channel (td-7198a5)
+	p.adapterBatchChan = make(chan AdapterBatchMsg, 8)
 
 	// Initial load state (td-6cc19f)
 	p.initialLoadDone = false
@@ -528,6 +536,87 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 			}
 			return p.updateSessions(msg)
 		}
+
+	case LoadingStartedMsg:
+		if plugin.IsStale(p.ctx, msg) {
+			return p, nil
+		}
+		return p, p.listenForAdapterBatch()
+
+	case AdapterBatchMsg:
+		if plugin.IsStale(p.ctx, msg) {
+			if !msg.Final {
+				return p, p.listenForAdapterBatch() // keep draining stale batches
+			}
+			return p, nil
+		}
+
+		// Merge new sessions, deduplicating by ID
+		seen := make(map[string]bool, len(p.sessions))
+		for _, s := range p.sessions {
+			seen[s.ID] = true
+		}
+		for _, s := range msg.Sessions {
+			if !seen[s.ID] {
+				seen[s.ID] = true
+				p.sessions = append(p.sessions, s)
+			}
+		}
+		// Re-sort by UpdatedAt descending
+		sort.Slice(p.sessions, func(i, j int) bool {
+			return p.sessions[i].UpdatedAt.After(p.sessions[j].UpdatedAt)
+		})
+
+		// Update pagination state (td-7198a5)
+		if p.displayedCount == 0 {
+			p.displayedCount = defaultSessionPageSize
+		}
+		p.hasMoreSessions = len(p.sessions) > p.displayedCount
+
+		// Update coalescer with session sizes
+		if p.coalescer != nil {
+			p.coalescer.UpdateSessionSizes(p.sessions)
+		}
+
+		var cmds []tea.Cmd
+
+		if !msg.Final {
+			// Keep listening for more adapter batches
+			cmds = append(cmds, p.listenForAdapterBatch())
+		} else {
+			// Final batch: update worktree cache
+			if msg.WorktreePaths != nil {
+				p.cachedWorktreePaths = msg.WorktreePaths
+				p.cachedWorktreeNames = msg.WorktreeNames
+				p.worktreeCacheTime = time.Now()
+			}
+			// Check for large session warnings
+			if cmd := p.checkLargeSessionWarnings(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			// Schedule settle check for skeleton hide
+			if !p.initialLoadDone {
+				p.loadSettleToken++
+				token := p.loadSettleToken
+				cmds = append(cmds, tea.Tick(loadSettleDelay, func(time.Time) tea.Msg {
+					return LoadSettledMsg{Token: token}
+				}))
+			}
+		}
+
+		// Ensure a selection so the right pane can render
+		if p.selectedSession == "" && len(p.sessions) > 0 {
+			if p.cursor >= len(p.visibleSessions()) {
+				p.cursor = 0
+			}
+			sessions := p.visibleSessions()
+			if len(sessions) > 0 {
+				p.setSelectedSession(sessions[p.cursor].ID)
+				cmds = append(cmds, p.schedulePreviewLoad(p.selectedSession))
+			}
+		}
+
+		return p, tea.Batch(cmds...)
 
 	case SessionsLoadedMsg:
 		if plugin.IsStale(p.ctx, msg) {
