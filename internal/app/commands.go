@@ -4,20 +4,20 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/marcus/sidecar/internal/msg"
 	"github.com/marcus/sidecar/internal/plugin"
 )
+
+// ToastMsg is re-exported from msg package for backward compatibility.
+type ToastMsg = msg.ToastMsg
+
+// ShowToast is re-exported from msg package for backward compatibility.
+var ShowToast = msg.ShowToast
 
 // Message types for tea.Cmd
 type (
 	// TickMsg is sent on each clock tick.
 	TickMsg time.Time
-
-	// ToastMsg displays a temporary message.
-	ToastMsg struct {
-		Message  string
-		Duration time.Duration
-		IsError  bool // true for error toasts (red), false for success (green)
-	}
 
 	// RefreshMsg triggers a full refresh.
 	RefreshMsg struct{}
@@ -33,16 +33,6 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return TickMsg(t)
 	})
-}
-
-// ShowToast returns a command to show a toast message.
-func ShowToast(msg string, duration time.Duration) tea.Cmd {
-	return func() tea.Msg {
-		return ToastMsg{
-			Message:  msg,
-			Duration: duration,
-		}
-	}
 }
 
 // Refresh returns a command to trigger a refresh.
