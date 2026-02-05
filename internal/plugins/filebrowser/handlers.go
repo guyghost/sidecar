@@ -293,7 +293,7 @@ func (p *Plugin) handleTreeKey(key string) (plugin.Plugin, tea.Cmd) {
 			p.fileOpButtonFocus = 0
 		}
 
-	case "d":
+	case "D":
 		// Delete file/directory (requires confirmation)
 		node := p.tree.GetNode(p.treeCursor)
 		if node != nil && node != p.tree.Root {
