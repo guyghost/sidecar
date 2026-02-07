@@ -259,7 +259,18 @@ make test         # Run tests
 make test-v       # Verbose test output
 make install-dev  # Install with git version info
 make fmt          # Format code
+make fmt-check    # Verify formatting for changed Go files
+make fmt-check-all # Verify formatting across full codebase
+make lint         # Lint new issues only (merge-base with main)
+make lint-all     # Lint entire codebase (includes legacy debt)
 ```
+
+### Go Lint Baseline
+
+- Formatting: changed Go files must be `gofmt`-clean (`make fmt-check`)
+- Correctness lint: `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`
+- Enforcement: CI runs tests and blocks new lint issues on PRs (`.github/workflows/go-ci.yml`)
+- Debt tracking: run `make lint-all` to measure and burn down legacy lint debt
 
 ## License
 

@@ -1,7 +1,9 @@
-.PHONY: build install install-dev test clean check-clean tag goreleaser-snapshot
+.PHONY: build install install-dev test test-v clean check-clean tag goreleaser-snapshot fmt fmt-check fmt-check-all lint lint-all
 
 # Default target
 all: build
+
+LINT_BASE ?= main
 
 # Build the binary
 build:
@@ -60,9 +62,36 @@ version:
 fmt:
 	go fmt ./...
 
+# Check formatting for changed Go files only (merge-base with LINT_BASE)
+fmt-check:
+	@files="$$(git diff --name-only --diff-filter=ACMRTUXB $(LINT_BASE)...HEAD -- '*.go')"; \
+	if [ -z "$$files" ]; then \
+		echo "No changed Go files to check."; \
+		exit 0; \
+	fi; \
+	unformatted="$$(echo "$$files" | xargs gofmt -l)"; \
+	if [ -n "$$unformatted" ]; then \
+		echo "Unformatted changed Go files:"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+
+# Check formatting across all Go files
+fmt-check-all:
+	@unformatted="$$(find . -name '*.go' -not -path './vendor/*' -not -path './website/*' -print0 | xargs -0 gofmt -l)"; \
+	if [ -n "$$unformatted" ]; then \
+		echo "Unformatted Go files:"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+
 # Run linter
 lint:
-	golangci-lint run
+	golangci-lint run --new-from-merge-base=$(LINT_BASE) ./...
+
+# Run linter across the full codebase (includes legacy debt)
+lint-all:
+	golangci-lint run ./...
 
 # Build for multiple platforms (local testing only — GoReleaser handles release builds)
 build-all:
