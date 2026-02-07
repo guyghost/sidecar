@@ -137,7 +137,7 @@ func (p *Plugin) Start() tea.Cmd {
 // Stop cleans up plugin resources.
 func (p *Plugin) Stop() {
 	if p.model != nil {
-		p.model.Close()
+		_ = p.model.Close()
 		p.model = nil
 	}
 	p.notInstalled = nil

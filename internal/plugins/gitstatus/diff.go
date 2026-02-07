@@ -126,7 +126,7 @@ func GetNewFileDiff(workDir, path string) (string, error) {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", path, path))
 	sb.WriteString("new file mode 100644\n")
-	sb.WriteString(fmt.Sprintf("--- /dev/null\n"))
+	sb.WriteString("--- /dev/null\n")
 	sb.WriteString(fmt.Sprintf("+++ b/%s\n", path))
 	sb.WriteString(fmt.Sprintf("@@ -0,0 +1,%d @@\n", lineCount))
 

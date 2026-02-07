@@ -290,7 +290,7 @@ func (p *Plugin) Start() tea.Cmd {
 // Stop cleans up plugin resources.
 func (p *Plugin) Stop() {
 	if p.store != nil {
-		p.store.Close()
+		_ = p.store.Close()
 		p.store = nil
 	}
 }
@@ -1099,42 +1099,6 @@ func (p *Plugin) openInExternalEditor() tea.Cmd {
 	}
 }
 
-// openInInlineEditor opens the current note in $EDITOR inline (suspends TUI).
-// This writes note content to a temp file, opens the editor, then reads back on exit.
-func (p *Plugin) openInInlineEditor() tea.Cmd {
-	note := p.getSelectedNote()
-	if note == nil || p.store == nil {
-		return nil
-	}
-
-	noteID := note.ID
-
-	// Write note content to temp file and track for reading back on return
-	notePath := p.store.NotePath(noteID)
-	if notePath == "" {
-		return nil
-	}
-
-	// Store pending edit info for reading back after editor exits
-	p.pendingInlineEditID = noteID
-	p.pendingInlineEditPath = notePath
-
-	return func() tea.Msg {
-		editor := os.Getenv("EDITOR")
-		if editor == "" {
-			editor = os.Getenv("VISUAL")
-		}
-		if editor == "" {
-			editor = "vim"
-		}
-		return plugin.OpenFileMsg{
-			Editor: editor,
-			Path:   notePath,
-			LineNo: 0,
-		}
-	}
-}
-
 // readBackInlineEdit reads the temp file content after inline editor exits and updates the note.
 func (p *Plugin) readBackInlineEdit() tea.Cmd {
 	noteID := p.pendingInlineEditID
@@ -1384,29 +1348,6 @@ func (p *Plugin) createNoteWithTitle(title string) tea.Cmd {
 			return NoteSavedMsg{Note: nil, Err: err}
 		}
 		return NoteSavedMsg{Note: note, Err: nil, Epoch: epoch}
-	}
-}
-
-// deleteNote returns a command that soft-deletes the selected note.
-func (p *Plugin) deleteNote() tea.Cmd {
-	note := p.selectedNote()
-	if note == nil || p.store == nil {
-		return nil
-	}
-
-	// Push undo action before delete
-	p.pushUndo(UndoAction{
-		Type:   UndoDelete,
-		NoteID: note.ID,
-		Title:  note.Title,
-	})
-
-	noteID := note.ID
-	epoch := p.ctx.Epoch
-
-	return func() tea.Msg {
-		err := p.store.Delete(noteID)
-		return NoteDeletedMsg{ID: noteID, Err: err, Epoch: epoch}
 	}
 }
 

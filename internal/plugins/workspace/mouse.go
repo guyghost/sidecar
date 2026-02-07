@@ -406,9 +406,10 @@ func (p *Plugin) handleMouseHover(action mouse.MouseAction) tea.Cmd {
 		switch action.Region.ID {
 		case regionCreateButton:
 			if idx, ok := action.Region.Data.(int); ok {
-				if idx == 6 {
+				switch idx {
+				case 6:
 					p.createButtonHover = 1 // Create
-				} else if idx == 7 {
+				case 7:
 					p.createButtonHover = 2 // Cancel
 				}
 			}
@@ -626,13 +627,14 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) tea.Cmd {
 	case regionCreateDropdown:
 		// Click on dropdown item
 		if data, ok := action.Region.Data.(dropdownItemData); ok {
-			if data.field == 1 {
+			switch data.field {
+			case 1:
 				// Branch selection
 				if data.idx >= 0 && data.idx < len(p.branchFiltered) {
 					p.createBaseBranchInput.SetValue(p.branchFiltered[data.idx])
 					p.branchFiltered = nil
 				}
-			} else if data.field == 3 {
+			case 3:
 				// Task selection
 				if data.idx >= 0 && data.idx < len(p.taskSearchFiltered) {
 					task := p.taskSearchFiltered[data.idx]
@@ -655,9 +657,10 @@ func (p *Plugin) handleMouseClick(action mouse.MouseAction) tea.Cmd {
 	case regionCreateButton:
 		// Click on button
 		if idx, ok := action.Region.Data.(int); ok {
-			if idx == 6 {
+			switch idx {
+			case 6:
 				return p.createWorktree()
-			} else if idx == 7 {
+			case 7:
 				p.viewMode = ViewModeList
 				p.clearCreateModal()
 			}
@@ -762,7 +765,7 @@ func (p *Plugin) handleMouseScroll(action mouse.MouseAction) tea.Cmd {
 		return nil
 	}
 
-	delta := action.Delta
+	var delta int
 	if action.Type == mouse.ActionScrollUp {
 		delta = -1
 	} else {

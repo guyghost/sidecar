@@ -48,7 +48,7 @@ func NewShellWatcher(manifestPath string) (*ShellWatcher, error) {
 	// Watch the parent directory (for file creation)
 	dir := filepath.Dir(manifestPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		fsWatcher.Close()
+		_ = fsWatcher.Close()
 		return nil, err
 	}
 
@@ -82,7 +82,7 @@ func (w *ShellWatcher) Stop() {
 	}
 	w.stopped = true
 	close(w.stopChan)
-	w.fsWatcher.Close()
+	_ = w.fsWatcher.Close()
 	w.mu.Unlock()
 
 	// Wait for run() to finish before returning (td-cb47a2)
@@ -129,7 +129,7 @@ func (w *ShellWatcher) run() {
 			if event.Op&fsnotify.Create != 0 {
 				w.mu.Lock()
 				if !w.stopped {
-					w.fsWatcher.Add(w.path)
+					_ = w.fsWatcher.Add(w.path)
 				}
 				w.mu.Unlock()
 			}

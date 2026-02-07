@@ -58,11 +58,6 @@ func hexToRGB(hex string) RGB {
 	return RGB{float64(r), float64(g), float64(b)}
 }
 
-// toLipgloss converts RGB back to a lipgloss Color.
-func (c RGB) toLipgloss() lipgloss.Color {
-	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", int(c.R), int(c.G), int(c.B)))
-}
-
 // toANSI returns raw ANSI escape code for the color.
 func (c RGB) toANSI() string {
 	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", int(c.R), int(c.G), int(c.B))

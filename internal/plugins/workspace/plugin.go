@@ -23,9 +23,6 @@ const (
 	pluginName = "workspaces"
 	pluginIcon = "W"
 
-	// Refresh interval for worktree list
-	refreshInterval = 5 * time.Second
-
 	// Output buffer capacity (lines)
 	outputBufferCap = 500
 

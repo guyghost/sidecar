@@ -292,7 +292,7 @@ func (a *Adapter) parseMessagesFull(path string, info os.FileInfo) ([]adapter.Me
 	if err != nil {
 		return nil, messageCacheEntry{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var messages []adapter.Message
 	toolUseRefs := make(map[string]toolUseRef)
@@ -354,7 +354,7 @@ func (a *Adapter) parseMessagesIncremental(path string, cached messageCacheEntry
 	if err != nil {
 		return nil, messageCacheEntry{}, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Start with copies of cached data
 	messages := copyMessages(cached.messages)
@@ -714,7 +714,7 @@ func (a *Adapter) parseSessionMetadataFull(path string) (*SessionMetadata, int64
 	if err != nil {
 		return nil, 0, nil, nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	meta := &SessionMetadata{
 		Path:      path,
@@ -754,7 +754,7 @@ func (a *Adapter) parseSessionMetadataIncremental(path string, base *SessionMeta
 	if err != nil {
 		return nil, 0, nil, nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if _, err := file.Seek(offset, 0); err != nil {
 		return nil, 0, nil, nil, err

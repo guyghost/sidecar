@@ -178,15 +178,11 @@ func ParseUnifiedDiff(diff string) (*ParsedDiff, error) {
 
 		case strings.HasPrefix(line, "--- "):
 			parsed.OldFile = strings.TrimPrefix(line, "--- ")
-			if strings.HasPrefix(parsed.OldFile, "a/") {
-				parsed.OldFile = parsed.OldFile[2:]
-			}
+			parsed.OldFile = strings.TrimPrefix(parsed.OldFile, "a/")
 
 		case strings.HasPrefix(line, "+++ "):
 			parsed.NewFile = strings.TrimPrefix(line, "+++ ")
-			if strings.HasPrefix(parsed.NewFile, "b/") {
-				parsed.NewFile = parsed.NewFile[2:]
-			}
+			parsed.NewFile = strings.TrimPrefix(parsed.NewFile, "b/")
 
 		case strings.HasPrefix(line, "@@"):
 			match := hunkHeaderRegex.FindStringSubmatch(line)

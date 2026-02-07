@@ -20,12 +20,6 @@ var (
 			Background(styles.BgSecondary).
 			Padding(1, 2)
 
-	paletteInput = lipgloss.NewStyle().
-			Foreground(styles.TextPrimary).
-			Background(styles.BgTertiary).
-			Padding(0, 1).
-			MarginBottom(1)
-
 	layerHeaderCurrent = lipgloss.NewStyle().
 				Foreground(styles.Primary).
 				Bold(true).

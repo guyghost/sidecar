@@ -39,17 +39,9 @@ func TestIntroModel_Update(t *testing.T) {
 		if l.CurrentX < targetX-0.1 || l.CurrentX > targetX+0.1 {
 			t.Errorf("Letter %d not at target X. Got %f, want %f", i, l.CurrentX, targetX)
 		}
-		
+
 		// Verify color is close to end color
 		// We can't easily access the interpolated color fields as they are exported but we need to check values
-		if l.CurrentColor.R != l.EndColor.R || l.CurrentColor.G != l.EndColor.G || l.CurrentColor.B != l.EndColor.B {
-             // Since we use float logic, exact match might fail, but our update logic snaps to EndColor if diff is small?
-             // Actually, my update logic:
-             // l.CurrentColor.R += (l.EndColor.R - l.CurrentColor.R) * colorSpeed
-             // It approaches but might not equal exactly without a snap step.
-             // The allSettled check:
-             // math.Abs(l.EndColor.R-l.CurrentColor.R) > 1.0
-             // So it stops when close enough.
-		}
+		// TODO: Verify color interpolation when exact match is possible with float precision handling
 	}
 }

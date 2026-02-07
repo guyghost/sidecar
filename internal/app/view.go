@@ -910,7 +910,7 @@ func (m Model) renderBindingSection(b *strings.Builder, context string) {
 
 		// Pad key to align commands
 		padded := fmt.Sprintf("%-11s", keyStr)
-		b.WriteString(fmt.Sprintf("  %s %s\n", styles.Muted.Render(padded), cmdName))
+		fmt.Fprintf(b, "  %s %s\n", styles.Muted.Render(padded), cmdName)
 	}
 }
 

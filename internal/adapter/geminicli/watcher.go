@@ -24,7 +24,7 @@ func NewWatcher(chatsDir string) (<-chan adapter.Event, io.Closer, error) {
 	}
 
 	if err := watcher.Add(chatsDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, nil, err
 	}
 
@@ -125,7 +125,7 @@ func extractSessionID(path string) string {
 	if err != nil {
 		return ""
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Try reading first 2048 bytes - sessionId is usually near the start
 	const bufSize = 2048
@@ -143,7 +143,7 @@ func extractSessionID(path string) string {
 	// Fallback: if buffer was full, sessionId might be beyond buffer boundary
 	if n == bufSize {
 		// Read entire file as fallback
-		file.Seek(0, 0)
+		_, _ = file.Seek(0, 0)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return ""

@@ -410,28 +410,23 @@ func (m *Model) switchWorktree(worktreePath string) tea.Cmd {
 	return m.switchProject(worktreePath)
 }
 
-// isInWorktree returns true if the current WorkDir is a git worktree (not the main repo).
-func (m *Model) isInWorktree() bool {
-	worktrees := GetWorktrees(m.ui.WorkDir)
-	normalizedWorkDir, _ := normalizePath(m.ui.WorkDir)
-	for _, wt := range worktrees {
-		normalizedPath, _ := normalizePath(wt.Path)
-		if normalizedPath == normalizedWorkDir {
-			return !wt.IsMain
-		}
-	}
-	return false
-}
 
-// currentWorktreeInfo returns the WorktreeInfo for the current WorkDir, or nil if not found.
-func (m *Model) currentWorktreeInfo() *WorktreeInfo {
+// refreshWorktreeCache calls GetWorktrees and caches the result for the current WorkDir.
+func (m *Model) refreshWorktreeCache() {
 	worktrees := GetWorktrees(m.ui.WorkDir)
 	normalizedWorkDir, _ := normalizePath(m.ui.WorkDir)
+	m.cachedWorktreeInfo = nil
 	for i, wt := range worktrees {
 		normalizedPath, _ := normalizePath(wt.Path)
 		if normalizedPath == normalizedWorkDir {
-			return &worktrees[i]
+			m.cachedWorktreeInfo = &worktrees[i]
+			return
 		}
 	}
-	return nil
+}
+
+// currentWorktreeInfo returns the cached WorktreeInfo for the current WorkDir, or nil.
+// Cache is populated eagerly in Update() (TickMsg, switchProject) — never in View().
+func (m *Model) currentWorktreeInfo() *WorktreeInfo {
+	return m.cachedWorktreeInfo
 }

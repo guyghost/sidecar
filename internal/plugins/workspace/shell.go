@@ -774,7 +774,7 @@ func (p *Plugin) killShellSessionByName(sessionName string) tea.Cmd {
 	return func() tea.Msg {
 		// Kill the session
 		cmd := exec.Command("tmux", "kill-session", "-t", sessionName)
-		cmd.Run() // Ignore errors (session may already be dead)
+		_ = cmd.Run() // Ignore errors (session may already be dead)
 
 		// Clean up pane cache
 		globalPaneCache.remove(sessionName)
@@ -1036,17 +1036,17 @@ func (p *Plugin) startAgentWithResumeCmd(wt *Worktree, agentType AgentType, skip
 		}
 
 		// Set history limit for scrollback capture
-		exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
+		_ = exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
 			strconv.Itoa(tmuxHistoryLimit)).Run()
 
 		// Set TD_SESSION_ID environment variable for td session tracking
 		tdEnvCmd := fmt.Sprintf("export TD_SESSION_ID=%s", shellQuote(sessionName))
-		exec.Command("tmux", "send-keys", "-t", sessionName, tdEnvCmd, "Enter").Run()
+		_ = exec.Command("tmux", "send-keys", "-t", sessionName, tdEnvCmd, "Enter").Run()
 
 		// Apply environment isolation
 		envOverrides := BuildEnvOverrides(p.ctx.WorkDir)
 		if envCmd := GenerateSingleEnvCommand(envOverrides); envCmd != "" {
-			exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
+			_ = exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
 		}
 
 		// Small delay to ensure env is set
@@ -1056,7 +1056,7 @@ func (p *Plugin) startAgentWithResumeCmd(wt *Worktree, agentType AgentType, skip
 		sendCmd := exec.Command("tmux", "send-keys", "-t", sessionName, resumeCmd, "Enter")
 		if err := sendCmd.Run(); err != nil {
 			// Try to kill the session if we failed to start the agent
-			exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+			_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 			return AgentStartedMsg{Epoch: epoch, Err: fmt.Errorf("start agent with resume: %w", err)}
 		}
 

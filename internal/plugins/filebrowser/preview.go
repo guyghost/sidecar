@@ -84,7 +84,7 @@ func LoadPreview(rootDir, path string, epoch uint64) tea.Cmd {
 			result.Error = err
 			return PreviewLoadedMsg{Epoch: epoch, Path: path, Result: result}
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		data := make([]byte, readSize)
 		n, _ := f.Read(data)

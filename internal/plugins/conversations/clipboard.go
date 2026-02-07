@@ -105,20 +105,6 @@ func (p *Plugin) getSelectedSession() *sessionRef {
 	return nil
 }
 
-// getSelectedSessionID returns the current session ID for resume command.
-func (p *Plugin) getSelectedSessionID() string {
-	// If we have a selected session (in message views), use that
-	if p.selectedSession != "" {
-		return p.selectedSession
-	}
-	// Otherwise, use cursor selection from session list
-	sessions := p.visibleSessions()
-	if p.cursor >= 0 && p.cursor < len(sessions) {
-		return sessions[p.cursor].ID
-	}
-	return ""
-}
-
 // getCurrentTurn returns the turn under cursor based on current view mode.
 func (p *Plugin) getCurrentTurn() *Turn {
 	// In detail mode, return the detail turn

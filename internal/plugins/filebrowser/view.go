@@ -296,11 +296,6 @@ func (p *Plugin) renderContentSearchBar() string {
 	return styles.ModalTitle.Render(searchLine)
 }
 
-// renderSearchBar renders the search input bar (legacy - for external use).
-func (p *Plugin) renderSearchBar() string {
-	return p.renderTreeSearchBar()
-}
-
 // renderTreeSearchBar renders the tree search bar inline within the tree pane.
 func (p *Plugin) renderTreeSearchBar() string {
 	cursor := "█"
@@ -1024,10 +1019,7 @@ func (p *Plugin) previewContentStartX(lineNumWidth int) int {
 }
 
 func (p *Plugin) previewRenderLines() ([]string, bool) {
-	showLineNumbers := true
-	if p.markdownRenderMode && p.isMarkdownFile() && len(p.markdownRendered) > 0 {
-		showLineNumbers = false
-	}
+	showLineNumbers := !p.markdownRenderMode || !p.isMarkdownFile() || len(p.markdownRendered) == 0
 
 	if showLineNumbers {
 		if len(p.previewHighlighted) > 0 {

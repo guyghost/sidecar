@@ -495,7 +495,7 @@ func (p *Plugin) closeWatchers() {
 	p.watchClosers = nil
 	// Close tiered manager if present (td-dca6fe)
 	if p.tieredManager != nil {
-		p.tieredManager.Close()
+		_ = p.tieredManager.Close()
 		p.tieredManager = nil
 	}
 }

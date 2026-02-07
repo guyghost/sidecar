@@ -146,5 +146,5 @@ func (w *Watcher) Events() <-chan struct{} {
 // Stop shuts down the watcher.
 func (w *Watcher) Stop() {
 	close(w.stop)
-	w.fsWatcher.Close()
+	_ = w.fsWatcher.Close()
 }

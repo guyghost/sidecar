@@ -908,7 +908,7 @@ func TestWriteAgentLauncher(t *testing.T) {
 			}
 
 			// Cleanup for next test
-			os.Remove(tmpDir + "/.sidecar-start.sh")
+			_ = os.Remove(tmpDir + "/.sidecar-start.sh")
 		})
 	}
 }

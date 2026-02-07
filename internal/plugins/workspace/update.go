@@ -1077,7 +1077,7 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 					// Save PR URL to worktree for indicator in list
 					if wt := p.mergeState.Worktree; wt != nil && msg.Data != "" {
 						wt.PRURL = msg.Data
-						savePRURL(wt.Path, msg.Data)
+						_ = savePRURL(wt.Path, msg.Data)
 					}
 					// PR created (or existing found) - advanceMergeStep handles status transition
 					cmds = append(cmds, p.advanceMergeStep())

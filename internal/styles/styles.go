@@ -715,21 +715,6 @@ func interpolateColors(pos float64, colors []RGB) (uint8, uint8, uint8) {
 	return r, g, b
 }
 
-// sprintf is a local helper to avoid importing fmt just for color formatting
-func sprintf(format string, a ...interface{}) string {
-	// Simple hex formatter for RGB
-	if format == "#%02x%02x%02x" && len(a) == 3 {
-		r, g, b := a[0].(uint8), a[1].(uint8), a[2].(uint8)
-		const hex = "0123456789abcdef"
-		return string([]byte{'#',
-			hex[r>>4], hex[r&0xf],
-			hex[g>>4], hex[g&0xf],
-			hex[b>>4], hex[b&0xf],
-		})
-	}
-	return ""
-}
-
 // parseTabColors converts hex color strings to RGB values for tab rendering
 func parseTabColors(hexColors []string) []RGB {
 	if len(hexColors) == 0 {

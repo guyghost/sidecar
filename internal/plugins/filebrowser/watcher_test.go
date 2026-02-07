@@ -13,17 +13,17 @@ func TestNewWatcher(t *testing.T) {
 		t.Fatalf("NewWatcher() failed: %v", err)
 	}
 
-	if w == nil {
+	if w != nil {
+		if w.fsWatcher == nil {
+			t.Error("fsWatcher not initialized")
+		}
+		if w.events == nil {
+			t.Error("events channel not initialized")
+		}
+		w.Stop()
+	} else {
 		t.Error("NewWatcher() returned nil")
 	}
-	if w.fsWatcher == nil {
-		t.Error("fsWatcher not initialized")
-	}
-	if w.events == nil {
-		t.Error("events channel not initialized")
-	}
-
-	w.Stop()
 }
 
 func TestWatcher_WatchFile(t *testing.T) {
@@ -393,9 +393,6 @@ func TestWatcher_WatchClosedWatcher(t *testing.T) {
 	w.Stop()
 	time.Sleep(50 * time.Millisecond)
 
-	// WatchFile on closed watcher should not panic
-	err = w.WatchFile("/some/path")
-	if err != nil {
-		// Some error is acceptable, but no panic
-	}
+	// WatchFile on closed watcher should not panic (some error is acceptable)
+	_ = w.WatchFile("/some/path")
 }

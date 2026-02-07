@@ -367,23 +367,23 @@ func (p *Plugin) StartAgent(wt *Worktree, agentType AgentType) tea.Cmd {
 		}
 
 		// Set history limit for scrollback capture
-		exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
+		_ = exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
 			strconv.Itoa(tmuxHistoryLimit)).Run()
 
 		// Set TD_SESSION_ID environment variable for td session tracking
 		envCmd := fmt.Sprintf("export TD_SESSION_ID=%s", shellQuote(sessionName))
-		exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
+		_ = exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
 
 		// Apply environment isolation to prevent conflicts (GOWORK, etc.)
 		envOverrides := BuildEnvOverrides(p.ctx.WorkDir)
 		if envCmd := GenerateSingleEnvCommand(envOverrides); envCmd != "" {
-			exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
+			_ = exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
 		}
 
 		// If worktree has a linked task, start it in td
 		if wt.TaskID != "" {
 			tdStartCmd := fmt.Sprintf("td start %s", wt.TaskID)
-			exec.Command("tmux", "send-keys", "-t", sessionName, tdStartCmd, "Enter").Run()
+			_ = exec.Command("tmux", "send-keys", "-t", sessionName, tdStartCmd, "Enter").Run()
 		}
 
 		// Small delay to ensure env is set
@@ -396,7 +396,7 @@ func (p *Plugin) StartAgent(wt *Worktree, agentType AgentType) tea.Cmd {
 		sendCmd := exec.Command("tmux", "send-keys", "-t", sessionName, agentCmd, "Enter")
 		if err := sendCmd.Run(); err != nil {
 			// Try to kill the session if we failed to start the agent
-			exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+			_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 			return AgentStartedMsg{Epoch: epoch, Err: fmt.Errorf("start agent: %w", err)}
 		}
 
@@ -565,23 +565,23 @@ func (p *Plugin) StartAgentWithOptions(wt *Worktree, agentType AgentType, skipPe
 		}
 
 		// Set history limit for scrollback capture
-		exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
+		_ = exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
 			strconv.Itoa(tmuxHistoryLimit)).Run()
 
 		// Set TD_SESSION_ID environment variable for td session tracking
 		tdEnvCmd := fmt.Sprintf("export TD_SESSION_ID=%s", shellQuote(sessionName))
-		exec.Command("tmux", "send-keys", "-t", sessionName, tdEnvCmd, "Enter").Run()
+		_ = exec.Command("tmux", "send-keys", "-t", sessionName, tdEnvCmd, "Enter").Run()
 
 		// Apply environment isolation to prevent conflicts (GOWORK, etc.)
 		envOverrides := BuildEnvOverrides(p.ctx.WorkDir)
 		if envCmd := GenerateSingleEnvCommand(envOverrides); envCmd != "" {
-			exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
+			_ = exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
 		}
 
 		// If worktree has a linked task, start it in td
 		if wt.TaskID != "" {
 			tdStartCmd := fmt.Sprintf("td start %s", wt.TaskID)
-			exec.Command("tmux", "send-keys", "-t", sessionName, tdStartCmd, "Enter").Run()
+			_ = exec.Command("tmux", "send-keys", "-t", sessionName, tdStartCmd, "Enter").Run()
 		}
 
 		// Small delay to ensure env is set
@@ -594,7 +594,7 @@ func (p *Plugin) StartAgentWithOptions(wt *Worktree, agentType AgentType, skipPe
 		sendCmd := exec.Command("tmux", "send-keys", "-t", sessionName, agentCmd, "Enter")
 		if err := sendCmd.Run(); err != nil {
 			// Try to kill the session if we failed to start the agent
-			exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+			_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 			return AgentStartedMsg{Epoch: epoch, Err: fmt.Errorf("start agent: %w", err)}
 		}
 
@@ -1291,7 +1291,7 @@ func (p *Plugin) StopAgent(wt *Worktree) tea.Cmd {
 		sessionName := wt.Agent.TmuxSession
 
 		// Try graceful interrupt first (Ctrl+C)
-		exec.Command("tmux", "send-keys", "-t", sessionName, "C-c").Run()
+		_ = exec.Command("tmux", "send-keys", "-t", sessionName, "C-c").Run()
 
 		// Wait briefly for graceful shutdown
 		time.Sleep(2 * time.Second)
@@ -1299,7 +1299,7 @@ func (p *Plugin) StopAgent(wt *Worktree) tea.Cmd {
 		// Check if still running
 		if sessionExists(sessionName) {
 			// Force kill
-			exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+			_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 		}
 
 		return AgentStoppedMsg{WorkspaceName: wt.Name}
@@ -1407,7 +1407,7 @@ func (p *Plugin) Cleanup(removeSessions bool) error {
 		if removeSessions {
 			// Only kill sessions we created
 			if p.managedSessions[agent.TmuxSession] {
-				exec.Command("tmux", "kill-session", "-t", agent.TmuxSession).Run()
+				_ = exec.Command("tmux", "kill-session", "-t", agent.TmuxSession).Run()
 				delete(p.managedSessions, agent.TmuxSession)
 				globalPaneCache.remove(agent.TmuxSession)
 				globalActiveRegistry.remove(agent.TmuxSession) // td-018f25
@@ -1441,7 +1441,7 @@ func (p *Plugin) CleanupOrphanedSessions() error {
 		// Use sanitized name lookup since session names are created with sanitizeName()
 		sanitizedName := strings.TrimPrefix(session, tmuxSessionPrefix)
 		if p.findWorktreeBySanitizedName(sanitizedName) == nil {
-			exec.Command("tmux", "kill-session", "-t", session).Run()
+			_ = exec.Command("tmux", "kill-session", "-t", session).Run()
 			delete(p.managedSessions, session)
 			globalPaneCache.remove(session)
 			globalActiveRegistry.remove(session) // td-018f25

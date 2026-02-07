@@ -45,7 +45,7 @@ func TestStringToInt_Accumulates(t *testing.T) {
 	// The function accumulates into the result pointer
 	// Starting with non-zero value should work as documented
 	var result int
-	stringToInt("12", &result)
+	_, _ = stringToInt("12", &result)
 	if result != 12 {
 		t.Errorf("got %d, want 12", result)
 	}

@@ -87,7 +87,11 @@ func main() {
 	var logWriter = io.Discard
 	if logFile != nil {
 		logWriter = logFile
-		defer logFile.Close()
+		defer func() {
+			if err := logFile.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to close log file: %v\n", err)
+			}
+		}()
 	}
 	logger := slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level: logLevel,
@@ -162,13 +166,25 @@ func main() {
 
 	// Register plugins (order determines tab order)
 	// TD plugin registers its bindings dynamically via p.ctx.Keymap
-	registry.Register(tdmonitor.New())
-	registry.Register(gitstatus.New())
-	registry.Register(filebrowser.New())
-	registry.Register(conversations.New())
-	registry.Register(workspace.New())
+	if err := registry.Register(tdmonitor.New()); err != nil {
+		logger.Warn("failed to register tdmonitor plugin", "err", err)
+	}
+	if err := registry.Register(gitstatus.New()); err != nil {
+		logger.Warn("failed to register gitstatus plugin", "err", err)
+	}
+	if err := registry.Register(filebrowser.New()); err != nil {
+		logger.Warn("failed to register filebrowser plugin", "err", err)
+	}
+	if err := registry.Register(conversations.New()); err != nil {
+		logger.Warn("failed to register conversations plugin", "err", err)
+	}
+	if err := registry.Register(workspace.New()); err != nil {
+		logger.Warn("failed to register workspace plugin", "err", err)
+	}
 	if features.IsEnabled("notes_plugin") {
-		registry.Register(notes.New())
+		if err := registry.Register(notes.New()); err != nil {
+			logger.Warn("failed to register notes plugin", "err", err)
+		}
 	}
 
 	// Apply user keymap overrides
@@ -243,14 +259,6 @@ func effectiveVersion(v string) string {
 	}
 
 	return "devel"
-}
-
-// getShortRevision returns the first 12 chars of a revision.
-func getShortRevision(rev string) string {
-	if len(rev) > 12 {
-		return rev[:12]
-	}
-	return rev
 }
 
 func init() {

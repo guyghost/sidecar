@@ -735,49 +735,6 @@ func (p *Plugin) updateDetailMode(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 	return p, nil
 }
 
-// updateMessageDetail handles key events in the message detail view.
-func (p *Plugin) updateMessageDetail(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "q":
-		p.view = ViewMessages
-		p.detailTurn = nil
-		p.detailScroll = 0
-
-	case "j", "down":
-		p.detailScroll++
-
-	case "k", "up":
-		if p.detailScroll > 0 {
-			p.detailScroll--
-		}
-
-	case "g":
-		p.detailScroll = 0
-
-	case "G":
-		// Scroll to bottom - calculate based on content
-		p.detailScroll = 100 // Placeholder, will be clamped by renderer
-
-	case "ctrl+d":
-		p.detailScroll += 10
-
-	case "ctrl+u":
-		p.detailScroll -= 10
-		if p.detailScroll < 0 {
-			p.detailScroll = 0
-		}
-
-	case "y":
-		// Yank current turn content to clipboard
-		return p, p.yankTurnContent()
-
-	case "Y":
-		// Yank resume command to clipboard
-		return p, p.yankResumeCommand()
-	}
-	return p, nil
-}
-
 // updateFilter handles key events in filter mode.
 func (p *Plugin) updateFilter(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {
 	key := msg.String()

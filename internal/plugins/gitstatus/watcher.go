@@ -40,7 +40,7 @@ func NewWatcher(workDir string) (*Watcher, error) {
 
 	// Add watches
 	if err := fsWatcher.Add(gitDir); err != nil {
-		fsWatcher.Close()
+		_ = fsWatcher.Close()
 		return nil, err
 	}
 	// Try to watch index directly (may not exist yet)
@@ -75,7 +75,7 @@ func (w *Watcher) Stop() {
 	w.stopped = true
 
 	close(w.stop)
-	w.fsWatcher.Close()
+	_ = w.fsWatcher.Close()
 	// Note: w.events is closed by run() goroutine on exit, not here
 	// Closing here would race with run()'s debounce timer sending to the channel
 }

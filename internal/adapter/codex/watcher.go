@@ -23,7 +23,7 @@ func NewWatcher(root string) (<-chan adapter.Event, io.Closer, error) {
 
 	// Watch root for new year directories
 	if err := watcher.Add(root); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, nil, err
 	}
 
@@ -144,7 +144,7 @@ func recentSessionDirs(root string) []string {
 // and sends events for any found. This handles the race condition where a
 // directory and its files are created before the watcher is added (td-ba9f8c12).
 func scanNewDirForSessions(dir string, events chan<- adapter.Event) {
-	filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}

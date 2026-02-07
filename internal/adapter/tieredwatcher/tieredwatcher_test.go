@@ -23,7 +23,7 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	if ch == nil {
 		t.Fatal("events channel is nil")
@@ -51,7 +51,7 @@ func TestRegisterSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 	tw.SetHotTarget(3)
 
 	tw.RegisterSession("test-session", sessionPath)
@@ -91,7 +91,7 @@ func TestPromoteToHot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	// Register sessions
 	for i := 0; i < 5; i++ {
@@ -130,7 +130,7 @@ func TestStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 	tw.SetHotTarget(2)
 
 	// Create and register sessions
@@ -164,7 +164,7 @@ func TestManager(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manager := NewManager()
-	defer manager.Close()
+	defer func() { _ = manager.Close() }()
 
 	cfg := Config{
 		RootDir:     tmpDir,
@@ -199,7 +199,7 @@ func TestManagerPromoteSession(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manager := NewManager()
-	defer manager.Close()
+	defer func() { _ = manager.Close() }()
 
 	cfg := Config{
 		RootDir:     tmpDir,
@@ -257,7 +257,7 @@ func TestRegisterSessions(t *testing.T) {
 		}
 		// Set modification times to be different
 		modTime := time.Now().Add(-time.Duration(5-i) * time.Hour)
-		os.Chtimes(path, modTime, modTime)
+		_ = os.Chtimes(path, modTime, modTime)
 
 		stat, _ := os.Stat(path)
 		sessions = append(sessions, SessionInfo{
@@ -279,7 +279,7 @@ func TestRegisterSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	// Register all sessions at once
 	tw.RegisterSessions(sessions)

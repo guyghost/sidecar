@@ -51,6 +51,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if !m.ready {
+			// Prime worktree cache before first render
+			m.refreshWorktreeCache()
+		}
 		m.ready = true
 		// Reset diagnostics modal on resize (will be rebuilt on next render)
 		if m.showDiagnostics {
@@ -173,6 +177,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.UpdateClock()
 		m.ui.ClearExpiredToast()
 		m.ClearToast()
+		// Eagerly refresh worktree cache (must happen in Update, not View, due to value receiver)
+		m.refreshWorktreeCache()
 		// Periodically check if current worktree still exists (every 10 seconds)
 		m.worktreeCheckCounter++
 		if m.worktreeCheckCounter >= 10 {
@@ -329,7 +335,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		termState, _ := term.GetState(int(os.Stdout.Fd()))
 		return m, tea.ExecProcess(c, func(err error) tea.Msg {
 			if termState != nil {
-				term.Restore(int(os.Stdout.Fd()), termState)
+				_ = term.Restore(int(os.Stdout.Fd()), termState)
 			}
 			return EditorReturnedMsg{Err: err}
 		})
@@ -341,7 +347,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			func() tea.Msg { return tea.EnableMouseAllMotion() },
 		}
 		if msg.Err != nil {
-			cmds = append(cmds, func() tea.Msg { return ErrorMsg{Err: msg.Err} })
+			cmds = append(cmds, func() tea.Msg { return ErrorMsg(msg) })
 		} else {
 			cmds = append(cmds, func() tea.Msg { return RefreshMsg{} })
 		}
@@ -514,7 +520,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "quit":
 			// Save active plugin before quitting
 			if activePlugin := m.ActivePlugin(); activePlugin != nil {
-				state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
+				_ = state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
 			}
 			m.registry.Stop()
 			return m, tea.Quit
@@ -1595,7 +1601,7 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Handle 'q' specially for quit
 		if key == "q" {
 			if activePlugin := m.ActivePlugin(); activePlugin != nil {
-				state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
+				_ = state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
 			}
 			m.registry.Stop()
 			return m, tea.Quit
@@ -1607,7 +1613,7 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			switch action {
 			case "quit":
 				if activePlugin := m.ActivePlugin(); activePlugin != nil {
-					state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
+					_ = state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
 				}
 				m.registry.Stop()
 				return m, tea.Quit
@@ -1734,7 +1740,7 @@ func (m *Model) handleUpdateModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		switch action {
 		case "quit":
 			if activePlugin := m.ActivePlugin(); activePlugin != nil {
-				state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
+				_ = state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
 			}
 			m.registry.Stop()
 			return m, tea.Quit
@@ -1776,7 +1782,7 @@ func (m *Model) handleQuitConfirmMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case "quit":
 		// Save active plugin before quitting
 		if activePlugin := m.ActivePlugin(); activePlugin != nil {
-			state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
+			_ = state.SetActivePlugin(m.ui.ProjectRoot, activePlugin.ID())
 		}
 		m.registry.Stop()
 		return m, tea.Quit

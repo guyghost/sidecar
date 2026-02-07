@@ -61,10 +61,8 @@ func TestGlamourRenderer_WidthChange(t *testing.T) {
 	lines40 := r.RenderContent(content, 40)
 
 	// Different widths should produce different line counts (narrower = more lines)
-	if len(lines80) >= len(lines40) && len(lines40) > 1 {
-		// This is expected - narrower width should produce more lines
-		// But we also accept if wrapping isn't perfect
-	}
+	// This is expected - narrower width should produce more lines
+	// But we also accept if wrapping isn't perfect
 
 	// At minimum, both should produce output
 	if len(lines80) == 0 || len(lines40) == 0 {
@@ -90,10 +88,9 @@ func TestGlamourRenderer_NarrowFallback(t *testing.T) {
 
 	// Output should be plain text (no markdown rendering for headers)
 	joined := strings.Join(lines, " ")
-	if !strings.Contains(joined, "#") {
-		// In fallback mode, the # should still be present as plain text
-		// (wrapText doesn't strip markdown)
-	}
+	// In fallback mode, the # should still be present as plain text
+	// (wrapText doesn't strip markdown)
+	_ = joined
 }
 
 func TestGlamourRenderer_Cache(t *testing.T) {

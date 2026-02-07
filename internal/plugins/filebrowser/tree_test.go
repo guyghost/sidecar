@@ -31,9 +31,9 @@ func TestFileTree_Build(t *testing.T) {
 func TestFileTree_ExpandCollapse(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
-	os.MkdirAll(filepath.Join(tmpDir, "subdir", "nested"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "subdir", "file2.txt"), []byte("test"), 0644)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "subdir", "nested"), 0755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "subdir", "file2.txt"), []byte("test"), 0644)
 
 	tree := NewFileTree(tmpDir)
 	if err := tree.Build(); err != nil {
@@ -76,7 +76,7 @@ func TestFileTree_ExpandCollapse(t *testing.T) {
 
 func TestFileTree_GetNode(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("test"), 0644)
 
 	tree := NewFileTree(tmpDir)
 	if err := tree.Build(); err != nil {
@@ -125,11 +125,11 @@ func TestSortChildren(t *testing.T) {
 func TestFileTree_RefreshPreservesExpandedState(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
-	os.MkdirAll(filepath.Join(tmpDir, "dir1", "nested"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "dir2"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "dir1", "file.txt"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "dir1", "nested", "deep.txt"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "dir2", "other.txt"), []byte("test"), 0644)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "dir1", "nested"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "dir2"), 0755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "dir1", "file.txt"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "dir1", "nested", "deep.txt"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "dir2", "other.txt"), []byte("test"), 0644)
 
 	tree := NewFileTree(tmpDir)
 	if err := tree.Build(); err != nil {
@@ -181,7 +181,7 @@ func TestFileTree_RefreshPreservesExpandedState(t *testing.T) {
 	}
 
 	// Add a new file (simulating external change)
-	os.WriteFile(filepath.Join(tmpDir, "newfile.txt"), []byte("new"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "newfile.txt"), []byte("new"), 0644)
 
 	// Refresh the tree
 	if err := tree.Refresh(); err != nil {
@@ -239,7 +239,7 @@ func TestFileTree_RefreshPreservesExpandedState(t *testing.T) {
 
 func TestFileTree_GetExpandedPaths_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.MkdirAll(filepath.Join(tmpDir, "dir1"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "dir1"), 0755)
 
 	tree := NewFileTree(tmpDir)
 	if err := tree.Build(); err != nil {
@@ -256,8 +256,8 @@ func TestFileTree_GetExpandedPaths_Empty(t *testing.T) {
 func TestFileTree_RestoreExpandedPaths_DeletedDir(t *testing.T) {
 	// Test that restoring works gracefully when a previously expanded dir is deleted
 	tmpDir := t.TempDir()
-	os.MkdirAll(filepath.Join(tmpDir, "willdelete"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "willdelete", "file.txt"), []byte("test"), 0644)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "willdelete"), 0755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "willdelete", "file.txt"), []byte("test"), 0644)
 
 	tree := NewFileTree(tmpDir)
 	if err := tree.Build(); err != nil {
@@ -275,10 +275,10 @@ func TestFileTree_RestoreExpandedPaths_DeletedDir(t *testing.T) {
 	if dirNode == nil {
 		t.Fatal("Expected to find willdelete node")
 	}
-	tree.Expand(dirNode)
+	_ = tree.Expand(dirNode)
 
 	// Delete the directory
-	os.RemoveAll(filepath.Join(tmpDir, "willdelete"))
+	_ = os.RemoveAll(filepath.Join(tmpDir, "willdelete"))
 
 	// Refresh should not error even though expanded dir is gone
 	if err := tree.Refresh(); err != nil {

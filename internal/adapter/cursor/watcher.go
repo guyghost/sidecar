@@ -23,7 +23,7 @@ func NewWatcher(workspaceDir string) (<-chan adapter.Event, io.Closer, error) {
 	// Only watch workspace directory to reduce FD count (td-0f0e68)
 	// fsnotify on macOS propagates events from subdirectories
 	if err := watcher.Add(workspaceDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, nil, err
 	}
 

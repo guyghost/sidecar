@@ -18,14 +18,6 @@ const (
 
 // Additional styles for enhanced diff rendering
 var (
-	lineNumberStyle = lipgloss.NewStyle().
-			Foreground(styles.TextMuted).
-			Width(4).
-			Align(lipgloss.Right)
-
-	lineNumberSeparator = lipgloss.NewStyle().
-				Foreground(styles.TextSubtle)
-
 	wordDiffAddStyle = lipgloss.NewStyle().
 				Foreground(styles.Success).
 				Background(styles.DiffAddBg).
@@ -48,9 +40,6 @@ var (
 			Foreground(styles.TextPrimary).
 			Background(styles.BgTertiary).
 			Bold(true)
-
-	fileHeaderStatsStyle = lipgloss.NewStyle().
-				Foreground(styles.TextMuted)
 )
 
 // RenderLineDiff renders a parsed diff in unified line-by-line format with line numbers.

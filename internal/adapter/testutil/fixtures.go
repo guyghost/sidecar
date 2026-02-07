@@ -40,7 +40,7 @@ func GenerateClaudeCodeSessionFile(path string, messageCount int, avgMessageSize
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sessionID := "bench-session-001"
 	enc := json.NewEncoder(f)
@@ -183,7 +183,7 @@ func GenerateCodexSessionFile(path string, messageCount int, avgMessageSize int)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sessionID := "codex-bench-001"
 	enc := json.NewEncoder(f)

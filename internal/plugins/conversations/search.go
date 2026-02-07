@@ -129,11 +129,8 @@ func (f *SearchFilters) Matches(session adapter.Session) bool {
 		return false
 	}
 
-	// Model filter
-	if len(f.Models) > 0 {
-		// Would need session.PrimaryModel field to check this
-		// For now, skip model filtering at session level
-	}
+	// Model filter - Would need session.PrimaryModel field to check this
+	// For now, skip model filtering at session level
 
 	// Date range filter
 	if f.DateRange.Preset != "" {

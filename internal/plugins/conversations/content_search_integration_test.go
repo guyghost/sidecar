@@ -278,7 +278,7 @@ func TestContentSearchUpdateDebounceMsg(t *testing.T) {
 
 	// Invalid debounce message (wrong version)
 	result2, cmd = p.Update(ContentSearchDebounceMsg{Version: 3, Query: "test"})
-	p = result2.(*Plugin)
+	_ = result2.(*Plugin)
 	if cmd != nil {
 		t.Error("Should not return command for invalid debounce version")
 	}

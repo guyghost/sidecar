@@ -322,10 +322,6 @@ func (p *Plugin) renderSidebarPane(height int) string {
 	if len(sessions) == 0 {
 		// Show skeleton while loading, "No sessions" when done (td-6cc19f)
 		if !p.initialLoadDone {
-			contentHeight := height - linesUsed
-			if contentHeight < 1 {
-				contentHeight = 1
-			}
 			sb.WriteString(p.skeleton.View(contentWidth))
 			return sb.String()
 		}
@@ -852,7 +848,7 @@ func (p *Plugin) renderDetailPaneContent(contentWidth, height int) string {
 
 	// Get friendly role name
 	session := p.findSelectedSession()
-	roleName := turn.Role
+	var roleName string
 	if turn.Role == "user" {
 		roleName = "you"
 	} else {
@@ -864,7 +860,7 @@ func (p *Plugin) renderDetailPaneContent(contentWidth, height int) string {
 	if msgCount > 1 {
 		roleLabel = fmt.Sprintf("%s (%d messages)", roleName, msgCount)
 	}
-	header := fmt.Sprintf("%s Turn", strings.Title(roleLabel))
+	header := fmt.Sprintf("%s Turn", strings.ToUpper(roleLabel[:1])+roleLabel[1:])
 	if len(header) > contentWidth-10 {
 		header = header[:contentWidth-13] + "..."
 	}
@@ -927,9 +923,7 @@ func (p *Plugin) renderDetailPaneContent(contentWidth, height int) string {
 		if msg.Content != "" {
 			// Render markdown content
 			msgLines := p.renderContent(msg.Content, contentWidth-2)
-			for _, line := range msgLines {
-				contentLines = append(contentLines, line) // Glamour already styled
-			}
+			contentLines = append(contentLines, msgLines...) // Glamour already styled
 			contentLines = append(contentLines, "")
 		}
 
@@ -1035,7 +1029,7 @@ func (p *Plugin) renderCompactTurn(turn Turn, turnIndex int, maxWidth int) []str
 
 	// Get friendly role name
 	session := p.findSelectedSession()
-	roleName := turn.Role
+	var roleName string
 	if turn.Role == "user" {
 		roleName = "you"
 	} else {
@@ -1099,94 +1093,6 @@ func (p *Plugin) styleTurnLine(content string, selected bool, maxWidth int) stri
 		return styles.ListItemSelected.Render(content)
 	}
 	return styles.Muted.Render(content)
-}
-
-// renderCompactMessage renders a message in compact format for two-pane view.
-func (p *Plugin) renderCompactMessage(msg adapter.Message, msgIndex int, maxWidth int) []string {
-	var lines []string
-
-	// Header line: [timestamp] role  tokens
-	ts := msg.Timestamp.Local().Format("15:04")
-	var roleStyle lipgloss.Style
-	if msg.Role == "user" {
-		roleStyle = styles.StatusInProgress
-	} else {
-		roleStyle = styles.StatusStaged
-	}
-
-	// Get friendly role name
-	session := p.findSelectedSession()
-	roleName := msg.Role
-	if msg.Role == "user" {
-		roleName = "you"
-	} else {
-		roleName = adapterShortName(session)
-	}
-
-	// Cursor indicator
-	var styledCursor string
-	if msgIndex == p.msgCursor {
-		styledCursor = styles.ListCursor.Render("> ")
-	} else {
-		styledCursor = "  "
-	}
-
-	// Token info - truncate if needed
-	tokens := ""
-	if msg.OutputTokens > 0 || msg.InputTokens > 0 {
-		tokens = fmt.Sprintf(" (%s→%s)", formatK(msg.InputTokens), formatK(msg.OutputTokens))
-	}
-
-	// Calculate if we need to truncate role (rune-safe for Unicode)
-	roleRunes := []rune(roleName)
-	// Account for: cursor(2) + [](2) + ts(5) + space(1) + role + tokens
-	usedWidth := 2 + 2 + len(ts) + 1 + len(roleRunes) + len(tokens)
-	if usedWidth > maxWidth && len(roleRunes) > 4 {
-		roleName = string(roleRunes[:4])
-	}
-
-	// Build styled header
-	styledHeader := styledCursor + fmt.Sprintf("[%s] %s%s",
-		styles.Muted.Render(ts),
-		roleStyle.Render(roleName),
-		styles.Muted.Render(tokens))
-	lines = append(lines, styledHeader)
-
-	// Thinking indicator
-	if len(msg.ThinkingBlocks) > 0 {
-		var totalTokens int
-		for _, tb := range msg.ThinkingBlocks {
-			totalTokens += tb.TokenCount
-		}
-		thinkingLine := fmt.Sprintf("  ├─ [thinking] %s tokens", formatK(totalTokens))
-		if len(thinkingLine) > maxWidth {
-			thinkingLine = thinkingLine[:maxWidth-3] + "..."
-		}
-		lines = append(lines, styles.Muted.Render(thinkingLine))
-	}
-
-	// Content preview (truncated, rune-safe for Unicode)
-	content := msg.Content
-	content = strings.ReplaceAll(content, "\n", " ")
-	content = strings.TrimSpace(content)
-	contentMaxLen := maxWidth - 4 // Account for "   " prefix
-	if contentMaxLen < 10 {
-		contentMaxLen = 10
-	}
-	if runes := []rune(content); len(runes) > contentMaxLen {
-		content = string(runes[:contentMaxLen-3]) + "..."
-	}
-	if content != "" {
-		lines = append(lines, "  "+styles.Body.Render(content))
-	}
-
-	// Tool uses (compact)
-	if len(msg.ToolUses) > 0 {
-		toolLine := fmt.Sprintf("  └─ %d tools", len(msg.ToolUses))
-		lines = append(lines, styles.Code.Render(toolLine))
-	}
-
-	return lines
 }
 
 // renderConversationFlow renders messages as a scrollable chat thread (Claude Code web UI style).

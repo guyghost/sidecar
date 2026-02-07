@@ -634,12 +634,6 @@ func (p *Plugin) renderNoteRow(note Note, selected bool, maxWidth int) string {
 	return prefixStr + styles.Body.Render(title)
 }
 
-// ensureCursorVisible adjusts scrollOff so the cursor is visible.
-func (p *Plugin) ensureCursorVisible(viewHeight int) {
-	noteCount := len(p.getDisplayNotes())
-	p.ensureCursorVisibleForList(viewHeight, noteCount)
-}
-
 // ensureCursorVisibleForList adjusts scrollOff for a list of given size.
 func (p *Plugin) ensureCursorVisibleForList(viewHeight, listSize int) {
 	// Clamp cursor to valid range

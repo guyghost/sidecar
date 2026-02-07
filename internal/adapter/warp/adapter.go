@@ -138,7 +138,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []adapter.Session
 	for rows.Next() {
@@ -283,7 +283,7 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 			Model:     model,
 		})
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	// 2. Get blocks (tool executions) for this conversation
 	blocksSQL := `
@@ -299,7 +299,7 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var toolUses []adapter.ToolUse
 	var lastBlockTS time.Time
@@ -451,7 +451,7 @@ func (a *Adapter) getDB() (*sql.DB, error) {
 			return a.db, nil
 		}
 		// Connection dead, close and recreate
-		a.db.Close()
+		_ = a.db.Close()
 		a.db = nil
 	}
 

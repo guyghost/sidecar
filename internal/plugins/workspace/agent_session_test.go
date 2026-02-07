@@ -10,8 +10,8 @@ func TestDetectClaudeSessionStatus(t *testing.T) {
 	// Create temp directory structure mimicking Claude's projects dir
 	tmpHome := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpHome)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	// Test worktree path
 	worktreePath := "/test/project/path"
@@ -60,7 +60,7 @@ func TestDetectClaudeSessionStatus(t *testing.T) {
 			// Clean previous session files
 			entries, _ := os.ReadDir(projectDir)
 			for _, e := range entries {
-				os.Remove(filepath.Join(projectDir, e.Name()))
+				_ = os.Remove(filepath.Join(projectDir, e.Name()))
 			}
 
 			// Create session file
@@ -83,8 +83,8 @@ func TestDetectClaudeSessionStatus(t *testing.T) {
 func TestDetectClaudeSessionStatus_NoSessionFile(t *testing.T) {
 	tmpHome := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpHome)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	// Don't create any session files
 	status, ok := detectClaudeSessionStatus("/nonexistent/path")

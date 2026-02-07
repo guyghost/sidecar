@@ -399,7 +399,6 @@ func (p *Plugin) createTaskSection() modal.Section {
 		if p.taskDropdownVisible(focusID) && p.createTaskID == "" {
 			if p.taskSearchLoading {
 				lines = append(lines, dimText("  Loading tasks..."))
-				lineY++
 			} else if len(p.taskSearchFiltered) > 0 {
 				maxDropdown := 5
 				dropdownCount := len(p.taskSearchFiltered)
@@ -439,17 +438,13 @@ func (p *Plugin) createTaskSection() modal.Section {
 				}
 				if len(p.taskSearchFiltered) > maxDropdown {
 					lines = append(lines, dimText(fmt.Sprintf("  ... and %d more", len(p.taskSearchFiltered)-maxDropdown)))
-					lineY++
 				}
 			} else if p.taskSearchInput.Value() != "" {
 				lines = append(lines, dimText("  No matching tasks"))
-				lineY++
 			} else if len(p.taskSearchAll) == 0 {
 				lines = append(lines, dimText("  No open tasks found"))
-				lineY++
 			} else {
 				lines = append(lines, dimText("  Type to search, \u2191/\u2193 to navigate"))
-				lineY++
 			}
 		}
 

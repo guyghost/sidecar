@@ -80,18 +80,6 @@ func (p *Plugin) loadMoreCommits() tea.Cmd {
 	}
 }
 
-// loadCommitStats fetches stats for a specific commit (lazy loading).
-func (p *Plugin) loadCommitStats(hash string) tea.Cmd {
-	epoch := p.ctx.Epoch
-	workDir := p.repoRoot
-	return func() tea.Msg {
-		commit, err := GetCommitDetail(workDir, hash)
-		if err != nil || commit == nil {
-			return CommitStatsLoadedMsg{Epoch: epoch, Hash: hash, Stats: CommitStats{}}
-		}
-		return CommitStatsLoadedMsg{Epoch: epoch, Hash: hash, Stats: commit.Stats}
-	}
-}
 
 // loadFilteredCommits fetches commits with current filter options.
 func (p *Plugin) loadFilteredCommits() tea.Cmd {

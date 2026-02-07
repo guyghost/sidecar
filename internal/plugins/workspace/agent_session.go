@@ -356,7 +356,7 @@ func readTailLines(path string, maxBytes int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	info, err := file.Stat()
 	if err != nil {
@@ -473,7 +473,7 @@ func getCodexSessionCWD(path string, info os.FileInfo) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 64*1024)

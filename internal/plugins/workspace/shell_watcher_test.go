@@ -10,11 +10,11 @@ import (
 func TestShellWatcher_DetectsFileChange(t *testing.T) {
 	dir := t.TempDir()
 	sidecarDir := filepath.Join(dir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	manifestPath := filepath.Join(sidecarDir, "shells.json")
 
 	// Create initial file
-	os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[]}`), 0644)
+	_ = os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[]}`), 0644)
 
 	w, err := NewShellWatcher(manifestPath)
 	if err != nil {
@@ -26,7 +26,7 @@ func TestShellWatcher_DetectsFileChange(t *testing.T) {
 
 	// Modify the file
 	time.Sleep(50 * time.Millisecond) // Let watcher settle
-	os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[{"tmuxName":"test"}]}`), 0644)
+	_ = os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[{"tmuxName":"test"}]}`), 0644)
 
 	// Should receive change notification
 	select {
@@ -42,11 +42,11 @@ func TestShellWatcher_DetectsFileChange(t *testing.T) {
 func TestShellWatcher_DebounceRapidChanges(t *testing.T) {
 	dir := t.TempDir()
 	sidecarDir := filepath.Join(dir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	manifestPath := filepath.Join(sidecarDir, "shells.json")
 
 	// Create initial file
-	os.WriteFile(manifestPath, []byte(`{"version":1}`), 0644)
+	_ = os.WriteFile(manifestPath, []byte(`{"version":1}`), 0644)
 
 	w, err := NewShellWatcher(manifestPath)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestShellWatcher_DebounceRapidChanges(t *testing.T) {
 
 	// Make multiple rapid changes
 	for i := 0; i < 5; i++ {
-		os.WriteFile(manifestPath, []byte(`{"version":1,"i":`+string(rune('0'+i))+`}`), 0644)
+		_ = os.WriteFile(manifestPath, []byte(`{"version":1,"i":`+string(rune('0'+i))+`}`), 0644)
 		time.Sleep(10 * time.Millisecond)
 	}
 
@@ -115,7 +115,7 @@ func TestShellWatcher_Stop(t *testing.T) {
 func TestShellWatcher_DetectsFileCreation(t *testing.T) {
 	dir := t.TempDir()
 	sidecarDir := filepath.Join(dir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	manifestPath := filepath.Join(sidecarDir, "shells.json")
 
 	// File does NOT exist initially
@@ -129,7 +129,7 @@ func TestShellWatcher_DetectsFileCreation(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Create the file for the first time
-	os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[]}`), 0644)
+	_ = os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[]}`), 0644)
 
 	// Should receive change notification for file creation
 	select {
@@ -146,11 +146,11 @@ func TestShellWatcher_DetectsFileCreation(t *testing.T) {
 func TestShellWatcher_DetectsRename(t *testing.T) {
 	dir := t.TempDir()
 	sidecarDir := filepath.Join(dir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	manifestPath := filepath.Join(sidecarDir, "shells.json")
 
 	// Create initial file
-	os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[]}`), 0644)
+	_ = os.WriteFile(manifestPath, []byte(`{"version":1,"shells":[]}`), 0644)
 
 	w, err := NewShellWatcher(manifestPath)
 	if err != nil {
@@ -163,8 +163,8 @@ func TestShellWatcher_DetectsRename(t *testing.T) {
 
 	// Simulate atomic write (temp file + rename)
 	tmpPath := manifestPath + ".tmp"
-	os.WriteFile(tmpPath, []byte(`{"version":1,"shells":[{"tmuxName":"new"}]}`), 0644)
-	os.Rename(tmpPath, manifestPath)
+	_ = os.WriteFile(tmpPath, []byte(`{"version":1,"shells":[{"tmuxName":"new"}]}`), 0644)
+	_ = os.Rename(tmpPath, manifestPath)
 
 	// Should receive change notification
 	select {
@@ -181,12 +181,12 @@ func TestShellWatcher_DetectsRename(t *testing.T) {
 func TestShellWatcher_IgnoresOtherFiles(t *testing.T) {
 	dir := t.TempDir()
 	sidecarDir := filepath.Join(dir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	manifestPath := filepath.Join(sidecarDir, "shells.json")
 	otherPath := filepath.Join(sidecarDir, "other.json")
 
 	// Create initial file
-	os.WriteFile(manifestPath, []byte(`{"version":1}`), 0644)
+	_ = os.WriteFile(manifestPath, []byte(`{"version":1}`), 0644)
 
 	w, err := NewShellWatcher(manifestPath)
 	if err != nil {
@@ -198,7 +198,7 @@ func TestShellWatcher_IgnoresOtherFiles(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Modify a different file
-	os.WriteFile(otherPath, []byte(`{"other":true}`), 0644)
+	_ = os.WriteFile(otherPath, []byte(`{"other":true}`), 0644)
 
 	// Should NOT receive notification for other files
 	select {

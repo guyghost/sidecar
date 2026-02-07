@@ -74,7 +74,7 @@ func TestParseContent_Empty(t *testing.T) {
 		t.Errorf("got %d tool uses, want 0", len(toolUses))
 	}
 
-	text, toolUses, _ = a.parseContent(json.RawMessage{})
+	text, _, _ = a.parseContent(json.RawMessage{})
 	if text != "" {
 		t.Errorf("got text %q, want empty", text)
 	}
@@ -529,7 +529,7 @@ func parseMessagesFromFile(t *testing.T, a *Adapter, path string) []testMessage 
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var messages []testMessage
 	scanner := bufio.NewScanner(file)

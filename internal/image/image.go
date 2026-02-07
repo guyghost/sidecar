@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/blacktop/go-termimg"
 )
@@ -213,5 +212,3 @@ func SupportedTerminals() string {
 	return "all terminals with Unicode and true color support"
 }
 
-// For testing: allow injecting a timestamp
-var nowFunc = time.Now

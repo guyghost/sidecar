@@ -168,7 +168,7 @@ func TestDiagnosticsWithDatabase(t *testing.T) {
 		WorkDir: projectRoot,
 		Logger:  slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 	}
-	p.Init(ctx)
+	_ = p.Init(ctx)
 	defer p.Stop()
 
 	diags := p.Diagnostics()

@@ -119,9 +119,9 @@ func TestInstallDefaultsPreservesProjectPrompts(t *testing.T) {
 
 	// Create project config with an override
 	sidecarDir := filepath.Join(projectDir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	projectConfig := `{"prompts": [{"name": "Begin Work on Ticket", "body": "Custom project override"}]}`
-	os.WriteFile(filepath.Join(sidecarDir, "config.json"), []byte(projectConfig), 0644)
+	_ = os.WriteFile(filepath.Join(sidecarDir, "config.json"), []byte(projectConfig), 0644)
 
 	// Install defaults to global
 	WriteDefaultPromptsToConfig(configDir)

@@ -754,8 +754,8 @@ func TestIncrementalMetadataParsing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.WriteString(appended)
-	f.Close()
+	_, _ = f.WriteString(appended)
+	_ = f.Close()
 
 	// Incremental parse from saved offset
 	meta2, _, _, _, err := a.parseSessionMetadataIncremental(sessionPath, meta1, offset1, mc1, mt1)
@@ -816,8 +816,8 @@ func TestSessionMetadataCacheIncremental(t *testing.T) {
 
 	// Append and re-stat
 	f, _ := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
-	f.WriteString(`{"type":"assistant","timestamp":"2024-01-01T10:02:00Z","message":{"role":"assistant","content":"new","model":"claude-sonnet-4-20250514","usage":{"input_tokens":30,"output_tokens":20}}}` + "\n")
-	f.Close()
+	_, _ = f.WriteString(`{"type":"assistant","timestamp":"2024-01-01T10:02:00Z","message":{"role":"assistant","content":"new","model":"claude-sonnet-4-20250514","usage":{"input_tokens":30,"output_tokens":20}}}` + "\n")
+	_ = f.Close()
 
 	info2, _ := os.Stat(sessionPath)
 	if info2.Size() <= info1.Size() {
@@ -962,8 +962,8 @@ func TestMessagesCaching_IncrementalParse(t *testing.T) {
 
 	// Append new message
 	f, _ := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
-	f.WriteString(`{"type":"user","timestamp":"2024-01-01T10:02:00Z","uuid":"msg3","message":{"role":"user","content":"more"}}` + "\n")
-	f.Close()
+	_, _ = f.WriteString(`{"type":"user","timestamp":"2024-01-01T10:02:00Z","uuid":"msg3","message":{"role":"user","content":"more"}}` + "\n")
+	_ = f.Close()
 
 	// Second call: incremental parse
 	msgs2, err := a.Messages(sessionID)
@@ -1063,8 +1063,8 @@ func TestMessagesCaching_ToolLinkingAcrossBoundary(t *testing.T) {
 
 	// Append user message with tool result
 	f, _ := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
-	f.WriteString(`{"type":"user","timestamp":"2024-01-01T10:02:00Z","uuid":"msg3","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-123","content":"hello\n"}]}}` + "\n")
-	f.Close()
+	_, _ = f.WriteString(`{"type":"user","timestamp":"2024-01-01T10:02:00Z","uuid":"msg3","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-123","content":"hello\n"}]}}` + "\n")
+	_ = f.Close()
 
 	// Second call: incremental parse should link the result
 	msgs2, err := a.Messages(sessionID)

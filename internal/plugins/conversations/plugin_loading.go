@@ -532,7 +532,7 @@ func (p *Plugin) startWatcher() tea.Cmd {
 				wg.Add(1)
 				go func(c <-chan adapter.Event, cl io.Closer, aid string) {
 					defer wg.Done()
-					defer cl.Close()
+					defer func() { _ = cl.Close() }()
 					for {
 						select {
 						case <-ctx.Done():
@@ -552,7 +552,7 @@ func (p *Plugin) startWatcher() tea.Cmd {
 		}
 
 		if watchCount == 0 {
-			manager.Close()
+			_ = manager.Close()
 			p.tieredManager = nil
 			return WatchStartedMsg{Channel: nil, Closers: nil}
 		}

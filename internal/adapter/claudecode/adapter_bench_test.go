@@ -136,8 +136,8 @@ func BenchmarkMessages_IncrementalParse(b *testing.B) {
 		b.StopTimer()
 		// Append a small message to trigger incremental parse
 		f, _ := os.OpenFile(sessionFile, os.O_APPEND|os.O_WRONLY, 0644)
-		f.Write(appendContent)
-		f.Close()
+		_, _ = f.Write(appendContent)
+		_ = f.Close()
 		b.StartTimer()
 
 		_, err := a.Messages("bench-session-001")
@@ -158,7 +158,7 @@ func BenchmarkSessions_50Files(b *testing.B) {
 	projectHash = strings.ReplaceAll(projectHash, ".", "-")
 	projectHash = strings.ReplaceAll(projectHash, "_", "-")
 	sessionsDir := filepath.Join(tmpDir, projectHash)
-	os.MkdirAll(sessionsDir, 0755)
+	_ = os.MkdirAll(sessionsDir, 0755)
 
 	// Create 50 session files of ~100KB each
 	for i := 0; i < 50; i++ {

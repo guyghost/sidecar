@@ -563,9 +563,3 @@ func (c *paneIDCache) set(sessionName, paneID string) {
 	}
 }
 
-// remove deletes a session from the cache.
-func (c *paneIDCache) remove(sessionName string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	delete(c.entries, sessionName)
-}

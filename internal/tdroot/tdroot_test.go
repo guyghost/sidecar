@@ -14,7 +14,7 @@ func TestResolveTDRoot_NoFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	result := ResolveTDRoot(tmpDir)
 	if result != tmpDir {
@@ -28,7 +28,7 @@ func TestResolveTDRoot_ValidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	targetRoot := "/path/to/main/repo"
 	tdRootPath := filepath.Join(tmpDir, TDRootFile)
@@ -47,7 +47,7 @@ func TestResolveTDRoot_EmptyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Write empty .td-root file
 	tdRootPath := filepath.Join(tmpDir, TDRootFile)
@@ -66,7 +66,7 @@ func TestResolveTDRoot_WhitespaceHandling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	targetRoot := "/path/to/main/repo"
 	tdRootPath := filepath.Join(tmpDir, TDRootFile)
@@ -86,7 +86,7 @@ func TestResolveDBPath_NoTDRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	expected := filepath.Join(tmpDir, TodosDir, DBFile)
 	result := ResolveDBPath(tmpDir)
@@ -100,7 +100,7 @@ func TestResolveDBPath_WithTDRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	targetRoot := "/path/to/main/repo"
 	tdRootPath := filepath.Join(tmpDir, TDRootFile)
@@ -120,7 +120,7 @@ func TestCreateTDRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	targetRoot := "/path/to/main/repo"
 	if err := CreateTDRoot(tmpDir, targetRoot); err != nil {
@@ -145,7 +145,7 @@ func TestCreateTDRoot_Overwrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create initial file
 	if err := CreateTDRoot(tmpDir, "/old/path"); err != nil {
@@ -175,7 +175,7 @@ func initGitRepo(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("MkdirTemp: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	runGit(t, dir, "init")
 	runGit(t, dir, "commit", "--allow-empty", "-m", "init")
 	return dir
@@ -227,7 +227,7 @@ func TestResolveTDRoot_ExternalWorktreeFindsMainTodos(t *testing.T) {
 	// Create linked worktree
 	wtPath := filepath.Join(filepath.Dir(mainRepo), "wt-find-todos")
 	runGit(t, mainRepo, "worktree", "add", wtPath, "-b", "test-branch")
-	t.Cleanup(func() { os.RemoveAll(wtPath) })
+	t.Cleanup(func() { _ = os.RemoveAll(wtPath) })
 
 	result := ResolveTDRoot(wtPath)
 	assertSamePath(t, mainRepo, result)
@@ -241,7 +241,7 @@ func TestResolveTDRoot_ExternalWorktreeFollowsMainTdRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MkdirTemp shared: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(sharedRoot) })
+	t.Cleanup(func() { _ = os.RemoveAll(sharedRoot) })
 
 	if err := CreateTDRoot(mainRepo, sharedRoot); err != nil {
 		t.Fatalf("CreateTDRoot: %v", err)
@@ -250,7 +250,7 @@ func TestResolveTDRoot_ExternalWorktreeFollowsMainTdRoot(t *testing.T) {
 	// Create linked worktree
 	wtPath := filepath.Join(filepath.Dir(mainRepo), "wt-follow-tdroot")
 	runGit(t, mainRepo, "worktree", "add", wtPath, "-b", "test-branch")
-	t.Cleanup(func() { os.RemoveAll(wtPath) })
+	t.Cleanup(func() { _ = os.RemoveAll(wtPath) })
 
 	result := ResolveTDRoot(wtPath)
 	assertSamePath(t, sharedRoot, result)
@@ -267,7 +267,7 @@ func TestResolveDBPath_ExternalWorktree(t *testing.T) {
 	// Create linked worktree
 	wtPath := filepath.Join(filepath.Dir(mainRepo), "wt-dbpath")
 	runGit(t, mainRepo, "worktree", "add", wtPath, "-b", "test-branch")
-	t.Cleanup(func() { os.RemoveAll(wtPath) })
+	t.Cleanup(func() { _ = os.RemoveAll(wtPath) })
 
 	result := ResolveDBPath(wtPath)
 

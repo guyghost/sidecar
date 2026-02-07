@@ -312,22 +312,6 @@ func (p *Plugin) findScrollOffForCursor(cursor, visibleRows int) int {
 	return 0
 }
 
-// ensureMsgCursorVisible adjusts scroll to keep message cursor visible.
-func (p *Plugin) ensureMsgCursorVisible() {
-	// Pane height - borders(2) - header(4-5)
-	paneHeight := p.height - 2
-	visibleRows := paneHeight - 6 // Account for header, stats, resume cmd, separator
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
-
-	if p.msgCursor < p.msgScrollOff {
-		p.msgScrollOff = p.msgCursor
-	} else if p.msgCursor >= p.msgScrollOff+visibleRows {
-		p.msgScrollOff = p.msgCursor - visibleRows + 1
-	}
-}
-
 // ensureTurnCursorVisible adjusts scroll to keep turn cursor visible.
 func (p *Plugin) ensureTurnCursorVisible() {
 	// Pane height - borders(2) - header(4-5)

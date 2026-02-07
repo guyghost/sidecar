@@ -85,7 +85,11 @@ func TestDetect_WithTestdata(t *testing.T) {
 	if err := os.WriteFile(projectJSON, []byte(modifiedJSON), 0644); err != nil {
 		t.Fatalf("failed to write modified project: %v", err)
 	}
-	defer os.WriteFile(projectJSON, data, 0644) // Restore original
+	defer func() {
+		if err := os.WriteFile(projectJSON, data, 0644); err != nil {
+			t.Logf("failed to restore original: %v", err)
+		}
+	}() // Restore original
 
 	// Should detect the project
 	found, err := a.Detect(projectPath)
@@ -132,15 +136,24 @@ func TestSessions_WithTestdata(t *testing.T) {
 
 	// Modify project file
 	projectJSON := filepath.Join(testdataDir, "project", "test_project.json")
-	origData, _ := os.ReadFile(projectJSON)
+	origData, err := os.ReadFile(projectJSON)
+	if err != nil {
+		t.Fatalf("failed to read original project: %v", err)
+	}
 	modifiedJSON := `{
   "id": "test_project",
   "worktree": "` + projectPath + `",
   "vcs": "git",
   "time": { "created": 1767000000000, "updated": 1767100000000 }
 }`
-	os.WriteFile(projectJSON, []byte(modifiedJSON), 0644)
-	defer os.WriteFile(projectJSON, origData, 0644)
+	if err := os.WriteFile(projectJSON, []byte(modifiedJSON), 0644); err != nil {
+		t.Fatalf("failed to write modified project: %v", err)
+	}
+	defer func() {
+		if err := os.WriteFile(projectJSON, origData, 0644); err != nil {
+			t.Logf("failed to restore original: %v", err)
+		}
+	}()
 
 	sessions, err := a.Sessions(projectPath)
 	if err != nil {
@@ -164,13 +177,14 @@ func TestSessions_WithTestdata(t *testing.T) {
 	}
 	for i := range sessions {
 		s := sessions[i]
-		if s.ID == "ses_test_main" {
+		switch s.ID {
+		case "ses_test_main":
 			mainSession = &struct {
 				ID         string
 				Name       string
 				IsSubAgent bool
 			}{s.ID, s.Name, s.IsSubAgent}
-		} else if s.ID == "ses_subagent" {
+		case "ses_subagent":
 			subAgent = &struct {
 				ID         string
 				Name       string

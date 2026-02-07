@@ -695,7 +695,7 @@ func (p *Plugin) attachWithResize(target, sessionName, displayName string, onCom
 	termState, _ := term.GetState(int(os.Stdout.Fd()))
 	wrappedOnComplete := func(err error) tea.Msg {
 		if termState != nil {
-			term.Restore(int(os.Stdout.Fd()), termState)
+			_ = term.Restore(int(os.Stdout.Fd()), termState)
 		}
 		return onComplete(err)
 	}
@@ -1245,43 +1245,6 @@ func (p *Plugin) getCursorPosition() (row, col, paneHeight, paneWidth int, visib
 
 	// Return cached values - never spawn subprocess from View()
 	return p.interactiveState.CursorRow, p.interactiveState.CursorCol, p.interactiveState.PaneHeight, p.interactiveState.PaneWidth, p.interactiveState.CursorVisible, nil
-}
-
-// queryCursorPositionCmd returns a tea.Cmd that queries tmux for cursor position (td-648af4).
-// This is called from the poll handler when output changes, NOT from View().
-// The result is delivered via cursorPositionMsg and cached in interactiveState.
-func (p *Plugin) queryCursorPositionCmd() tea.Cmd {
-	if p.interactiveState == nil || !p.interactiveState.Active {
-		return nil
-	}
-
-	paneID := p.interactiveState.TargetPane
-	if paneID == "" {
-		paneID = p.interactiveState.TargetSession
-	}
-
-	return func() tea.Msg {
-		// Query cursor position using tmux display-message
-		// #{cursor_x},#{cursor_y} gives 0-indexed position
-		// #{cursor_flag} is 0 if cursor hidden (e.g., alternate screen), 1 if visible
-		cmd := exec.Command("tmux", "display-message", "-t", paneID,
-			"-p", "#{cursor_x},#{cursor_y},#{cursor_flag}")
-		output, err := cmd.Output()
-		if err != nil {
-			return cursorPositionMsg{Row: 0, Col: 0, Visible: false}
-		}
-
-		parts := strings.Split(strings.TrimSpace(string(output)), ",")
-		if len(parts) < 2 {
-			return cursorPositionMsg{Row: 0, Col: 0, Visible: false}
-		}
-
-		col, _ := strconv.Atoi(parts[0])
-		row, _ := strconv.Atoi(parts[1])
-		visible := len(parts) < 3 || parts[2] != "0"
-
-		return cursorPositionMsg{Row: row, Col: col, Visible: visible}
-	}
 }
 
 // queryCursorPositionSync synchronously queries cursor position for the given target.

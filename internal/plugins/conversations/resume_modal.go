@@ -151,34 +151,6 @@ func (p *Plugin) shouldShowResumeSkipPerms() bool {
 	return hasFlag && workspace.SkipPermissionsFlags[agentType] != ""
 }
 
-// syncResumeModalFocus syncs modal focus with current state.
-func (p *Plugin) syncResumeModalFocus() {
-	if p.resumeModal == nil {
-		return
-	}
-	// Focus based on current field
-	var focusID string
-	switch p.resumeFocus {
-	case 0:
-		focusID = fmt.Sprintf("%s%d", resumeTypeItemPrefix, p.resumeType)
-	case 1:
-		focusID = resumeNameFieldID
-	case 2:
-		focusID = resumeBaseFieldID
-	case 3:
-		focusID = fmt.Sprintf("%s%d", resumeAgentItemPrefix, p.resumeAgentIdx)
-	case 4:
-		focusID = resumeSkipPermsID
-	case 5:
-		focusID = resumeSubmitID
-	case 6:
-		focusID = resumeCancelID
-	}
-	if focusID != "" {
-		p.resumeModal.SetFocus(focusID)
-	}
-}
-
 // handleResumeModalKeys handles keyboard input for the resume modal.
 func (p *Plugin) handleResumeModalKeys(msg tea.KeyMsg) tea.Cmd {
 	p.ensureResumeModal()
@@ -198,7 +170,7 @@ func (p *Plugin) handleResumeModalKeys(msg tea.KeyMsg) tea.Cmd {
 	// Handle type item selection
 	if strings.HasPrefix(action, resumeTypeItemPrefix) {
 		var idx int
-		fmt.Sscanf(action, resumeTypeItemPrefix+"%d", &idx)
+		_, _ = fmt.Sscanf(action, resumeTypeItemPrefix+"%d", &idx)
 		if idx >= 0 && idx < len(resumeTypeLabels) {
 			p.resumeType = idx
 		}
@@ -207,7 +179,7 @@ func (p *Plugin) handleResumeModalKeys(msg tea.KeyMsg) tea.Cmd {
 	// Handle agent item selection
 	if strings.HasPrefix(action, resumeAgentItemPrefix) {
 		var idx int
-		fmt.Sscanf(action, resumeAgentItemPrefix+"%d", &idx)
+		_, _ = fmt.Sscanf(action, resumeAgentItemPrefix+"%d", &idx)
 		if idx >= 0 && idx < len(workspace.AgentTypeOrder) {
 			p.resumeAgentIdx = idx
 		}
@@ -235,7 +207,7 @@ func (p *Plugin) handleResumeModalMouse(msg tea.MouseMsg) tea.Cmd {
 	// Handle type item selection
 	if strings.HasPrefix(action, resumeTypeItemPrefix) {
 		var idx int
-		fmt.Sscanf(action, resumeTypeItemPrefix+"%d", &idx)
+		_, _ = fmt.Sscanf(action, resumeTypeItemPrefix+"%d", &idx)
 		if idx >= 0 && idx < len(resumeTypeLabels) {
 			p.resumeType = idx
 		}
@@ -244,7 +216,7 @@ func (p *Plugin) handleResumeModalMouse(msg tea.MouseMsg) tea.Cmd {
 	// Handle agent item selection
 	if strings.HasPrefix(action, resumeAgentItemPrefix) {
 		var idx int
-		fmt.Sscanf(action, resumeAgentItemPrefix+"%d", &idx)
+		_, _ = fmt.Sscanf(action, resumeAgentItemPrefix+"%d", &idx)
 		if idx >= 0 && idx < len(workspace.AgentTypeOrder) {
 			p.resumeAgentIdx = idx
 		}

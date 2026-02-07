@@ -290,7 +290,7 @@ func (a *Adapter) readSessionMeta(dbPath string) (*SessionMeta, error) {
 		return nil, err
 	}
 	sqlitePoolSettings(db) // Prevent FD leaks (td-649ba4)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	var hexValue string
 	err = db.QueryRow("SELECT value FROM meta WHERE key = '0'").Scan(&hexValue)
@@ -338,7 +338,7 @@ func (a *Adapter) parseMessages(dbPath string) ([]adapter.Message, error) {
 		return nil, err
 	}
 	sqlitePoolSettings(db) // Prevent FD leaks (td-649ba4)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Read session metadata inline to avoid opening second connection (td-649ba4)
 	var hexValue string
@@ -361,7 +361,7 @@ func (a *Adapter) parseMessages(dbPath string) ([]adapter.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id string

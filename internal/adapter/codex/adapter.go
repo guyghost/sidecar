@@ -245,7 +245,9 @@ func (a *Adapter) parseMessagesFull(path, sessionID string, info os.FileInfo) ([
 	if err != nil {
 		return nil, messageCacheEntry{}, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	state := newParseState(sessionID)
 	var bytesRead int64
@@ -291,7 +293,9 @@ func (a *Adapter) parseMessagesIncremental(path, sessionID string, cached messag
 	if err != nil {
 		return nil, messageCacheEntry{}, err
 	}
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+	}()
 
 	// Restore state from cached entry
 	state := &parseState{
@@ -791,7 +795,9 @@ func (a *Adapter) parseSessionMetadata(path string) (*SessionMetadata, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	stat, err := file.Stat()
 	if err != nil {
@@ -892,7 +898,9 @@ func (a *Adapter) parseSessionMetadataTailOnly(path string, headMeta *SessionMet
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	// Copy immutable head fields
 	meta := &SessionMetadata{

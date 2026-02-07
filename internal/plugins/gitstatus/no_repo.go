@@ -174,7 +174,9 @@ func ensureGitignoreEntries(workDir string, entries []string) error {
 	if err != nil {
 		return fmt.Errorf("open .gitignore: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	if _, err := f.WriteString(toAppend.String()); err != nil {
 		return fmt.Errorf("write .gitignore: %w", err)

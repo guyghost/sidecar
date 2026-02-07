@@ -120,33 +120,6 @@ func formatCost(cost float64) string {
 	return fmt.Sprintf("$%.1f", cost)
 }
 
-func adapterBreakdown(sessions []adapter.Session) string {
-	counts := make(map[string]int)
-	for _, session := range sessions {
-		icon := session.AdapterIcon
-		if icon == "" {
-			icon = adapterAbbrev(session)
-		}
-		if icon == "" {
-			continue
-		}
-		counts[icon]++
-	}
-	if len(counts) <= 1 {
-		return ""
-	}
-	var keys []string
-	for key := range counts {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	var parts []string
-	for _, key := range keys {
-		parts = append(parts, fmt.Sprintf("%d %s", counts[key], key))
-	}
-	return strings.Join(parts, ", ")
-}
-
 func adapterBadgeText(session adapter.Session) string {
 	if session.AdapterIcon != "" {
 		return session.AdapterIcon
@@ -473,43 +446,6 @@ func formatSessionDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", h)
 	}
 	return fmt.Sprintf("%dh%dm", h, m)
-}
-
-// estimateCost calculates cost in dollars based on model and tokens.
-func estimateCost(model string, inputTokens, outputTokens, cacheRead int) float64 {
-	var inRate, outRate float64
-	model = strings.ToLower(model)
-	switch {
-	case strings.Contains(model, "opus"):
-		inRate, outRate = 15.0, 75.0
-	case strings.Contains(model, "sonnet"):
-		inRate, outRate = 3.0, 15.0
-	case strings.Contains(model, "haiku"):
-		inRate, outRate = 0.25, 1.25
-	case strings.Contains(model, "gpt-4o"):
-		inRate, outRate = 2.5, 10.0
-	case strings.Contains(model, "gpt-4"):
-		inRate, outRate = 10.0, 30.0
-	case strings.Contains(model, "o1") || strings.Contains(model, "o3"):
-		inRate, outRate = 15.0, 60.0
-	case strings.Contains(model, "gemini"):
-		inRate, outRate = 1.25, 5.0
-	case strings.Contains(model, "deepseek"):
-		inRate, outRate = 0.14, 0.28
-	default:
-		inRate, outRate = 3.0, 15.0 // Default to sonnet rates
-	}
-
-	// Cache reads get 90% discount
-	regularIn := inputTokens - cacheRead
-	if regularIn < 0 {
-		regularIn = 0
-	}
-	cacheInCost := float64(cacheRead) * inRate * 0.1 / 1_000_000
-	regularInCost := float64(regularIn) * inRate / 1_000_000
-	outCost := float64(outputTokens) * outRate / 1_000_000
-
-	return cacheInCost + regularInCost + outCost
 }
 
 // extractFilePath extracts file_path from tool input JSON.

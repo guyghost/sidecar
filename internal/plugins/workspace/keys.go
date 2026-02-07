@@ -354,7 +354,7 @@ func (p *Plugin) executeDelete() tea.Cmd {
 	// Kill tmux session if it exists (before deleting worktree)
 	sessionName := tmuxSessionPrefix + sanitizeName(name)
 	if sessionExists(sessionName) {
-		exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 	}
 	delete(p.managedSessions, sessionName)
 	globalPaneCache.remove(sessionName)
@@ -725,11 +725,12 @@ func (p *Plugin) handleListKeys(msg tea.KeyMsg) tea.Cmd {
 			}
 			return nil
 		} else if p.activePane == PaneSidebar || p.viewMode == ViewModeKanban {
-			if p.viewMode == ViewModeList {
+			switch p.viewMode {
+			case ViewModeList:
 				p.viewMode = ViewModeKanban
 				p.syncListToKanban()
 				return nil
-			} else if p.viewMode == ViewModeKanban {
+			case ViewModeKanban:
 				p.viewMode = ViewModeList
 				return p.pollSelectedAgentNowIfVisible()
 			}
@@ -1108,20 +1109,6 @@ func (p *Plugin) agentTypeIndex(agentType AgentType) int {
 	return 0
 }
 
-// cycleAgentType cycles through agent types in the selection.
-func (p *Plugin) cycleAgentType(forward bool) {
-	currentIdx := p.agentTypeIndex(p.createAgentType)
-
-	if forward {
-		currentIdx = (currentIdx + 1) % len(AgentTypeOrder)
-	} else {
-		currentIdx = (currentIdx + len(AgentTypeOrder) - 1) % len(AgentTypeOrder)
-	}
-
-	p.createAgentIdx = currentIdx
-	p.createAgentType = AgentTypeOrder[currentIdx]
-}
-
 // blurCreateInputs blurs all create modal textinputs.
 func (p *Plugin) blurCreateInputs() {
 	p.createNameInput.Blur()
@@ -1279,31 +1266,33 @@ func (p *Plugin) handleMergeKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 
 	case "up", "k":
-		if p.mergeState.Step == MergeStepTargetBranch {
+		switch p.mergeState.Step {
+		case MergeStepTargetBranch:
 			if p.mergeState.TargetBranchOption > 0 {
 				p.mergeState.TargetBranchOption--
 				p.clearMergeModal()
 			}
-		} else if p.mergeState.Step == MergeStepMergeMethod {
+		case MergeStepMergeMethod:
 			// Select PR workflow (option 0)
 			p.mergeState.MergeMethodOption = 0
 			p.clearMergeModal() // Rebuild with new selection
-		} else if p.mergeState.Step == MergeStepWaitingMerge {
+		case MergeStepWaitingMerge:
 			// Select "Delete worktree after merge"
 			p.mergeState.DeleteAfterMerge = true
 		}
 
 	case "down", "j":
-		if p.mergeState.Step == MergeStepTargetBranch {
+		switch p.mergeState.Step {
+		case MergeStepTargetBranch:
 			if p.mergeState.TargetBranchOption < len(p.mergeState.TargetBranches)-1 {
 				p.mergeState.TargetBranchOption++
 				p.clearMergeModal()
 			}
-		} else if p.mergeState.Step == MergeStepMergeMethod {
+		case MergeStepMergeMethod:
 			// Select direct merge (option 1)
 			p.mergeState.MergeMethodOption = 1
 			p.clearMergeModal() // Rebuild with new selection
-		} else if p.mergeState.Step == MergeStepWaitingMerge {
+		case MergeStepWaitingMerge:
 			// Select "Keep worktree"
 			p.mergeState.DeleteAfterMerge = false
 		}

@@ -92,7 +92,6 @@ type Plugin struct {
 	previewCommitScroll int     // Scroll offset for preview content
 
 	// Diff state (for full-screen diff view)
-	showDiff            bool
 	diffContent         string
 	diffFile            string
 	diffScroll          int
@@ -549,7 +548,7 @@ func (p *Plugin) Update(msg tea.Msg) (plugin.Plugin, tea.Cmd) {
 			return p, nil // Ignore stale message from previous project
 		}
 		p.loadingMoreCommits = false
-		if msg.Commits != nil && len(msg.Commits) > 0 {
+		if len(msg.Commits) > 0 {
 			if len(msg.Commits) < commitHistoryPageSize {
 				p.moreCommitsAvailable = false
 			}

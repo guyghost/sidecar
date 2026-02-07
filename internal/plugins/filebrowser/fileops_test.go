@@ -98,7 +98,7 @@ func TestValidateDestPath_EdgeCases(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		// Create a symlink pointing outside workdir
 		linkPath := filepath.Join(tmpDir, "escape_link")
-		os.Symlink("/tmp", linkPath)
+		_ = os.Symlink("/tmp", linkPath)
 
 		// Path through symlink should still be validated against resolved path
 		dstPath := filepath.Join(linkPath, "file.txt")
@@ -293,8 +293,8 @@ func TestDoFileOp(t *testing.T) {
 		// Create source and destination
 		src := filepath.Join(tmpDir, "src2.txt")
 		dst := filepath.Join(tmpDir, "dst2.txt")
-		os.WriteFile(src, []byte("src"), 0644)
-		os.WriteFile(dst, []byte("dst"), 0644)
+		_ = os.WriteFile(src, []byte("src"), 0644)
+		_ = os.WriteFile(dst, []byte("dst"), 0644)
 
 		cmd := p.doFileOp(src, dst)
 		msg := cmd()
@@ -311,7 +311,7 @@ func TestDoFileOp(t *testing.T) {
 
 	t.Run("source and destination same", func(t *testing.T) {
 		src := filepath.Join(tmpDir, "same.txt")
-		os.WriteFile(src, []byte("test"), 0644)
+		_ = os.WriteFile(src, []byte("test"), 0644)
 
 		cmd := p.doFileOp(src, src)
 		msg := cmd()
@@ -328,7 +328,7 @@ func TestDoFileOp(t *testing.T) {
 
 	t.Run("creates parent directories", func(t *testing.T) {
 		src := filepath.Join(tmpDir, "tomove.txt")
-		os.WriteFile(src, []byte("test"), 0644)
+		_ = os.WriteFile(src, []byte("test"), 0644)
 
 		dst := filepath.Join(tmpDir, "new", "nested", "dir", "moved.txt")
 

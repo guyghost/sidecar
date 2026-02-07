@@ -268,11 +268,12 @@ func (pp *PromptPicker) View() string {
 		line := fmt.Sprintf("%s%-24s %-7s %-10s %s", prefix, truncateString(p.Name, 24), scope, ticket, preview)
 
 		// Style priority: selected > hover > default
-		if i == pp.selectedIdx {
+		switch i {
+		case pp.selectedIdx:
 			sb.WriteString(lipgloss.NewStyle().Foreground(styles.Primary).Render(line))
-		} else if i == pp.hoverIdx {
+		case pp.hoverIdx:
 			sb.WriteString(lipgloss.NewStyle().Foreground(styles.TextSecondary).Render(line))
-		} else {
+		default:
 			sb.WriteString(dimText(line))
 		}
 		sb.WriteString("\n")

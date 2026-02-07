@@ -270,10 +270,8 @@ func TestSearch_JumpToMatch(t *testing.T) {
 	// Cursor should have moved or tree cursor updated
 	if !p.searchMode {
 		// Search mode should be exited after jumping
-		// Tree cursor should be updated
-		if p.treeCursor == initialCursor {
-			// This is ok - might be the same position
-		}
+		// Tree cursor should be updated (might be same position)
+		_ = p.treeCursor == initialCursor
 	}
 }
 
@@ -392,9 +390,8 @@ func TestSearch_CursorBounds(t *testing.T) {
 	if p.searchCursor > len(p.searchMatches)-1 {
 		t.Error("search cursor should not exceed matches length")
 	}
-	if p.searchCursor != cursorBefore && len(p.searchMatches) > 1 {
-		// This is OK - might have wrapped around
-	}
+	// This is OK - might have wrapped around
+	_ = p.searchCursor != cursorBefore && len(p.searchMatches) > 1
 }
 
 func TestSearch_PrintableCharacterFilter(t *testing.T) {

@@ -21,7 +21,7 @@ func NewWatcher(dbPath string) (<-chan adapter.Event, io.Closer, error) {
 	// Watch the directory containing the SQLite files
 	dbDir := filepath.Dir(dbPath)
 	if err := watcher.Add(dbDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, nil, err
 	}
 

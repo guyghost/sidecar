@@ -422,7 +422,6 @@ func (p *Plugin) renderPreviewTabs(width int) string {
 	if showRight {
 		if len(tokens) > 0 {
 			tokens = append(tokens, " ")
-			x += 1
 		}
 		right := styles.Muted.Render(">")
 		tokens = append(tokens, right)

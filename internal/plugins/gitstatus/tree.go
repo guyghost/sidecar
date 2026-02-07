@@ -77,9 +77,7 @@ func (t *FileTree) Refresh() error {
 	}
 
 	// Get diff stats for all files
-	if err := temp.loadDiffStats(); err != nil {
-		// Non-fatal: continue without stats
-	}
+	_ = temp.loadDiffStats() // Non-fatal: continue without stats
 
 	// Group untracked files by folder
 	temp.groupUntrackedFolders()

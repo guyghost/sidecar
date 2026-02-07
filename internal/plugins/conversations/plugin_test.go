@@ -1479,9 +1479,7 @@ func TestMouseClickSessionItem(t *testing.T) {
 
 	// Now test that the handler correctly processes session item clicks
 	// by checking the plugin's internal state after a click
-	if p.cursor != 0 {
-		// Initial cursor should be 0
-	}
+	// Initial cursor should be 0 after first View call
 
 	// Verify hit regions were registered
 	hitMap := p.mouseHandler.HitMap

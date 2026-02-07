@@ -101,7 +101,7 @@ func New(cfg Config) (*TieredWatcher, <-chan adapter.Event, error) {
 	// Watch the root directory if provided
 	if cfg.RootDir != "" {
 		if err := watcher.Add(cfg.RootDir); err != nil {
-			watcher.Close()
+			_ = watcher.Close()
 			return nil, nil, err
 		}
 		tw.watchDirs[cfg.RootDir] = true
@@ -611,7 +611,7 @@ func (tw *TieredWatcher) Close() error {
 
 	// Close fsnotify watcher
 	if tw.watcher != nil {
-		tw.watcher.Close()
+		_ = tw.watcher.Close()
 	}
 
 	// Close events channel
@@ -760,7 +760,7 @@ func (m *Manager) Close() error {
 	m.mu.Unlock()
 
 	for _, c := range closers {
-		c.Close()
+		_ = c.Close()
 	}
 	close(m.events)
 	return nil

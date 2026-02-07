@@ -74,8 +74,8 @@ func TestShellManifest_AddRemove(t *testing.T) {
 	m, _ := LoadShellManifest(path)
 
 	// Add two shells
-	m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Shell 1"})
-	m.AddShell(ShellDefinition{TmuxName: "shell-2", DisplayName: "Shell 2"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Shell 1"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-2", DisplayName: "Shell 2"})
 
 	if len(m.Shells) != 2 {
 		t.Fatalf("expected 2 shells, got %d", len(m.Shells))
@@ -98,7 +98,7 @@ func TestShellManifest_FindShell(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".sidecar", "shells.json")
 	m, _ := LoadShellManifest(path)
 
-	m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Shell 1"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Shell 1"})
 
 	// Find existing
 	found := m.FindShell("shell-1")
@@ -119,7 +119,7 @@ func TestShellManifest_UpdateShell(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".sidecar", "shells.json")
 	m, _ := LoadShellManifest(path)
 
-	m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Original"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Original"})
 
 	// Update
 	if err := m.UpdateShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Updated"}); err != nil {
@@ -135,11 +135,11 @@ func TestShellManifest_UpdateShell(t *testing.T) {
 func TestShellManifest_CorruptedFile(t *testing.T) {
 	dir := t.TempDir()
 	sidecarDir := filepath.Join(dir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	path := filepath.Join(sidecarDir, "shells.json")
 
 	// Write corrupted JSON
-	os.WriteFile(path, []byte("{invalid json"), 0644)
+	_ = os.WriteFile(path, []byte("{invalid json"), 0644)
 
 	// Should return empty manifest, not error
 	m, err := LoadShellManifest(path)
@@ -155,8 +155,8 @@ func TestShellManifest_AddDuplicate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".sidecar", "shells.json")
 	m, _ := LoadShellManifest(path)
 
-	m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Original"})
-	m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Updated"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Original"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Updated"})
 
 	// Should update, not duplicate
 	if len(m.Shells) != 1 {
@@ -203,7 +203,7 @@ func TestShellManifest_ConcurrentAddRemove(t *testing.T) {
 
 	// Add initial shells
 	for i := 0; i < 5; i++ {
-		m.AddShell(ShellDefinition{TmuxName: fmt.Sprintf("shell-%d", i)})
+		_ = m.AddShell(ShellDefinition{TmuxName: fmt.Sprintf("shell-%d", i)})
 	}
 
 	var wg sync.WaitGroup
@@ -212,7 +212,7 @@ func TestShellManifest_ConcurrentAddRemove(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			m.AddShell(ShellDefinition{TmuxName: fmt.Sprintf("shell-%d", idx)})
+			_ = m.AddShell(ShellDefinition{TmuxName: fmt.Sprintf("shell-%d", idx)})
 		}(i)
 	}
 	// Concurrent removes
@@ -220,7 +220,7 @@ func TestShellManifest_ConcurrentAddRemove(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			m.RemoveShell(fmt.Sprintf("shell-%d", idx))
+			_ = m.RemoveShell(fmt.Sprintf("shell-%d", idx))
 		}(i)
 	}
 
@@ -237,7 +237,7 @@ func TestShellManifest_ConcurrentUpdate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".sidecar", "shells.json")
 	m, _ := LoadShellManifest(path)
 
-	m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Original"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Original"})
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup
@@ -246,7 +246,7 @@ func TestShellManifest_ConcurrentUpdate(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			m.UpdateShell(ShellDefinition{
+			_ = m.UpdateShell(ShellDefinition{
 				TmuxName:    "shell-1",
 				DisplayName: fmt.Sprintf("Update %d", idx),
 			})
@@ -266,7 +266,7 @@ func TestShellManifest_ConcurrentFind(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".sidecar", "shells.json")
 	m, _ := LoadShellManifest(path)
 
-	m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Test"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1", DisplayName: "Test"})
 
 	var wg sync.WaitGroup
 	// Concurrent finds
@@ -282,7 +282,7 @@ func TestShellManifest_ConcurrentFind(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			m.UpdateShell(ShellDefinition{
+			_ = m.UpdateShell(ShellDefinition{
 				TmuxName:    "shell-1",
 				DisplayName: fmt.Sprintf("Update %d", idx),
 			})
@@ -299,7 +299,7 @@ func TestShellManifest_MigrationFromEmptyManifest(t *testing.T) {
 
 	// Simulate migration: manifest exists but has no display name, need to update it
 	m, _ := LoadShellManifest(path)
-	m.AddShell(ShellDefinition{
+	_ = m.AddShell(ShellDefinition{
 		TmuxName:    "sidecar-sh-test-1",
 		DisplayName: "", // Empty initially (like after tmux session discovery)
 		CreatedAt:   time.Now(),
@@ -347,7 +347,7 @@ func TestShellManifest_MigrationPreservesExisting(t *testing.T) {
 
 	// Create manifest with existing data
 	m, _ := LoadShellManifest(path)
-	m.AddShell(ShellDefinition{
+	_ = m.AddShell(ShellDefinition{
 		TmuxName:    "sidecar-sh-test-1",
 		DisplayName: "Original Name",
 		AgentType:   "claude",
@@ -418,19 +418,19 @@ func TestShellManifest_MigrationNewShell(t *testing.T) {
 func TestShellManifest_LockAcquisitionNonBlocking(t *testing.T) {
 	dir := t.TempDir()
 	sidecarDir := filepath.Join(dir, ".sidecar")
-	os.MkdirAll(sidecarDir, 0755)
+	_ = os.MkdirAll(sidecarDir, 0755)
 	path := filepath.Join(sidecarDir, "shells.json")
 
 	// Create initial manifest
 	m, _ := LoadShellManifest(path)
-	m.AddShell(ShellDefinition{TmuxName: "shell-1"})
+	_ = m.AddShell(ShellDefinition{TmuxName: "shell-1"})
 
 	// Verify concurrent operations don't deadlock (would timeout if blocking indefinitely)
 	done := make(chan bool, 2)
 	for i := 0; i < 2; i++ {
 		go func(idx int) {
 			for j := 0; j < 5; j++ {
-				m.UpdateShell(ShellDefinition{
+				_ = m.UpdateShell(ShellDefinition{
 					TmuxName:    "shell-1",
 					DisplayName: fmt.Sprintf("Update %d-%d", idx, j),
 				})

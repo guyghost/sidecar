@@ -729,53 +729,6 @@ func (p *Plugin) executeMergeResolution() tea.Cmd {
 	}
 }
 
-// cleanupAfterMerge removes the worktree and branch after a successful merge.
-func (p *Plugin) cleanupAfterMerge(wt *Worktree) tea.Cmd {
-	// Compute session name before entering closure (consistent with executeDelete)
-	sessionName := tmuxSessionPrefix + sanitizeName(wt.Name)
-
-	return func() tea.Msg {
-		name := wt.Name
-		path := wt.Path
-		branch := wt.Branch
-
-		// Stop agent if running and clean up tracking
-		exec.Command("tmux", "kill-session", "-t", sessionName).Run()
-		delete(p.managedSessions, sessionName)
-		globalPaneCache.remove(sessionName)
-
-		// Remove worktree
-		if err := doDeleteWorktree(p.ctx.WorkDir, path, false); err != nil {
-			return MergeStepCompleteMsg{
-				WorkspaceName: name,
-				Step:         MergeStepCleanup,
-				Err:          fmt.Errorf("remove worktree: %w", err),
-			}
-		}
-
-		// Delete the branch (it's been merged)
-		cmd := exec.Command("git", "branch", "-d", branch)
-		cmd.Dir = p.ctx.WorkDir
-		if output, err := cmd.CombinedOutput(); err != nil {
-			// Try force delete if regular delete fails
-			cmd = exec.Command("git", "branch", "-D", branch)
-			cmd.Dir = p.ctx.WorkDir
-			if output, err = cmd.CombinedOutput(); err != nil {
-				return MergeStepCompleteMsg{
-					WorkspaceName: name,
-					Step:         MergeStepCleanup,
-					Err:          fmt.Errorf("delete branch: %s: %w", strings.TrimSpace(string(output)), err),
-				}
-			}
-		}
-
-		return MergeStepCompleteMsg{
-			WorkspaceName: name,
-			Step:         MergeStepCleanup,
-		}
-	}
-}
-
 // deleteRemoteBranch deletes the remote branch from origin.
 func (p *Plugin) deleteRemoteBranch(wt *Worktree) tea.Cmd {
 	return func() tea.Msg {
@@ -825,7 +778,7 @@ func (p *Plugin) performSelectedCleanup(wt *Worktree, state *MergeWorkflowState)
 		branch := wt.Branch
 
 		// Stop agent if running and clean up tracking (always do this)
-		exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 		delete(p.managedSessions, sessionName)
 		globalPaneCache.remove(sessionName)
 
@@ -842,11 +795,11 @@ func (p *Plugin) performSelectedCleanup(wt *Worktree, state *MergeWorkflowState)
 		if state.DeleteLocalBranch {
 			cmd := exec.Command("git", "branch", "-d", branch)
 			cmd.Dir = p.ctx.WorkDir
-			if output, err := cmd.CombinedOutput(); err != nil {
+			if _, err := cmd.CombinedOutput(); err != nil {
 				// Try force delete if safe delete fails
 				cmd = exec.Command("git", "branch", "-D", branch)
 				cmd.Dir = p.ctx.WorkDir
-				if output, err = cmd.CombinedOutput(); err != nil {
+				if output, err := cmd.CombinedOutput(); err != nil {
 					results.Errors = append(results.Errors,
 						fmt.Sprintf("Branch: %s", strings.TrimSpace(string(output))))
 				} else {

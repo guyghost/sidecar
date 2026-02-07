@@ -548,7 +548,7 @@ func sendEditorSaveAndQuit(target, editor string) bool {
 
 	send := func(keys ...string) {
 		for _, k := range keys {
-			exec.Command("tmux", "send-keys", "-t", target, k).Run()
+			_ = exec.Command("tmux", "send-keys", "-t", target, k).Run()
 		}
 	}
 
@@ -582,7 +582,7 @@ func sendEditorCursorToEnd(target, editor string) {
 
 	send := func(keys ...string) {
 		for _, k := range keys {
-			exec.Command("tmux", "send-keys", "-t", target, k).Run()
+			_ = exec.Command("tmux", "send-keys", "-t", target, k).Run()
 		}
 	}
 
@@ -700,18 +700,6 @@ func (p *Plugin) performInlineAutoSave() tea.Cmd {
 
 		return InlineAutoSaveResultMsg{Err: nil, Epoch: epoch}
 	}
-}
-
-// readInlineEditContent reads current content from the inline editor temp file.
-func (p *Plugin) readInlineEditContent() (string, error) {
-	if p.inlineEditPath == "" {
-		return "", fmt.Errorf("no inline edit path")
-	}
-	content, err := os.ReadFile(p.inlineEditPath)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
 }
 
 // saveNoteAfterInlineExit saves note content after inline edit session exits.

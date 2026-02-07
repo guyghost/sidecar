@@ -196,13 +196,6 @@ func (m *Model) renderUpdatePreviewModal() string {
 	return m.updatePreviewModal.Render(m.width, m.height, m.updatePreviewMouseHandler)
 }
 
-// clearUpdatePreviewModal clears the preview modal cache.
-func (m *Model) clearUpdatePreviewModal() {
-	m.updatePreviewModal = nil
-	m.updatePreviewModalWidth = 0
-	m.updatePreviewMouseHandler = nil
-}
-
 // parseReleaseNotes cleans up release notes by removing duplicate headers
 // and excessive whitespace. The modal already shows "What's New" as a header,
 // so we strip any leading "What's New" headers from the content.
@@ -418,13 +411,6 @@ func (m *Model) renderUpdateCompleteModal() string {
 	return m.updateCompleteModal.Render(m.width, m.height, m.updateCompleteMouseHandler)
 }
 
-// clearUpdateCompleteModal clears the complete modal cache.
-func (m *Model) clearUpdateCompleteModal() {
-	m.updateCompleteModal = nil
-	m.updateCompleteModalWidth = 0
-	m.updateCompleteMouseHandler = nil
-}
-
 // ensureUpdateErrorModal creates/updates the error modal with caching.
 func (m *Model) ensureUpdateErrorModal() {
 	modalW := m.updateModalWidth()
@@ -467,21 +453,6 @@ func (m *Model) renderUpdateErrorModal() string {
 		m.updateErrorMouseHandler = mouse.NewHandler()
 	}
 	return m.updateErrorModal.Render(m.width, m.height, m.updateErrorMouseHandler)
-}
-
-// clearUpdateErrorModal clears the error modal cache.
-func (m *Model) clearUpdateErrorModal() {
-	m.updateErrorModal = nil
-	m.updateErrorModalWidth = 0
-	m.updateErrorMouseHandler = nil
-}
-
-// clearAllUpdateModals clears all update modal caches.
-func (m *Model) clearAllUpdateModals() {
-	m.clearUpdatePreviewModal()
-	m.clearUpdateCompleteModal()
-	m.clearUpdateErrorModal()
-	m.clearChangelogModal()
 }
 
 // getChangelogModalWidth returns the width for the changelog modal.
@@ -619,7 +590,7 @@ func fetchChangelog() tea.Cmd {
 		if err != nil {
 			return ChangelogLoadedMsg{Err: err}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			return ChangelogLoadedMsg{Err: fmt.Errorf("HTTP %d", resp.StatusCode)}

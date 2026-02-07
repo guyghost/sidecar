@@ -61,7 +61,11 @@ func TestIncrementalReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
 	line, err := r.Next()
 	if err != nil {
@@ -99,7 +103,11 @@ func TestIncrementalReader_FromOffset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
 	line, err := r.Next()
 	if err != nil {
@@ -122,7 +130,11 @@ func TestIncrementalReader_EOF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
 	_, err = r.Next()
 	if err != nil {
@@ -149,7 +161,11 @@ func TestTailReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
 	// First line should skip the partial line at seek point
 	line, err := r.Next()
@@ -182,7 +198,11 @@ func TestTailReader_SmallFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
 	// Should read from start, no skip
 	line, err := r.Next()
@@ -216,7 +236,11 @@ func TestHeadReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
 	var lines []string
 	for {
@@ -255,14 +279,24 @@ func TestHeadReader_Offset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
-	r.Next()
+	_, err = r.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if r.Offset() != 6 { // "line1" + newline
 		t.Errorf("expected offset 6, got %d", r.Offset())
 	}
 
-	r.Next()
+	_, err = r.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if r.Offset() != 12 { // both lines
 		t.Errorf("expected offset 12, got %d", r.Offset())
 	}
@@ -282,7 +316,11 @@ func TestHeadReader_FewerLinesThanMax(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Errorf("failed to close reader: %v", err)
+		}
+	}()
 
 	var count int
 	for {

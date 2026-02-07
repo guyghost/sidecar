@@ -205,9 +205,10 @@ func TestMessages(t *testing.T) {
 	// Check message roles
 	userCount, assistantCount := 0, 0
 	for _, m := range messages {
-		if m.Role == "user" {
+		switch m.Role {
+		case "user":
 			userCount++
-		} else if m.Role == "assistant" {
+		case "assistant":
 			assistantCount++
 		}
 	}

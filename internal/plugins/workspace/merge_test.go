@@ -3,6 +3,7 @@ package workspace
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -73,11 +74,9 @@ func TestTruncateDiff(t *testing.T) {
 				t.Errorf("truncateDiff() should not modify short diff")
 			}
 
-			// For over limit, should contain truncation message
-			if tt.name == "over limit" {
-				if len(result) <= len(tt.diff) {
-					// Actually truncated diff should be shorter content-wise but has extra message
-				}
+			// For over limit, result should contain truncation message
+			if tt.name == "over limit" && !strings.Contains(result, "more lines") {
+				t.Errorf("truncateDiff() over limit should contain truncation message")
 			}
 		})
 	}

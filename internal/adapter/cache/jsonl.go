@@ -28,7 +28,7 @@ func GetScannerBuffer() []byte {
 
 // PutScannerBuffer returns a buffer to the pool.
 func PutScannerBuffer(buf []byte) {
-	ScannerPool.Put(buf)
+	ScannerPool.Put(buf) //nolint:staticcheck // SA6002: sync.Pool requires interface{}, slice is efficient for this use
 }
 
 // NewScanner creates a buffered scanner configured for JSONL files.
@@ -58,7 +58,7 @@ func NewIncrementalReader(path string, startOffset int64) (*IncrementalReader, e
 
 	if startOffset > 0 {
 		if _, err := file.Seek(startOffset, io.SeekStart); err != nil {
-			file.Close()
+			_ = file.Close()
 			return nil, err
 		}
 	}
@@ -123,14 +123,14 @@ func NewTailReader(path string, tailSize int64) (*TailReader, error) {
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, err
 	}
 
 	offset := stat.Size() - tailSize
 	if offset > 0 {
 		if _, err := file.Seek(offset, io.SeekStart); err != nil {
-			file.Close()
+			_ = file.Close()
 			return nil, err
 		}
 	}

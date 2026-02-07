@@ -93,8 +93,8 @@ func (r *Renderer) RenderContent(content string, width int) []string {
 // cacheKey generates a cache key from content and width using xxhash.
 func (r *Renderer) cacheKey(content string, width int) uint64 {
 	h := xxhash.New()
-	h.WriteString(content)
-	h.Write([]byte{byte(width >> 8), byte(width)})
+	_, _ = h.WriteString(content)
+	_, _ = h.Write([]byte{byte(width >> 8), byte(width)})
 	return h.Sum64()
 }
 

@@ -19,7 +19,7 @@ func NewWatcher(projectDir string) (<-chan adapter.Event, io.Closer, error) {
 	}
 
 	if err := watcher.Add(projectDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, nil, err
 	}
 

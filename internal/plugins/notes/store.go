@@ -68,7 +68,7 @@ func NewStore(dbPath, sessionID string) (*Store, error) {
 	}
 
 	if err := store.initSchema(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
 
@@ -299,7 +299,7 @@ func (s *Store) queryNotes(query string) ([]Note, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query notes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var notes []Note
 	for rows.Next() {

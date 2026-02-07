@@ -235,7 +235,7 @@ func TestSetGitDiffMode(t *testing.T) {
 	// Verify saved to disk
 	data, _ := os.ReadFile(stateFile)
 	var loaded State
-	json.Unmarshal(data, &loaded)
+	_ = json.Unmarshal(data, &loaded)
 	if loaded.GitDiffMode != "side-by-side" {
 		t.Errorf("saved GitDiffMode = %q, want side-by-side", loaded.GitDiffMode)
 	}

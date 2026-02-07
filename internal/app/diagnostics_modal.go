@@ -77,7 +77,7 @@ func (m *Model) diagnosticsPluginsSection() modal.Section {
 			// Check for plugin-specific diagnostics
 			if dp, ok := p.(plugin.DiagnosticProvider); ok {
 				for _, d := range dp.Diagnostics() {
-					statusIcon := "•"
+					var statusIcon string
 					switch d.Status {
 					case "ok":
 						statusIcon = styles.StatusCompleted.Render("•")

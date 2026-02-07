@@ -205,11 +205,11 @@ func acquireManifestLock(path string, exclusive bool) (*os.File, error) {
 		}
 		// EWOULDBLOCK means lock is held by another process
 		if err != syscall.EWOULDBLOCK && err != syscall.EAGAIN {
-			lockFile.Close()
+			_ = lockFile.Close()
 			return nil, err
 		}
 		if time.Now().After(deadline) {
-			lockFile.Close()
+			_ = lockFile.Close()
 			return nil, fmt.Errorf("lock acquisition timeout after %v", lockTimeout)
 		}
 		time.Sleep(lockRetryInterval)
@@ -221,8 +221,8 @@ func releaseManifestLock(lockFile *os.File) {
 	if lockFile == nil {
 		return
 	}
-	syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
-	lockFile.Close()
+	_ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	_ = lockFile.Close()
 }
 
 // shellToDefinition converts a ShellSession to a ShellDefinition for storage.

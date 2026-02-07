@@ -19,7 +19,7 @@ func NewWatcher(sessionDir string) (<-chan adapter.Event, io.Closer, error) {
 	}
 
 	if err := watcher.Add(sessionDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close() // Ignore close error after failed Add
 		return nil, nil, err
 	}
 

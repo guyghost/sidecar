@@ -155,17 +155,16 @@ type Model struct {
 	worktreeSwitcherModal        *modal.Modal
 	worktreeSwitcherModalWidth   int
 	worktreeSwitcherMouseHandler *mouse.Handler
-	activeWorktreePath           string // Currently active worktree path (empty = main repo)
-	worktreeCheckCounter         int    // Counter for periodic worktree existence check
+	worktreeCheckCounter         int // Counter for periodic worktree existence check
+
+	// Worktree info cache (avoids git subprocess forks on every View render)
+	cachedWorktreeInfo *WorktreeInfo
 
 	// Theme switcher modal
 	showThemeSwitcher          bool
 	themeSwitcherModal         *modal.Modal
 	themeSwitcherModalWidth    int
 	themeSwitcherMouseHandler  *mouse.Handler
-	themeSwitcherCursor        int // cursor position in theme list
-	themeSwitcherScroll        int // scroll offset in theme list
-	themeSwitcherHover         int // hovered theme index (-1 = none)
 	themeSwitcherSelectedIdx   int
 	themeSwitcherInput         textinput.Model
 	themeSwitcherFiltered      []themeEntry
@@ -568,12 +567,7 @@ func (m *Model) runVerifyPhase(installResult UpdateInstallDoneMsg) tea.Cmd {
 			}
 		}
 
-		return UpdateSuccessMsg{
-			SidecarUpdated:    installResult.SidecarUpdated,
-			TdUpdated:         installResult.TdUpdated,
-			NewSidecarVersion: installResult.NewSidecarVersion,
-			NewTdVersion:      installResult.NewTdVersion,
-		}
+		return UpdateSuccessMsg(installResult)
 	}
 }
 
@@ -662,7 +656,7 @@ func (m *Model) switchProject(projectPath string) tea.Cmd {
 	oldWorkDir := m.ui.WorkDir
 	oldProjectRoot := m.ui.ProjectRoot
 	if activePlugin := m.ActivePlugin(); activePlugin != nil {
-		state.SetActivePlugin(oldProjectRoot, activePlugin.ID())
+		_ = state.SetActivePlugin(oldProjectRoot, activePlugin.ID())
 	}
 
 	// Normalize old workdir for comparisons
@@ -687,7 +681,7 @@ func (m *Model) switchProject(projectPath string) tea.Cmd {
 						targetPath = savedWorktree
 					} else {
 						// Stale entry - clear it
-						state.ClearLastWorktreePath(normalizedTargetMain)
+						_ = state.ClearLastWorktreePath(normalizedTargetMain)
 					}
 				}
 			}
@@ -695,12 +689,14 @@ func (m *Model) switchProject(projectPath string) tea.Cmd {
 
 		// Save the final target as last active worktree for this repo
 		normalizedTarget, _ := normalizePath(targetPath)
-		state.SetLastWorktreePath(normalizedTargetMain, normalizedTarget)
+		_ = state.SetLastWorktreePath(normalizedTargetMain, normalizedTarget)
 	}
 
 	// Update the UI state
 	m.ui.WorkDir = targetPath
 	m.intro.RepoName = GetRepoName(targetPath)
+	// Eagerly refresh worktree cache (must happen in Update, not View, due to value receiver)
+	m.refreshWorktreeCache()
 
 	// Resolve project root (main worktree for linked worktrees, same as targetPath otherwise)
 	newProjectRoot := GetMainWorktreePath(targetPath)
@@ -1175,17 +1171,6 @@ func (m *Model) previewThemeEntry(entry themeEntry) {
 			CommunityName: entry.ThemeKey,
 		})
 	}
-}
-
-// themeSwitcherEnsureCursorVisible adjusts scroll to keep cursor in view.
-func themeSwitcherEnsureCursorVisible(cursor, scroll, maxVisible int) int {
-	if cursor < scroll {
-		return cursor
-	}
-	if cursor >= scroll+maxVisible {
-		return cursor - maxVisible + 1
-	}
-	return scroll
 }
 
 // applyThemeFromConfig applies a theme, using config overrides only if the

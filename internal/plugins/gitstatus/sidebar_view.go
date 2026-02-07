@@ -273,9 +273,10 @@ func (p *Plugin) renderSidebarSection(title string, entries []*FileEntry, lineNu
 
 	// Section header with color based on type
 	headerStyle := styles.Subtitle
-	if title == "Staged" {
+	switch title {
+	case "Staged":
 		headerStyle = styles.StatusStaged
-	} else if title == "Modified" {
+	case "Modified":
 		headerStyle = styles.StatusModified
 	}
 

@@ -87,11 +87,6 @@ func (p *Plugin) renderDiffContent(width, height int) string {
 	return diffContent
 }
 
-// renderDiffContentBasic renders git diff with basic highlighting (fallback).
-func (p *Plugin) renderDiffContentBasic(width, height int) string {
-	return p.renderDiffContentBasicWithHeight(width, height)
-}
-
 // renderDiffContentBasicWithHeight renders git diff with basic highlighting with explicit height.
 func (p *Plugin) renderDiffContentBasicWithHeight(width, height int) string {
 	lines := splitLines(p.diffContent)
@@ -239,32 +234,6 @@ func (p *Plugin) renderFilePickerModal(background string) string {
 	modal := modalStyle.Render(sb.String())
 
 	return ui.OverlayModal(background, modal, p.width, p.height)
-}
-
-// colorDiffLine applies basic diff coloring using theme styles.
-func (p *Plugin) colorDiffLine(line string, width int) string {
-	line = ui.ExpandTabs(line, tabStopWidth)
-	if len(line) == 0 {
-		return line
-	}
-
-	// Truncate if needed
-	if lipgloss.Width(line) > width {
-		line = p.truncateCache.Truncate(line, width, "")
-	}
-
-	switch {
-	case strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---"):
-		return styles.DiffHeader.Render(line)
-	case strings.HasPrefix(line, "@@"):
-		return lipgloss.NewStyle().Foreground(styles.Info).Render(line)
-	case strings.HasPrefix(line, "+"):
-		return styles.DiffAdd.Render(line)
-	case strings.HasPrefix(line, "-"):
-		return styles.DiffRemove.Render(line)
-	default:
-		return line
-	}
 }
 
 // colorStatLine applies coloring to git --stat output lines.

@@ -103,8 +103,8 @@ func TestRegistry_StartStop(t *testing.T) {
 
 	p1 := &mockPlugin{id: "p1"}
 	p2 := &mockPlugin{id: "p2"}
-	r.Register(p1)
-	r.Register(p2)
+	_ = r.Register(p1)
+	_ = r.Register(p2)
 
 	r.Start()
 	if !p1.started || !p2.started {
@@ -122,8 +122,8 @@ func TestRegistry_StartStopPanic(t *testing.T) {
 
 	p1 := &mockPlugin{id: "p1", startPanic: true}
 	p2 := &mockPlugin{id: "p2", stopPanic: true}
-	r.Register(p1)
-	r.Register(p2)
+	_ = r.Register(p1)
+	_ = r.Register(p2)
 
 	// Should not panic
 	r.Start()
@@ -134,7 +134,7 @@ func TestRegistry_Get(t *testing.T) {
 	r := NewRegistry(nil)
 
 	p := &mockPlugin{id: "findme"}
-	r.Register(p)
+	_ = r.Register(p)
 
 	found := r.Get("findme")
 	if found == nil {
@@ -172,8 +172,8 @@ func TestRegistry_Reinit(t *testing.T) {
 
 	p1 := &mockPluginWithInit{mockPlugin: mockPlugin{id: "p1"}}
 	p2 := &mockPluginWithInit{mockPlugin: mockPlugin{id: "p2"}}
-	r.Register(p1)
-	r.Register(p2)
+	_ = r.Register(p1)
+	_ = r.Register(p2)
 
 	// Both plugins should be initialized once
 	if p1.initCalls != 1 {

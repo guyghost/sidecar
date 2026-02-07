@@ -31,10 +31,8 @@ func computeStats(workdir string) (*GitStats, error) {
 		return nil, err
 	}
 
-	// Get ahead/behind counts
-	if err := getAheadBehind(workdir, stats); err != nil {
-		// Non-fatal: might not have upstream
-	}
+	// Get ahead/behind counts (non-fatal: might not have upstream)
+	_ = getAheadBehind(workdir, stats)
 
 	return stats, nil
 }

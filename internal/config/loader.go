@@ -152,11 +152,7 @@ func mergeConfig(cfg *Config, raw *rawConfig) {
 	if len(raw.Projects.List) > 0 {
 		cfg.Projects.List = make([]ProjectConfig, len(raw.Projects.List))
 		for i, rp := range raw.Projects.List {
-			cfg.Projects.List[i] = ProjectConfig{
-				Name:  rp.Name,
-				Path:  rp.Path,
-				Theme: rp.Theme,
-			}
+			cfg.Projects.List[i] = ProjectConfig(rp)
 		}
 	}
 

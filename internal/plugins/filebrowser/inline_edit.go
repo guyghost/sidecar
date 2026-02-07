@@ -239,20 +239,6 @@ func (p *Plugin) exitInlineEditMode() {
 	p.inlineEditor.Exit()
 }
 
-// isFileModifiedSinceEdit checks if the file was modified since editing started.
-// Returns false if we can't determine (safe to skip confirmation).
-func (p *Plugin) isFileModifiedSinceEdit() bool {
-	if p.inlineEditFile == "" || p.inlineEditOrigMtime.IsZero() {
-		return false // Can't determine, assume not modified
-	}
-	fullPath := filepath.Join(p.ctx.WorkDir, p.inlineEditFile)
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		return false // File doesn't exist or error, assume not modified
-	}
-	return info.ModTime().After(p.inlineEditOrigMtime)
-}
-
 // isInlineEditSessionAlive checks if the tmux session for inline editing still exists.
 // Returns false if the session has ended (vim quit).
 func (p *Plugin) isInlineEditSessionAlive() bool {
@@ -448,7 +434,7 @@ func sendEditorSaveAndQuit(target, editor string) bool {
 
 	send := func(keys ...string) {
 		for _, k := range keys {
-			exec.Command("tmux", "send-keys", "-t", target, k).Run()
+			_ = exec.Command("tmux", "send-keys", "-t", target, k).Run()
 		}
 	}
 

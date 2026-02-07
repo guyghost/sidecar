@@ -143,7 +143,9 @@ func writeSessionFile(path string, lines []string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	for i, line := range lines {
 		if i > 0 {
 			if _, err := f.WriteString("\n"); err != nil {
@@ -249,13 +251,19 @@ func TestSessionMetadataTailOnlyOnGrowth(t *testing.T) {
 	}
 
 	// Write session_meta
-	f.WriteString(`{"type":"session_meta","timestamp":"2024-01-01T10:00:00Z","payload":{"id":"grow-test","cwd":"/tmp"}}` + "\n")
+	if _, err := f.WriteString(`{"type":"session_meta","timestamp":"2024-01-01T10:00:00Z","payload":{"id":"grow-test","cwd":"/tmp"}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Write a user message
-	f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello world"}]}}` + "\n")
+	if _, err := f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello world"}]}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Write an assistant message
-	f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi there"}]}}` + "\n")
+	if _, err := f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:00:02Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi there"}]}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Pad to exceed 16KB threshold
 	padding := make([]byte, 17*1024)
@@ -263,11 +271,17 @@ func TestSessionMetadataTailOnlyOnGrowth(t *testing.T) {
 		padding[i] = ' '
 	}
 	padding[len(padding)-1] = '\n'
-	f.Write(padding)
+	if _, err := f.Write(padding); err != nil {
+		t.Fatal(err)
+	}
 
 	// Write a token count event (tail data)
-	f.WriteString(`{"type":"event_msg","timestamp":"2024-01-01T10:01:00Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"output_tokens":50,"total_tokens":150}}}}` + "\n")
-	f.Close()
+	if _, err := f.WriteString(`{"type":"event_msg","timestamp":"2024-01-01T10:01:00Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"output_tokens":50,"total_tokens":150}}}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	a := &Adapter{
 		sessionsDir: root,
@@ -297,9 +311,16 @@ func TestSessionMetadataTailOnlyOnGrowth(t *testing.T) {
 	}
 
 	// Append new token usage event (simulating file growth)
-	f2, _ := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
-	f2.WriteString(`{"type":"event_msg","timestamp":"2024-01-01T10:02:00Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":200,"output_tokens":100,"total_tokens":300}}}}` + "\n")
-	f2.Close()
+	f2, err := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f2.WriteString(`{"type":"event_msg","timestamp":"2024-01-01T10:02:00Z","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":200,"output_tokens":100,"total_tokens":300}}}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f2.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Second parse: should use tail-only path
 	info2, _ := os.Stat(sessionPath)
@@ -391,9 +412,16 @@ func TestMessagesCaching_IncrementalParse(t *testing.T) {
 	}
 
 	// Append new message
-	f, _ := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
-	f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:03:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"more"}]}}` + "\n")
-	f.Close()
+	f, err := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:03:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"more"}]}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Second call: incremental parse
 	msgs2, err := a.Messages(sessionID)
@@ -443,10 +471,19 @@ func TestMessagesCaching_ToolCallAcrossBoundary(t *testing.T) {
 	}
 
 	// Append function output and assistant message
-	f, _ := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
-	f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:03:00Z","payload":{"type":"function_call_output","call_id":"call-123","output":"\"hello\\n\""}}` + "\n")
-	f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:04:00Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Done"}]}}` + "\n")
-	f.Close()
+	f, err := os.OpenFile(sessionPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:03:00Z","payload":{"type":"function_call_output","call_id":"call-123","output":"\"hello\\n\""}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(`{"type":"response_item","timestamp":"2024-01-01T10:04:00Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Done"}]}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Second call: incremental parse should link the output
 	msgs2, err := a.Messages(sessionID)

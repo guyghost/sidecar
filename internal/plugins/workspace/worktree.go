@@ -557,7 +557,7 @@ const sidecarBaseFile = ".sidecar-base"
 func saveBaseBranch(worktreePath string, branch string) error {
 	if branch == "" {
 		basePath := filepath.Join(worktreePath, sidecarBaseFile)
-		os.Remove(basePath)
+		_ = os.Remove(basePath)
 		return nil
 	}
 	basePath := filepath.Join(worktreePath, sidecarBaseFile)
@@ -589,7 +589,7 @@ func saveAgentType(worktreePath string, agentType AgentType) error {
 	if agentType == AgentNone || agentType == "" {
 		// Remove file if None selected
 		agentPath := filepath.Join(worktreePath, sidecarAgentFile)
-		os.Remove(agentPath) // Ignore error
+		_ = os.Remove(agentPath)
 		return nil
 	}
 	agentPath := filepath.Join(worktreePath, sidecarAgentFile)
@@ -611,7 +611,7 @@ func savePRURL(worktreePath string, prURL string) error {
 	if prURL == "" {
 		// Remove file if empty
 		prPath := filepath.Join(worktreePath, sidecarPRFile)
-		os.Remove(prPath) // Ignore error
+		_ = os.Remove(prPath)
 		return nil
 	}
 	prPath := filepath.Join(worktreePath, sidecarPRFile)

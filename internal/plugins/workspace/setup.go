@@ -28,9 +28,6 @@ var sidecarGitignoreEntries = []string{
 var (
 	// Default env files to copy
 	defaultEnvFiles = []string{".env", ".env.local", ".env.development", ".env.development.local"}
-
-	// Default directories to symlink (opt-in via config)
-	defaultSymlinkDirs = []string{"node_modules", ".venv", "vendor"}
 )
 
 // SetupConfig holds worktree setup configuration.
@@ -120,7 +117,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	// Get source file info for permissions
 	sourceInfo, err := sourceFile.Stat()
@@ -133,7 +130,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	// Copy contents
 	_, err = io.Copy(destFile, sourceFile)
@@ -278,7 +275,7 @@ func (p *Plugin) ensureSidecarGitignore() error {
 	if err != nil {
 		return fmt.Errorf("open .gitignore: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.WriteString(toAppend.String()); err != nil {
 		return fmt.Errorf("write .gitignore: %w", err)

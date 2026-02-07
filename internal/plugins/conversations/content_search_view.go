@@ -15,10 +15,6 @@ import (
 	"github.com/marcus/sidecar/internal/styles"
 )
 
-// Content search modal field IDs
-const (
-	contentSearchInputID = "content-search-input"
-)
 
 // renderContentSearchModal renders the content search modal.
 // This creates a modal with search input, options, results, and stats sections.
@@ -374,7 +370,7 @@ func renderMessageHeader(msg adapter.MessageMatch, selected bool, maxWidth int) 
 	if len(role) > 8 {
 		role = role[:8]
 	}
-	roleBadge := fmt.Sprintf("[%s]", strings.Title(role))
+	roleBadge := fmt.Sprintf("[%s]", strings.ToUpper(role[:1])+role[1:])
 
 	// Timestamp
 	timestamp := msg.Timestamp.Local().Format("15:04")
