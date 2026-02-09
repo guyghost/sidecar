@@ -333,9 +333,7 @@ func (a *Adapter) parseMessagesFull(path string, info os.FileInfo) ([]adapter.Me
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return messages, messageCacheEntry{}, err
-	}
+	scanErr := scanner.Err()
 
 	entry := messageCacheEntry{
 		messages:     adapterutil.CopyMessages(messages),
@@ -343,6 +341,20 @@ func (a *Adapter) parseMessagesFull(path string, info os.FileInfo) ([]adapter.Me
 		pendingRefs:  pendingRefs,
 		byteOffset:   bytesRead,
 		messageCount: len(messages),
+	}
+
+	// If the scanner encountered an error but we parsed some messages,
+	// return them as partial rather than discarding all progress.
+	if scanErr != nil && len(messages) > 0 {
+		a.invalidateSessionMetaCacheIfChanged(path, info)
+		return messages, entry, &adapter.PartialResult{
+			Err:         scanErr,
+			ParsedCount: len(messages),
+			Reason:      "JSONL scan error",
+		}
+	}
+	if scanErr != nil {
+		return nil, messageCacheEntry{}, scanErr
 	}
 
 	a.invalidateSessionMetaCacheIfChanged(path, info)
@@ -999,7 +1011,6 @@ func (a *Adapter) invalidateSessionMetaCacheIfChanged(path string, info os.FileI
 	}
 	a.metaMu.Unlock()
 }
-
 
 // extractUserQuery extracts the actual user query from text that may contain XML tags.
 // Claude Code messages often contain system context wrapped in XML tags like:

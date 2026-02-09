@@ -286,6 +286,18 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 	}
 	_ = rows.Close()
 
+	if err := rows.Err(); err != nil {
+		// If we got some user messages before the error, return them as partial.
+		if len(messages) > 0 {
+			return messages, &adapter.PartialResult{
+				Err:         err,
+				ParsedCount: len(messages),
+				Reason:      "query iteration error",
+			}
+		}
+		return nil, err
+	}
+
 	// 2. Get blocks (tool executions) for this conversation
 	blocksSQL := `
 		SELECT id, stylized_command, stylized_output, exit_code, start_ts, ai_metadata
@@ -298,6 +310,14 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 	defer cancel2()
 	rows, err = db.QueryContext(ctx2, blocksSQL, pattern)
 	if err != nil {
+		// Blocks query failed, but we have user messages — return partial.
+		if len(messages) > 0 {
+			return messages, &adapter.PartialResult{
+				Err:         err,
+				ParsedCount: len(messages),
+				Reason:      "blocks query failed",
+			}
+		}
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
@@ -345,6 +365,18 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 			Input:  cmd,
 			Output: truncateOutput(out, 1000),
 		})
+	}
+
+	if err := rows.Err(); err != nil {
+		// Blocks iteration error — return user messages as partial.
+		if len(messages) > 0 {
+			return messages, &adapter.PartialResult{
+				Err:         err,
+				ParsedCount: len(messages),
+				Reason:      "blocks iteration error",
+			}
+		}
+		return nil, err
 	}
 
 	// 3. If we have tool uses, create a synthetic assistant message

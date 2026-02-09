@@ -13,15 +13,15 @@ import (
 	"time"
 
 	"github.com/guyghost/sidecar/internal/adapter"
-	"github.com/guyghost/sidecar/internal/adapter/cache"
 	"github.com/guyghost/sidecar/internal/adapter/adapterutil"
+	"github.com/guyghost/sidecar/internal/adapter/cache"
 )
 
 const (
 	adapterID           = "codex"
 	adapterName         = "Codex"
 	metaCacheMaxEntries = 2048
-	msgCacheMaxEntries  = 128 // fewer entries since messages are larger
+	msgCacheMaxEntries  = 128                    // fewer entries since messages are larger
 	dirCacheTTL         = 500 * time.Millisecond // TTL for directory listing cache (td-c9ff3aac)
 	// Two-pass parsing thresholds (td-a2c1dd41)
 	metaParseSmallFileThreshold = 16 * 1024 // Files smaller than 16KB use full scan
@@ -38,12 +38,12 @@ type dirCacheEntry struct {
 // Adapter implements the adapter.Adapter interface for Codex CLI sessions.
 type Adapter struct {
 	sessionsDir     string
-	sessionIndex    map[string]string                // sessionID -> file path cache
-	totalUsageCache map[string]*TokenUsage           // sessionID -> total usage (populated by Messages)
-	mu              sync.RWMutex                     // guards sessionIndex and totalUsageCache
+	sessionIndex    map[string]string      // sessionID -> file path cache
+	totalUsageCache map[string]*TokenUsage // sessionID -> total usage (populated by Messages)
+	mu              sync.RWMutex           // guards sessionIndex and totalUsageCache
 	metaCache       map[string]sessionMetaCacheEntry
-	metaMu          sync.RWMutex                        // guards metaCache
-	msgCache        *cache.Cache[messageCacheEntry]     // path -> cached messages
+	metaMu          sync.RWMutex                    // guards metaCache
+	msgCache        *cache.Cache[messageCacheEntry] // path -> cached messages
 	dirCache        *dirCacheEntry
 	dirCacheMu      sync.RWMutex // guards dirCache
 }
@@ -264,9 +264,7 @@ func (a *Adapter) parseMessagesFull(path, sessionID string, info os.FileInfo) ([
 		a.processMessageRecord(line, state)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, messageCacheEntry{}, err
-	}
+	scanErr := scanner.Err()
 
 	a.invalidateSessionMetaCacheIfChanged(path, info)
 
@@ -283,6 +281,19 @@ func (a *Adapter) parseMessagesFull(path, sessionID string, info os.FileInfo) ([
 		totalUsage:      state.totalUsage,
 		lastTimestamp:   state.lastTimestamp,
 		byteOffset:      bytesRead,
+	}
+
+	// If the scanner encountered an error (e.g., token too long, truncated
+	// file) but we already parsed some messages, return them as partial.
+	if scanErr != nil && len(state.messages) > 0 {
+		return state.messages, entry, &adapter.PartialResult{
+			Err:         scanErr,
+			ParsedCount: len(state.messages),
+			Reason:      "JSONL scan error",
+		}
+	}
+	if scanErr != nil {
+		return nil, messageCacheEntry{}, scanErr
 	}
 
 	return state.messages, entry, nil
@@ -1154,8 +1165,6 @@ func (r *resolvedProjectPath) matchesCWD(cwd string) bool {
 	}
 	return !strings.HasPrefix(rel, "..")
 }
-
-
 
 // truncateTitle truncates text to maxLen, adding "..." if truncated.
 // It also replaces newlines with spaces for display.

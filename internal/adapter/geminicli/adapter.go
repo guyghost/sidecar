@@ -441,15 +441,21 @@ func (a *Adapter) enforceSessionMetaCacheLimitLocked() {
 }
 
 // parseSessionFile reads and parses a session JSON file.
+// Returns a PartialResult error if the JSON is malformed (e.g., truncated
+// mid-write) but the file was readable.
 func (a *Adapter) parseSessionFile(path string) (*Session, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, err // genuine I/O error
 	}
 
 	var session Session
 	if err := json.Unmarshal(data, &session); err != nil {
-		return nil, err
+		return nil, &adapter.PartialResult{
+			Err:         err,
+			ParsedCount: 0,
+			Reason:      "malformed session JSON",
+		}
 	}
 
 	return &session, nil

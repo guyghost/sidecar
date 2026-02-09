@@ -198,7 +198,11 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 
 	var conv ConversationValue
 	if err := json.Unmarshal([]byte(valueJSON), &conv); err != nil {
-		return nil, err
+		return nil, &adapter.PartialResult{
+			Err:         err,
+			ParsedCount: 0,
+			Reason:      "malformed conversation JSON",
+		}
 	}
 
 	var messages []adapter.Message

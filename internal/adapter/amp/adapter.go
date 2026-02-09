@@ -507,12 +507,16 @@ func (a *Adapter) parseThreadMeta(path string) (*threadMeta, error) {
 func (a *Adapter) parseMessages(path string) ([]adapter.Message, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, err // genuine I/O error
 	}
 
 	var thread Thread
 	if err := json.Unmarshal(data, &thread); err != nil {
-		return nil, err
+		return nil, &adapter.PartialResult{
+			Err:         err,
+			ParsedCount: 0,
+			Reason:      "malformed thread JSON",
+		}
 	}
 
 	// Build tool result index: toolUseID -> ToolRun result
