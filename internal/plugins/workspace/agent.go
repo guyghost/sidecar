@@ -30,6 +30,8 @@ type paneCache struct {
 	mu      sync.Mutex
 	entries map[string]paneCacheEntry
 	ttl     time.Duration
+	done    chan struct{} // signals cleanup goroutine to stop
+	once    sync.Once     // ensures cleanup loop starts at most once
 }
 
 type captureCoordinator struct {
@@ -174,18 +176,40 @@ func (c *paneCache) cleanup() {
 
 // startCleanupLoop starts a background goroutine that periodically
 // cleans up expired cache entries. Runs every 10 seconds.
+// Safe to call multiple times — only the first call starts the loop.
 func (c *paneCache) startCleanupLoop() {
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			c.cleanup()
-		}
-	}()
+	c.once.Do(func() {
+		c.done = make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(10 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					c.cleanup()
+				case <-c.done:
+					return
+				}
+			}
+		}()
+	})
 }
 
-func init() {
-	// Start periodic cleanup to prevent memory leaks from dead sessions
+// stopCleanupLoop stops the background cleanup goroutine.
+func (c *paneCache) stopCleanupLoop() {
+	if c.done != nil {
+		select {
+		case <-c.done:
+			// Already closed
+		default:
+			close(c.done)
+		}
+	}
+}
+
+// ensureCacheCleanup starts the cleanup loop if not already running.
+// Called lazily when the workspace plugin starts.
+func ensureCacheCleanup() {
 	globalPaneCache.startCleanupLoop()
 }
 
@@ -234,9 +258,9 @@ const (
 
 	// Runaway detection thresholds (td-018f25)
 	// Detect sessions producing continuous output and throttle them to reduce CPU usage.
-	runawayPollCount    = 20               // Number of polls to track
-	runawayTimeWindow   = 3 * time.Second  // If 20 polls happen within this window = runaway
-	runawayResetCount   = 3                // Consecutive unchanged polls to reset throttle
+	runawayPollCount  = 20              // Number of polls to track
+	runawayTimeWindow = 3 * time.Second // If 20 polls happen within this window = runaway
+	runawayResetCount = 3               // Consecutive unchanged polls to reset throttle
 )
 
 // AgentStartedMsg signals an agent has been started in a worktree.
@@ -256,27 +280,27 @@ func (m AgentStartedMsg) GetEpoch() uint64 { return m.Epoch }
 // ApproveResultMsg signals the result of an approve action.
 type ApproveResultMsg struct {
 	WorkspaceName string
-	Err          error
+	Err           error
 }
 
 // RejectResultMsg signals the result of a reject action.
 type RejectResultMsg struct {
 	WorkspaceName string
-	Err          error
+	Err           error
 }
 
 // SendTextResultMsg signals the result of sending text to an agent.
 type SendTextResultMsg struct {
 	WorkspaceName string
-	Text         string
-	Err          error
+	Text          string
+	Err           error
 }
 
 // pollAgentMsg triggers output polling for a worktree's agent.
 // Includes generation for timer leak prevention (td-83dc22).
 type pollAgentMsg struct {
 	WorkspaceName string
-	Generation   int // Generation at time of scheduling; ignore if stale
+	Generation    int // Generation at time of scheduling; ignore if stale
 }
 
 // reconnectedAgentsMsg delivers reconnected agents from startup.
@@ -742,7 +766,7 @@ func (p *Plugin) scheduleInteractivePoll(worktreeName string, delay time.Duratio
 
 // AgentPollUnchangedMsg signals content unchanged, schedule next poll.
 type AgentPollUnchangedMsg struct {
-	WorkspaceName  string
+	WorkspaceName string
 	CurrentStatus WorktreeStatus // For adaptive polling interval selection
 	// Cursor position captured atomically (even when content unchanged)
 	CursorRow     int
@@ -849,7 +873,7 @@ func (p *Plugin) handlePollAgent(worktreeName string) tea.Cmd {
 			// Content unchanged - signal to schedule next poll with delay
 			// Still include cursor position since cursor can move without content changing
 			return AgentPollUnchangedMsg{
-				WorkspaceName:  worktreeName,
+				WorkspaceName: worktreeName,
 				CurrentStatus: currentStatus,
 				CursorRow:     cursorRow,
 				CursorCol:     cursorCol,
@@ -881,7 +905,7 @@ func (p *Plugin) handlePollAgent(worktreeName string) tea.Cmd {
 		}
 
 		return AgentOutputMsg{
-			WorkspaceName:  worktreeName,
+			WorkspaceName: worktreeName,
 			Output:        output,
 			Status:        status,
 			WaitingFor:    waitingFor,
@@ -1200,7 +1224,7 @@ func (p *Plugin) Approve(wt *Worktree) tea.Cmd {
 
 		return ApproveResultMsg{
 			WorkspaceName: wt.Name,
-			Err:          err,
+			Err:           err,
 		}
 	}
 }
@@ -1217,7 +1241,7 @@ func (p *Plugin) Reject(wt *Worktree) tea.Cmd {
 
 		return RejectResultMsg{
 			WorkspaceName: wt.Name,
-			Err:          err,
+			Err:           err,
 		}
 	}
 }
@@ -1257,8 +1281,8 @@ func (p *Plugin) SendText(wt *Worktree, text string) tea.Cmd {
 
 		return SendTextResultMsg{
 			WorkspaceName: wt.Name,
-			Text:         text,
-			Err:          err,
+			Text:          text,
+			Err:           err,
 		}
 	}
 }
