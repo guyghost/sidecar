@@ -59,7 +59,7 @@ type rawPluginsConfig struct {
 	GitStatus     rawGitStatusConfig     `json:"git-status"`
 	TDMonitor     rawTDMonitorConfig     `json:"td-monitor"`
 	Conversations rawConversationsConfig `json:"conversations"`
-	Workspace     rawWorkspaceConfig      `json:"workspace"`
+	Workspace     rawWorkspaceConfig     `json:"workspace"`
 }
 
 type rawWorkspaceConfig struct {
@@ -111,6 +111,17 @@ func LoadFrom(path string) (*Config, error) {
 			return cfg, nil // Return defaults if no config file
 		}
 		return nil, err
+	}
+
+	// Run schema migrations before unmarshaling into typed structs.
+	// This upgrades the on-disk file (with backup) if needed.
+	if err := RunMigrations(path); err != nil {
+		slog.Warn("config: migration failed, loading as-is", "error", err)
+	} else {
+		// Re-read the (possibly migrated) file
+		if migrated, err := os.ReadFile(path); err == nil {
+			data = migrated
+		}
 	}
 
 	var raw rawConfig
@@ -232,16 +243,8 @@ func mergeConfig(cfg *Config, raw *rawConfig) {
 			cfg.UI.Theme.Overrides[k] = v
 		}
 	}
-	// Migrate legacy communityName from overrides to Community field
-	if cfg.UI.Theme.Community == "" && cfg.UI.Theme.Overrides != nil {
-		if name, ok := cfg.UI.Theme.Overrides["communityName"]; ok {
-			if s, ok := name.(string); ok && s != "" {
-				cfg.UI.Theme.Community = s
-				// Clear overrides — colors will be re-derived from community scheme at runtime
-				cfg.UI.Theme.Overrides = nil
-			}
-		}
-	}
+	// NOTE: Legacy communityName migration is now handled by RunMigrations()
+	// in migrate.go (v1→v2 migration), which runs before mergeConfig().
 
 	// Features
 	if raw.Features.Flags != nil {

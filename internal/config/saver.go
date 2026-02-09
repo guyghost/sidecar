@@ -27,7 +27,7 @@ type savePluginsConfig struct {
 	GitStatus     saveGitStatusConfig     `json:"git-status,omitempty"`
 	TDMonitor     saveTDMonitorConfig     `json:"td-monitor,omitempty"`
 	Conversations saveConversationsConfig `json:"conversations,omitempty"`
-	Workspace     saveWorkspaceConfig      `json:"workspace,omitempty"`
+	Workspace     saveWorkspaceConfig     `json:"workspace,omitempty"`
 }
 
 type saveGitStatusConfig struct {
@@ -130,6 +130,11 @@ func Save(cfg *Config) error {
 			return fmt.Errorf("marshal %s: %w", key, err)
 		}
 		raw[key] = b
+	}
+
+	// Always write the current schema version
+	if vb, err := json.Marshal(CurrentVersion); err == nil {
+		raw["version"] = vb
 	}
 
 	data, err := json.MarshalIndent(raw, "", "  ")
