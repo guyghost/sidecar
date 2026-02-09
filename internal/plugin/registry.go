@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/guyghost/sidecar/internal/config"
+	"github.com/guyghost/sidecar/internal/event"
 )
 
 // Registry manages plugin registration and lifecycle.
@@ -178,4 +180,22 @@ func (r *Registry) Context() *Context {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.ctx
+}
+
+// UpdateConfig updates the Config pointer in the plugin context so that
+// all plugins see the new configuration on their next access.
+func (r *Registry) UpdateConfig(cfg *config.Config) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ctx.Config = cfg
+}
+
+// EventBus returns the event dispatcher from the plugin context.
+func (r *Registry) EventBus() *event.Dispatcher {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.ctx == nil {
+		return nil
+	}
+	return r.ctx.EventBus
 }

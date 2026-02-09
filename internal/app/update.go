@@ -405,6 +405,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.issue.InputModal = nil
 		m.issue.InputModalWidth = 0
 		return m, nil
+
+	case ConfigChangedMsg:
+		return m.handleConfigChanged(msg)
 	}
 
 	// Forward other messages to ALL plugins (not just active)

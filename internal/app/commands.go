@@ -4,6 +4,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/guyghost/sidecar/internal/config"
 	"github.com/guyghost/sidecar/internal/msg"
 	"github.com/guyghost/sidecar/internal/plugin"
 )
@@ -217,6 +218,13 @@ func updateSpinnerTick() tea.Cmd {
 // should gracefully switch to the main repository.
 type SwitchToMainWorktreeMsg struct {
 	MainWorktreePath string // Path to the main worktree to switch to
+}
+
+// ConfigChangedMsg is sent when config.json is modified externally and
+// successfully reloaded. The app applies the new settings (theme, keymap,
+// UI prefs) without restart.
+type ConfigChangedMsg struct {
+	Config *config.Config
 }
 
 // SwitchToMainWorktree returns a command that requests switching to the main worktree.

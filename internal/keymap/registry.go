@@ -72,6 +72,14 @@ func (r *Registry) SetUserOverride(key, commandID string) {
 	r.userOverrides[key] = commandID
 }
 
+// ClearUserOverrides removes all user-configured key overrides.
+// Used during config hot reload to reset before re-applying.
+func (r *Registry) ClearUserOverrides() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.userOverrides = make(map[string]string)
+}
+
 // Handle dispatches a key event to the appropriate command handler.
 // Returns nil if no matching binding is found.
 func (r *Registry) Handle(key tea.KeyMsg, activeContext string) tea.Cmd {

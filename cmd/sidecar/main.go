@@ -206,6 +206,26 @@ func main() {
 	}
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseAllMotion())
 
+	// Start config file watcher for hot reload
+	cfgWatchPath := config.ConfigPath()
+	if *configPath != "" {
+		cfgWatchPath = *configPath
+	}
+	if cfgWatchPath != "" {
+		cfgWatcher, watchErr := config.NewWatcher(cfgWatchPath, func(newCfg *config.Config) {
+			p.Send(app.ConfigChangedMsg{Config: newCfg})
+		}, logger)
+		if watchErr != nil {
+			logger.Warn("config watcher failed to create", "error", watchErr)
+		} else {
+			if startErr := cfgWatcher.Start(); startErr != nil {
+				logger.Warn("config watcher failed to start", "error", startErr)
+			} else {
+				defer cfgWatcher.Stop()
+			}
+		}
+	}
+
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running application: %v\n", err)
 		os.Exit(1)
