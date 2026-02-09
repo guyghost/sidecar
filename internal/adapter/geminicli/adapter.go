@@ -15,12 +15,14 @@ import (
 
 	"github.com/guyghost/sidecar/internal/adapter"
 	"github.com/guyghost/sidecar/internal/adapter/adapterutil"
+	"github.com/guyghost/sidecar/internal/adapter/cache"
 )
 
 const (
 	adapterID           = "gemini-cli"
 	adapterName         = "Gemini CLI"
 	metaCacheMaxEntries = 2048
+	msgCacheMaxEntries  = 256
 )
 
 // Adapter implements the adapter.Adapter interface for Gemini CLI sessions.
@@ -30,6 +32,7 @@ type Adapter struct {
 	indexMu      sync.RWMutex      // protects sessionIndex
 	metaCache    map[string]sessionMetaCacheEntry
 	metaMu       sync.RWMutex // guards metaCache
+	msgCache     *cache.Cache[msgCacheEntry]
 }
 
 // sessionMetaCacheEntry caches parsed session metadata with validation info.
@@ -40,6 +43,11 @@ type sessionMetaCacheEntry struct {
 	lastAccess time.Time
 }
 
+// msgCacheEntry holds cached messages for a session.
+type msgCacheEntry struct {
+	messages []adapter.Message
+}
+
 // New creates a new Gemini CLI adapter.
 func New() *Adapter {
 	home, _ := os.UserHomeDir()
@@ -47,6 +55,7 @@ func New() *Adapter {
 		tmpDir:       filepath.Join(home, ".gemini", "tmp"),
 		sessionIndex: make(map[string]string),
 		metaCache:    make(map[string]sessionMetaCacheEntry),
+		msgCache:     cache.New[msgCacheEntry](msgCacheMaxEntries),
 	}
 }
 
@@ -174,6 +183,23 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 		return nil, nil
 	}
 
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Check cache
+	if a.msgCache != nil {
+		cached, ok := a.msgCache.Get(path, info.Size(), info.ModTime())
+		if ok {
+			return adapterutil.CopyMessages(cached.messages), nil
+		}
+	}
+
+	// Full parse
 	session, err := a.parseSessionFile(path)
 	if err != nil {
 		return nil, err
@@ -244,6 +270,10 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 		}
 
 		messages = append(messages, m)
+	}
+
+	if a.msgCache != nil {
+		a.msgCache.Set(path, msgCacheEntry{messages: adapterutil.CopyMessages(messages)}, info.Size(), info.ModTime(), 0)
 	}
 
 	return messages, nil

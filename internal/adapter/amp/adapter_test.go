@@ -23,10 +23,11 @@ import (
 func newTestAdapter(t *testing.T, threadsDir string) *Adapter {
 	t.Helper()
 	return &Adapter{
-		threadsDir:   threadsDir,
-		sessionIndex: make(map[string]string),
-		metaCache:    make(map[string]metaCacheEntry),
-		msgCache:     cache.New[msgCacheEntry](msgCacheMaxEntries),
+		threadsDir:        threadsDir,
+		sessionIndex:      make(map[string]string),
+		metaCache:         make(map[string]metaCacheEntry),
+		msgCache:          cache.New[msgCacheEntry](msgCacheMaxEntries),
+		projectMatchCache: cache.New[projectMatchCacheEntry](projectMatchCacheMaxEntries),
 	}
 }
 
@@ -102,10 +103,10 @@ func fixtureSimpleThread(projectDir string) Thread {
 				{Type: "text", Text: "Of course! I'd be happy to help."},
 			},
 			Usage: &Usage{
-				Model:            "claude-opus-4-6",
-				InputTokens:      80,
-				OutputTokens:     50,
-				TotalInputTokens: 100,
+				Model:                    "claude-opus-4-6",
+				InputTokens:              80,
+				OutputTokens:             50,
+				TotalInputTokens:         100,
 				CacheReadInputTokens:     10,
 				CacheCreationInputTokens: 5,
 			},

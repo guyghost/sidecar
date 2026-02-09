@@ -12,12 +12,15 @@ import (
 	"time"
 
 	"github.com/guyghost/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter/adapterutil"
+	"github.com/guyghost/sidecar/internal/adapter/cache"
 )
 
 const (
 	adapterID           = "opencode"
 	adapterName         = "OpenCode"
 	metaCacheMaxEntries = 2048
+	msgCacheMaxEntries  = 128
 )
 
 // Adapter implements the adapter.Adapter interface for OpenCode sessions.
@@ -28,6 +31,7 @@ type Adapter struct {
 	projectsLoaded bool                // true after loadProjects populates projectIndex
 	metaCache      map[string]sessionMetaCacheEntry
 	metaMu         sync.RWMutex // guards metaCache
+	msgCache       *cache.Cache[msgCacheEntry]
 }
 
 // sessionMetaCacheEntry caches parsed session metadata with validation info.
@@ -38,6 +42,11 @@ type sessionMetaCacheEntry struct {
 	lastAccess time.Time
 }
 
+// msgCacheEntry holds cached messages for a session.
+type msgCacheEntry struct {
+	messages []adapter.Message
+}
+
 // New creates a new OpenCode adapter.
 func New() *Adapter {
 	home, _ := os.UserHomeDir()
@@ -46,6 +55,7 @@ func New() *Adapter {
 		projectIndex: make(map[string]*Project),
 		sessionIndex: make(map[string]string),
 		metaCache:    make(map[string]sessionMetaCacheEntry),
+		msgCache:     cache.New[msgCacheEntry](msgCacheMaxEntries),
 	}
 }
 
@@ -183,7 +193,25 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 	messageDir := filepath.Join(a.storageDir, "message", sessionID)
 
-	// Batch read all message files at once
+	// Stat the message directory to detect changes
+	dirInfo, err := os.Stat(messageDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Check cache — use directory modtime for invalidation
+	// Use dirInfo.Size() (inode metadata) and modtime
+	if a.msgCache != nil {
+		cached, ok := a.msgCache.Get(messageDir, dirInfo.Size(), dirInfo.ModTime())
+		if ok {
+			return adapterutil.CopyMessages(cached.messages), nil
+		}
+	}
+
+	// Full parse (existing code)
 	msgMap, err := a.batchReadMessages(messageDir)
 	if err != nil {
 		return nil, err
@@ -253,6 +281,11 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 	sort.Slice(messages, func(i, j int) bool {
 		return messages[i].Timestamp.Before(messages[j].Timestamp)
 	})
+
+	// Cache the result
+	if a.msgCache != nil {
+		a.msgCache.Set(messageDir, msgCacheEntry{messages: adapterutil.CopyMessages(messages)}, dirInfo.Size(), dirInfo.ModTime(), 0)
+	}
 
 	return messages, nil
 }

@@ -19,20 +19,22 @@ import (
 )
 
 const (
-	adapterID           = "amp"
-	adapterName         = "Amp"
-	metaCacheMaxEntries = 2048
-	msgCacheMaxEntries  = 128
+	adapterID                   = "amp"
+	adapterName                 = "Amp"
+	metaCacheMaxEntries         = 2048
+	msgCacheMaxEntries          = 128
+	projectMatchCacheMaxEntries = 2048
 )
 
 // Adapter implements the adapter.Adapter interface for Amp Code threads.
 type Adapter struct {
-	threadsDir   string
-	sessionIndex map[string]string // threadID -> file path
-	mu           sync.RWMutex     // guards sessionIndex
-	metaCache    map[string]metaCacheEntry
-	metaMu       sync.RWMutex // guards metaCache
-	msgCache     *cache.Cache[msgCacheEntry]
+	threadsDir        string
+	sessionIndex      map[string]string // threadID -> file path
+	mu                sync.RWMutex      // guards sessionIndex
+	metaCache         map[string]metaCacheEntry
+	metaMu            sync.RWMutex // guards metaCache
+	msgCache          *cache.Cache[msgCacheEntry]
+	projectMatchCache *cache.Cache[projectMatchCacheEntry]
 }
 
 // metaCacheEntry caches parsed thread metadata with validation info.
@@ -48,14 +50,20 @@ type msgCacheEntry struct {
 	messages []adapter.Message
 }
 
+// projectMatchCacheEntry caches resolved tree paths from a thread file.
+type projectMatchCacheEntry struct {
+	treePaths []string // resolved filesystem paths from env.initial.trees
+}
+
 // New creates a new Amp adapter.
 func New() *Adapter {
 	home, _ := os.UserHomeDir()
 	return &Adapter{
-		threadsDir:   filepath.Join(home, ".local", "share", "amp", "threads"),
-		sessionIndex: make(map[string]string),
-		metaCache:    make(map[string]metaCacheEntry),
-		msgCache:     cache.New[msgCacheEntry](msgCacheMaxEntries),
+		threadsDir:        filepath.Join(home, ".local", "share", "amp", "threads"),
+		sessionIndex:      make(map[string]string),
+		metaCache:         make(map[string]metaCacheEntry),
+		msgCache:          cache.New[msgCacheEntry](msgCacheMaxEntries),
+		projectMatchCache: cache.New[projectMatchCacheEntry](projectMatchCacheMaxEntries),
 	}
 }
 
@@ -326,12 +334,28 @@ func (a *Adapter) SessionByID(sessionID string) (*adapter.Session, error) {
 
 // threadMatchesProject checks if a thread file is associated with the given project root.
 func (a *Adapter) threadMatchesProject(path, absRoot string) bool {
+	// Get file info for cache validation
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	// Check cache for resolved tree paths
+	if cached, ok := a.projectMatchCache.Get(path, info.Size(), info.ModTime()); ok {
+		for _, tp := range cached.treePaths {
+			if pathMatchesProject(absRoot, tp) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Cache miss — read and parse the file
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
 
-	// Parse just the env field for efficiency
 	var partial struct {
 		Env *Env `json:"env,omitempty"`
 	}
@@ -339,25 +363,31 @@ func (a *Adapter) threadMatchesProject(path, absRoot string) bool {
 		return false
 	}
 
-	if partial.Env == nil || partial.Env.Initial == nil {
-		return false
+	// Resolve and cache tree paths
+	var treePaths []string
+	if partial.Env != nil && partial.Env.Initial != nil {
+		for _, tree := range partial.Env.Initial.Trees {
+			tp := uriToPath(tree.URI)
+			if tp == "" {
+				continue
+			}
+			if resolved, err := filepath.EvalSymlinks(tp); err == nil {
+				tp = resolved
+			}
+			tp = filepath.Clean(tp)
+			treePaths = append(treePaths, tp)
+		}
 	}
 
-	for _, tree := range partial.Env.Initial.Trees {
-		treePath := uriToPath(tree.URI)
-		if treePath == "" {
-			continue
-		}
-		if resolved, err := filepath.EvalSymlinks(treePath); err == nil {
-			treePath = resolved
-		}
-		treePath = filepath.Clean(treePath)
+	// Cache the resolved tree paths (even if empty — avoids re-reading files with no env)
+	a.projectMatchCache.Set(path, projectMatchCacheEntry{treePaths: treePaths}, info.Size(), info.ModTime(), 0)
 
-		if pathMatchesProject(absRoot, treePath) {
+	// Check for match
+	for _, tp := range treePaths {
+		if pathMatchesProject(absRoot, tp) {
 			return true
 		}
 	}
-
 	return false
 }
 
