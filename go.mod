@@ -16,7 +16,6 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/marcus/td v0.32.0
 	github.com/mattn/go-runewidth v0.0.19
-	github.com/mattn/go-sqlite3 v1.14.33
 	golang.org/x/term v0.39.0
 	modernc.org/sqlite v1.41.0
 )
