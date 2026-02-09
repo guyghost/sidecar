@@ -14,7 +14,8 @@ import (
 	"time"
 
 	"github.com/marcus/sidecar/internal/adapter"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
+	_ "modernc.org/sqlite"
 )
 
 // ansiRegex matches ANSI escape codes
@@ -87,7 +88,7 @@ func (a *Adapter) Detect(projectRoot string) (bool, error) {
 		WHERE working_directory LIKE ? OR working_directory = ?
 		LIMIT 1
 	`
-	projectAbs := resolveProjectPath(projectRoot)
+	projectAbs := adapterutil.ResolveProjectPath(projectRoot)
 	pattern := projectAbs + "%"
 
 	var exists int
@@ -111,7 +112,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		return nil, err
 	}
 
-	projectAbs := resolveProjectPath(projectRoot)
+	projectAbs := adapterutil.ResolveProjectPath(projectRoot)
 	pattern := projectAbs + "%"
 
 	// Query distinct conversations with aggregated data
@@ -158,7 +159,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		}
 
 		// Filter by project path (with symlink resolution)
-		if !cwdMatchesProject(projectRoot, workDir) {
+		if !adapterutil.CWDMatchesProject(projectRoot, workDir) {
 			continue
 		}
 
@@ -456,8 +457,8 @@ func (a *Adapter) getDB() (*sql.DB, error) {
 	}
 
 	// Open new connection with read-only mode and WAL mode
-	connStr := a.dbPath + "?mode=ro&_journal_mode=WAL"
-	db, err := sql.Open("sqlite3", connStr)
+	connStr := a.dbPath + "?mode=ro&_pragma=journal_mode(WAL)"
+	db, err := sql.Open("sqlite", connStr)
 	if err != nil {
 		return nil, err
 	}
@@ -484,41 +485,8 @@ func (a *Adapter) Close() error {
 }
 
 // resolveProjectPath returns the absolute, symlink-resolved path.
-func resolveProjectPath(projectRoot string) string {
-	if projectRoot == "" {
-		return ""
-	}
-	abs, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return projectRoot
-	}
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		abs = resolved
-	}
-	return filepath.Clean(abs)
-}
 
 // cwdMatchesProject checks if the working directory matches the project root.
-func cwdMatchesProject(projectRoot, cwd string) bool {
-	if projectRoot == "" || cwd == "" {
-		return false
-	}
-	projectAbs := resolveProjectPath(projectRoot)
-	cwdAbs := resolveProjectPath(cwd)
-
-	if projectAbs == "" || cwdAbs == "" {
-		return false
-	}
-
-	rel, err := filepath.Rel(projectAbs, cwdAbs)
-	if err != nil {
-		return false
-	}
-	if rel == "." {
-		return true
-	}
-	return !strings.HasPrefix(rel, "..")
-}
 
 // parseWarpTimestamp parses Warp's SQLite timestamp format.
 func parseWarpTimestamp(s string) time.Time {

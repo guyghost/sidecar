@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 )
 
 const (
@@ -130,16 +131,16 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		// Use first user message as name, fallback to short ID
 		name := ""
 		if meta.FirstUserMessage != "" {
-			name = truncateTitle(meta.FirstUserMessage, 50)
+			name = adapterutil.TruncateTitle(meta.FirstUserMessage, 50)
 		}
 		if name == "" {
-			name = shortID(meta.SessionID)
+			name = adapterutil.ShortID(meta.SessionID)
 		}
 
 		sessions = append(sessions, adapter.Session{
 			ID:           meta.SessionID,
 			Name:         name,
-			Slug:         shortID(meta.SessionID),
+			Slug:         adapterutil.ShortID(meta.SessionID),
 			AdapterID:    adapterID,
 			AdapterName:  adapterName,
 			AdapterIcon:  a.Icon(),
@@ -492,22 +493,6 @@ func (a *Adapter) parseSessionMetadata(path string) (*SessionMetadata, error) {
 }
 
 // shortID returns the first 8 characters of an ID.
-func shortID(id string) string {
-	if len(id) >= 8 {
-		return id[:8]
-	}
-	return id
-}
 
 // truncateTitle truncates text to maxLen, adding "..." if truncated.
 // It also replaces newlines with spaces for display.
-func truncateTitle(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.TrimSpace(s)
-
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}

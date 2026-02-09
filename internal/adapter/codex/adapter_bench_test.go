@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -198,7 +199,7 @@ func BenchmarkCwdMatchesProject(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = cwdMatchesProject(projectDir, cwdDir)
+		_ = adapterutil.CWDMatchesProject(projectDir, cwdDir)
 	}
 }
 

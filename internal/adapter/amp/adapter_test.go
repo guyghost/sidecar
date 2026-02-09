@@ -11,6 +11,8 @@ import (
 
 	"github.com/marcus/sidecar/internal/adapter"
 	"github.com/marcus/sidecar/internal/adapter/cache"
+
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 )
 
 // ---------------------------------------------------------------------------
@@ -1523,7 +1525,7 @@ func TestCopyMessages(t *testing.T) {
 		},
 	}
 
-	copied := copyMessages(original)
+	copied := adapterutil.CopyMessages(original)
 	if len(copied) != len(original) {
 		t.Fatalf("copy length mismatch: %d vs %d", len(copied), len(original))
 	}
@@ -1546,8 +1548,8 @@ func TestCopyMessages(t *testing.T) {
 }
 
 func TestCopyMessages_Nil(t *testing.T) {
-	if got := copyMessages(nil); got != nil {
-		t.Errorf("copyMessages(nil) = %v, want nil", got)
+	if got := adapterutil.CopyMessages(nil); got != nil {
+		t.Errorf("adapterutil.CopyMessages(nil) = %v, want nil", got)
 	}
 }
 

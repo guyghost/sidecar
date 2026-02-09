@@ -18,6 +18,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 )
 
 // sqlitePoolSettings configures connection pool to prevent FD leaks (td-649ba4).
@@ -196,10 +197,10 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		// Use first user message as name if meta.Name is empty or "New Agent"
 		name := meta.Name
 		if (name == "" || name == "New Agent") && firstUserMsg != "" {
-			name = truncateTitle(firstUserMsg, 50)
+			name = adapterutil.TruncateTitle(firstUserMsg, 50)
 		}
 		if name == "" || name == "New Agent" {
-			name = shortID(meta.AgentID)
+			name = adapterutil.ShortID(meta.AgentID)
 		}
 
 		// Calculate file size (db + wal)
@@ -211,7 +212,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		sessions = append(sessions, adapter.Session{
 			ID:           meta.AgentID,
 			Name:         name,
-			Slug:         shortID(meta.AgentID),
+			Slug:         adapterutil.ShortID(meta.AgentID),
 			AdapterID:    adapterID,
 			AdapterName:  adapterName,
 			AdapterIcon:  a.Icon(),
@@ -476,7 +477,7 @@ func (a *Adapter) parseMessageBlob(data []byte, blobID string) (adapter.Message,
 
 	// Use blob hash as message ID for uniqueness
 	// Cursor's internal id field is always "1" for assistant messages, causing cache collisions
-	msgID := shortID(blobID)
+	msgID := adapterutil.ShortID(blobID)
 
 	msg := adapter.Message{
 		ID:   msgID,
@@ -644,25 +645,9 @@ func extractToolResultContent(result json.RawMessage) string {
 }
 
 // shortID returns the first 8 characters of an ID, or the full ID if shorter.
-func shortID(id string) string {
-	if len(id) >= 8 {
-		return id[:8]
-	}
-	return id
-}
 
 // truncateTitle truncates text to maxLen, adding "..." if truncated.
 // It also replaces newlines with spaces for display.
-func truncateTitle(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.TrimSpace(s)
-
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
 
 // extractUserQuery extracts the user's query from XML-tagged content.
 // Returns the query text or empty string if no <user_query> tag found.

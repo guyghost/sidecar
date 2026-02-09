@@ -14,6 +14,8 @@ import (
 
 	"github.com/marcus/sidecar/internal/adapter"
 	"github.com/marcus/sidecar/internal/adapter/cache"
+
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 )
 
 const (
@@ -229,7 +231,7 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 	if a.msgCache != nil {
 		cached, ok := a.msgCache.Get(path, info.Size(), info.ModTime())
 		if ok {
-			return copyMessages(cached.messages), nil
+			return adapterutil.CopyMessages(cached.messages), nil
 		}
 	}
 
@@ -240,7 +242,7 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 	}
 
 	if a.msgCache != nil {
-		a.msgCache.Set(path, msgCacheEntry{messages: copyMessages(messages)}, info.Size(), info.ModTime(), 0)
+		a.msgCache.Set(path, msgCacheEntry{messages: adapterutil.CopyMessages(messages)}, info.Size(), info.ModTime(), 0)
 	}
 
 	return messages, nil

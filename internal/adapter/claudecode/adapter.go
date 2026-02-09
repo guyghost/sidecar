@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 	"github.com/marcus/sidecar/internal/adapter/cache"
 )
 
@@ -140,7 +141,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 			name = meta.Slug
 		}
 		if name == "" {
-			name = shortID(meta.SessionID)
+			name = adapterutil.ShortID(meta.SessionID)
 		}
 
 		// Detect sub-agent by filename prefix
@@ -211,7 +212,7 @@ func (a *Adapter) SessionByID(sessionID string) (*adapter.Session, error) {
 		name = meta.Slug
 	}
 	if name == "" {
-		name = shortID(meta.SessionID)
+		name = adapterutil.ShortID(meta.SessionID)
 	}
 
 	isSubAgent := strings.HasPrefix(filepath.Base(path), "agent-")
@@ -258,7 +259,7 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 			// Exact cache hit: file unchanged
 			if info.Size() == cachedSize && info.ModTime().Equal(cachedModTime) {
 				// Return a copy to avoid mutation
-				return copyMessages(cached.messages), nil
+				return adapterutil.CopyMessages(cached.messages), nil
 			}
 
 			// File grew: incremental parse from saved offset
@@ -337,7 +338,7 @@ func (a *Adapter) parseMessagesFull(path string, info os.FileInfo) ([]adapter.Me
 	}
 
 	entry := messageCacheEntry{
-		messages:     copyMessages(messages),
+		messages:     adapterutil.CopyMessages(messages),
 		toolUseRefs:  toolUseRefs,
 		pendingRefs:  pendingRefs,
 		byteOffset:   bytesRead,
@@ -357,7 +358,7 @@ func (a *Adapter) parseMessagesIncremental(path string, cached messageCacheEntry
 	defer func() { _ = reader.Close() }()
 
 	// Start with copies of cached data
-	messages := copyMessages(cached.messages)
+	messages := adapterutil.CopyMessages(cached.messages)
 	toolUseRefs := copyToolUseRefs(cached.toolUseRefs)
 	pendingRefs := copyToolUseRefs(cached.pendingRefs)
 
@@ -392,7 +393,7 @@ func (a *Adapter) parseMessagesIncremental(path string, cached messageCacheEntry
 	}
 
 	entry := messageCacheEntry{
-		messages:     copyMessages(messages),
+		messages:     adapterutil.CopyMessages(messages),
 		toolUseRefs:  toolUseRefs,
 		pendingRefs:  pendingRefs,
 		byteOffset:   reader.Offset(),
@@ -477,31 +478,6 @@ func (a *Adapter) clearResolvedRefs(rawContent json.RawMessage, pendingRefs map[
 			delete(pendingRefs, block.ToolUseID)
 		}
 	}
-}
-
-// copyMessages creates a deep copy of messages slice.
-func copyMessages(msgs []adapter.Message) []adapter.Message {
-	if msgs == nil {
-		return nil
-	}
-	cp := make([]adapter.Message, len(msgs))
-	for i, m := range msgs {
-		cp[i] = m
-		// Deep copy slices
-		if m.ToolUses != nil {
-			cp[i].ToolUses = make([]adapter.ToolUse, len(m.ToolUses))
-			copy(cp[i].ToolUses, m.ToolUses)
-		}
-		if m.ThinkingBlocks != nil {
-			cp[i].ThinkingBlocks = make([]adapter.ThinkingBlock, len(m.ThinkingBlocks))
-			copy(cp[i].ThinkingBlocks, m.ThinkingBlocks)
-		}
-		if m.ContentBlocks != nil {
-			cp[i].ContentBlocks = make([]adapter.ContentBlock, len(m.ContentBlocks))
-			copy(cp[i].ContentBlocks, m.ContentBlocks)
-		}
-	}
-	return cp
 }
 
 // copyToolUseRefs creates a copy of tool use refs map.
@@ -1024,13 +1000,6 @@ func (a *Adapter) invalidateSessionMetaCacheIfChanged(path string, info os.FileI
 	a.metaMu.Unlock()
 }
 
-// shortID returns the first 8 characters of an ID, or the full ID if shorter.
-func shortID(id string) string {
-	if len(id) >= 8 {
-		return id[:8]
-	}
-	return id
-}
 
 // extractUserQuery extracts the actual user query from text that may contain XML tags.
 // Claude Code messages often contain system context wrapped in XML tags like:

@@ -3,6 +3,8 @@ package cursor
 import (
 	"os"
 	"testing"
+
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 )
 
 func TestID(t *testing.T) {
@@ -274,9 +276,9 @@ func TestShortID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := shortID(tt.id)
+		result := adapterutil.ShortID(tt.id)
 		if result != tt.expected {
-			t.Errorf("shortID(%q) = %q, expected %q", tt.id, result, tt.expected)
+			t.Errorf("adapterutil.ShortID(%q) = %q, expected %q", tt.id, result, tt.expected)
 		}
 	}
 }

@@ -14,7 +14,8 @@ import (
 	"time"
 
 	"github.com/marcus/sidecar/internal/adapter"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -73,7 +74,7 @@ func (a *Adapter) Detect(projectRoot string) (bool, error) {
 	}
 
 	query := `SELECT 1 FROM conversations_v2 WHERE key = ? LIMIT 1`
-	projectAbs := resolveProjectPath(projectRoot)
+	projectAbs := adapterutil.ResolveProjectPath(projectRoot)
 
 	var exists int
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
@@ -96,7 +97,7 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		return nil, err
 	}
 
-	projectAbs := resolveProjectPath(projectRoot)
+	projectAbs := adapterutil.ResolveProjectPath(projectRoot)
 
 	query := `
 		SELECT conversation_id, value, created_at, updated_at
@@ -314,8 +315,8 @@ func (a *Adapter) getDB() (*sql.DB, error) {
 		a.db = nil
 	}
 
-	connStr := a.dbPath + "?mode=ro&_journal_mode=WAL"
-	db, err := sql.Open("sqlite3", connStr)
+	connStr := a.dbPath + "?mode=ro&_pragma=journal_mode(WAL)"
+	db, err := sql.Open("sqlite", connStr)
 	if err != nil {
 		return nil, err
 	}
@@ -341,41 +342,8 @@ func (a *Adapter) Close() error {
 }
 
 // resolveProjectPath returns the absolute, symlink-resolved path.
-func resolveProjectPath(projectRoot string) string {
-	if projectRoot == "" {
-		return ""
-	}
-	abs, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return projectRoot
-	}
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		abs = resolved
-	}
-	return filepath.Clean(abs)
-}
 
 // cwdMatchesProject checks if the working directory matches the project root.
-func cwdMatchesProject(projectRoot, cwd string) bool {
-	if projectRoot == "" || cwd == "" {
-		return false
-	}
-	projectAbs := resolveProjectPath(projectRoot)
-	cwdAbs := resolveProjectPath(cwd)
-
-	if projectAbs == "" || cwdAbs == "" {
-		return false
-	}
-
-	rel, err := filepath.Rel(projectAbs, cwdAbs)
-	if err != nil {
-		return false
-	}
-	if rel == "." {
-		return true
-	}
-	return !strings.HasPrefix(rel, "..")
-}
 
 // firstPromptText returns the text of the first Prompt entry in the history.
 func firstPromptText(history []HistoryEntry) string {
@@ -540,4 +508,3 @@ func truncateOutput(s string, maxLen int) string {
 	}
 	return s[:maxLen-3] + "..."
 }
-

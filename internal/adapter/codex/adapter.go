@@ -14,6 +14,7 @@ import (
 
 	"github.com/marcus/sidecar/internal/adapter"
 	"github.com/marcus/sidecar/internal/adapter/cache"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 )
 
 const (
@@ -92,7 +93,7 @@ func (a *Adapter) Detect(projectRoot string) (bool, error) {
 		if err != nil {
 			continue
 		}
-		if cwdMatchesProject(projectRoot, meta.CWD) {
+		if adapterutil.CWDMatchesProject(projectRoot, meta.CWD) {
 			return true, nil
 		}
 	}
@@ -136,10 +137,10 @@ func (a *Adapter) Sessions(projectRoot string) ([]adapter.Session, error) {
 		// Use first user message as name, fallback to short ID
 		name := ""
 		if meta.FirstUserMessage != "" {
-			name = truncateTitle(meta.FirstUserMessage, 50)
+			name = adapterutil.TruncateTitle(meta.FirstUserMessage, 50)
 		}
 		if name == "" {
-			name = shortID(meta.SessionID)
+			name = adapterutil.ShortID(meta.SessionID)
 		}
 		sessions = append(sessions, adapter.Session{
 			ID:           meta.SessionID,
@@ -197,7 +198,7 @@ func (a *Adapter) Messages(sessionID string) ([]adapter.Message, error) {
 		if ok {
 			// Exact cache hit: file unchanged
 			if info.Size() == cachedSize && info.ModTime().Equal(cachedModTime) {
-				return copyMessages(cached.messages), nil
+				return adapterutil.CopyMessages(cached.messages), nil
 			}
 
 			// File grew: incremental parse from saved offset
@@ -273,7 +274,7 @@ func (a *Adapter) parseMessagesFull(path, sessionID string, info os.FileInfo) ([
 	state.flushPending()
 
 	entry := messageCacheEntry{
-		messages:        copyMessages(state.messages),
+		messages:        adapterutil.CopyMessages(state.messages),
 		pendingTools:    copyToolUses(state.pendingTools),
 		toolIndex:       copyToolIndex(state.toolIndex),
 		pendingThinking: copyThinkingBlocks(state.pendingThinking),
@@ -300,7 +301,7 @@ func (a *Adapter) parseMessagesIncremental(path, sessionID string, cached messag
 	// Restore state from cached entry
 	state := &parseState{
 		sessionID:       sessionID,
-		messages:        copyMessages(cached.messages),
+		messages:        adapterutil.CopyMessages(cached.messages),
 		pendingTools:    copyToolUses(cached.pendingTools),
 		toolIndex:       copyToolIndex(cached.toolIndex),
 		pendingThinking: copyThinkingBlocks(cached.pendingThinking),
@@ -327,7 +328,7 @@ func (a *Adapter) parseMessagesIncremental(path, sessionID string, cached messag
 	state.flushPending()
 
 	entry := messageCacheEntry{
-		messages:        copyMessages(state.messages),
+		messages:        adapterutil.CopyMessages(state.messages),
 		pendingTools:    copyToolUses(state.pendingTools),
 		toolIndex:       copyToolIndex(state.toolIndex),
 		pendingThinking: copyThinkingBlocks(state.pendingThinking),
@@ -367,7 +368,7 @@ func (s *parseState) flushPending() {
 		return
 	}
 	msg := adapter.Message{
-		ID:             "synthetic-" + shortID(s.sessionID) + "-" + fmt.Sprintf("%d", len(s.messages)),
+		ID:             "synthetic-" + adapterutil.ShortID(s.sessionID) + "-" + fmt.Sprintf("%d", len(s.messages)),
 		Role:           "assistant",
 		Content:        "tool calls",
 		Timestamp:      s.lastTimestamp,
@@ -515,28 +516,6 @@ func (a *Adapter) processMessageRecord(line []byte, state *parseState) {
 }
 
 // copyMessages creates a deep copy of messages slice.
-func copyMessages(msgs []adapter.Message) []adapter.Message {
-	if msgs == nil {
-		return nil
-	}
-	cp := make([]adapter.Message, len(msgs))
-	for i, m := range msgs {
-		cp[i] = m
-		if m.ToolUses != nil {
-			cp[i].ToolUses = make([]adapter.ToolUse, len(m.ToolUses))
-			copy(cp[i].ToolUses, m.ToolUses)
-		}
-		if m.ThinkingBlocks != nil {
-			cp[i].ThinkingBlocks = make([]adapter.ThinkingBlock, len(m.ThinkingBlocks))
-			copy(cp[i].ThinkingBlocks, m.ThinkingBlocks)
-		}
-		if m.ContentBlocks != nil {
-			cp[i].ContentBlocks = make([]adapter.ContentBlock, len(m.ContentBlocks))
-			copy(cp[i].ContentBlocks, m.ContentBlocks)
-		}
-	}
-	return cp
-}
 
 // copyToolUses creates a copy of tool uses slice.
 func copyToolUses(tools []adapter.ToolUse) []adapter.ToolUse {
@@ -1176,53 +1155,7 @@ func (r *resolvedProjectPath) matchesCWD(cwd string) bool {
 	return !strings.HasPrefix(rel, "..")
 }
 
-func cwdMatchesProject(projectRoot, cwd string) bool {
-	if projectRoot == "" || cwd == "" {
-		return false
-	}
-	projectAbs, err := filepath.Abs(projectRoot)
-	if err != nil {
-		return false
-	}
-	cwdAbs, err := filepath.Abs(cwd)
-	if err != nil {
-		return false
-	}
-	if resolved, err := filepath.EvalSymlinks(projectAbs); err == nil {
-		projectAbs = resolved
-	}
-	if resolved, err := filepath.EvalSymlinks(cwdAbs); err == nil {
-		cwdAbs = resolved
-	}
-	projectAbs = filepath.Clean(projectAbs)
-	cwdAbs = filepath.Clean(cwdAbs)
 
-	rel, err := filepath.Rel(projectAbs, cwdAbs)
-	if err != nil {
-		return false
-	}
-	if rel == "." {
-		return true
-	}
-	return !strings.HasPrefix(rel, "..")
-}
-
-func shortID(id string) string {
-	if len(id) >= 8 {
-		return id[:8]
-	}
-	return id
-}
 
 // truncateTitle truncates text to maxLen, adding "..." if truncated.
 // It also replaces newlines with spaces for display.
-func truncateTitle(s string, maxLen int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.TrimSpace(s)
-
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}

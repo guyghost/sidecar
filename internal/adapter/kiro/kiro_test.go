@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 )
 
 func TestParseTimestamp(t *testing.T) {
@@ -153,7 +154,7 @@ func TestCwdMatchesProject(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := cwdMatchesProject(tt.project, tt.cwd)
+			got := adapterutil.CWDMatchesProject(tt.project, tt.cwd)
 			if got != tt.want {
 				t.Errorf("cwdMatchesProject(%q, %q) = %v, want %v", tt.project, tt.cwd, got, tt.want)
 			}

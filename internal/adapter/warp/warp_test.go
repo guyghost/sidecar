@@ -2,6 +2,7 @@ package warp
 
 import (
 	"testing"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 	"time"
 )
 
@@ -148,9 +149,9 @@ func TestCwdMatchesProject(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := cwdMatchesProject(tc.projectRoot, tc.cwd)
+			result := adapterutil.CWDMatchesProject(tc.projectRoot, tc.cwd)
 			if result != tc.expected {
-				t.Errorf("cwdMatchesProject(%q, %q) = %v, want %v",
+				t.Errorf("adapterutil.CWDMatchesProject(%q, %q) = %v, want %v",
 					tc.projectRoot, tc.cwd, result, tc.expected)
 			}
 		})

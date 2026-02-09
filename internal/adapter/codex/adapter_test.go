@@ -3,6 +3,7 @@ package codex
 import (
 	"os"
 	"path/filepath"
+	"github.com/marcus/sidecar/internal/adapter/adapterutil"
 	"testing"
 	"time"
 )
@@ -163,10 +164,10 @@ func writeSessionFile(path string, lines []string) error {
 }
 
 func TestShortID(t *testing.T) {
-	if got := shortID("abcdefghi"); got != "abcdefgh" {
+	if got := adapterutil.ShortID("abcdefghi"); got != "abcdefgh" {
 		t.Fatalf("shortID = %q, want abcdefgh", got)
 	}
-	if got := shortID("short"); got != "short" {
+	if got := adapterutil.ShortID("short"); got != "short" {
 		t.Fatalf("shortID = %q, want short", got)
 	}
 }
@@ -178,22 +179,22 @@ func TestCwdMatchesProject(t *testing.T) {
 	if err := os.MkdirAll(child, 0o755); err != nil {
 		t.Fatalf("mkdir child: %v", err)
 	}
-	if !cwdMatchesProject(project, child) {
+	if !adapterutil.CWDMatchesProject(project, child) {
 		t.Fatalf("cwdMatchesProject should match child")
 	}
-	if cwdMatchesProject(project, filepath.Join(root, "other")) {
+	if adapterutil.CWDMatchesProject(project, filepath.Join(root, "other")) {
 		t.Fatalf("cwdMatchesProject should not match other")
 	}
-	if !cwdMatchesProject(project, project) {
+	if !adapterutil.CWDMatchesProject(project, project) {
 		t.Fatalf("cwdMatchesProject should match same dir")
 	}
-	if cwdMatchesProject("", project) {
+	if adapterutil.CWDMatchesProject("", project) {
 		t.Fatalf("cwdMatchesProject should reject empty project")
 	}
-	if cwdMatchesProject(project, "") {
+	if adapterutil.CWDMatchesProject(project, "") {
 		t.Fatalf("cwdMatchesProject should reject empty cwd")
 	}
-	if !cwdMatchesProject(project, filepath.Clean(project+string(os.PathSeparator))) {
+	if !adapterutil.CWDMatchesProject(project, filepath.Clean(project+string(os.PathSeparator))) {
 		t.Fatalf("cwdMatchesProject should handle trailing separator")
 	}
 }
