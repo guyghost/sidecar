@@ -358,83 +358,7 @@ func (a *Agent) CheckRunaway() bool {
 // StartAgent creates a tmux session and starts an agent for a worktree.
 // If a session already exists, it reconnects to it instead of failing.
 func (p *Plugin) StartAgent(wt *Worktree, agentType AgentType) tea.Cmd {
-	epoch := p.ctx.Epoch // Capture epoch for stale detection
-	return func() tea.Msg {
-		sessionName := tmuxSessionPrefix + sanitizeName(wt.Name)
-
-		// Check if session already exists
-		checkCmd := exec.Command("tmux", "has-session", "-t", sessionName)
-		if checkCmd.Run() == nil {
-			// Session exists - reconnect to it instead of failing
-			paneID := getPaneID(sessionName)
-			return AgentStartedMsg{
-				Epoch:         epoch,
-				WorkspaceName: wt.Name,
-				SessionName:   sessionName,
-				PaneID:        paneID,
-				AgentType:     agentType,
-				Reconnected:   true, // Flag that we reconnected to existing session
-			}
-		}
-
-		// Create new detached session with working directory
-		args := []string{
-			"new-session",
-			"-d",              // Detached
-			"-s", sessionName, // Session name
-			"-c", wt.Path, // Working directory
-		}
-
-		cmd := exec.Command("tmux", args...)
-		if err := cmd.Run(); err != nil {
-			return AgentStartedMsg{Epoch: epoch, Err: fmt.Errorf("create session: %w", err)}
-		}
-
-		// Set history limit for scrollback capture
-		_ = exec.Command("tmux", "set-option", "-t", sessionName, "history-limit",
-			strconv.Itoa(tmuxHistoryLimit)).Run()
-
-		// Set TD_SESSION_ID environment variable for td session tracking
-		envCmd := fmt.Sprintf("export TD_SESSION_ID=%s", shellQuote(sessionName))
-		_ = exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
-
-		// Apply environment isolation to prevent conflicts (GOWORK, etc.)
-		envOverrides := BuildEnvOverrides(p.ctx.WorkDir)
-		if envCmd := GenerateSingleEnvCommand(envOverrides); envCmd != "" {
-			_ = exec.Command("tmux", "send-keys", "-t", sessionName, envCmd, "Enter").Run()
-		}
-
-		// If worktree has a linked task, start it in td
-		if wt.TaskID != "" {
-			tdStartCmd := fmt.Sprintf("td start %s", wt.TaskID)
-			_ = exec.Command("tmux", "send-keys", "-t", sessionName, tdStartCmd, "Enter").Run()
-		}
-
-		// Small delay to ensure env is set
-		time.Sleep(100 * time.Millisecond)
-
-		// Get the agent command with optional task context
-		agentCmd := p.getAgentCommandWithContext(agentType, wt)
-
-		// Send the agent command to start it
-		sendCmd := exec.Command("tmux", "send-keys", "-t", sessionName, agentCmd, "Enter")
-		if err := sendCmd.Run(); err != nil {
-			// Try to kill the session if we failed to start the agent
-			_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
-			return AgentStartedMsg{Epoch: epoch, Err: fmt.Errorf("start agent: %w", err)}
-		}
-
-		// Capture pane ID for interactive mode support
-		paneID := getPaneID(sessionName)
-
-		return AgentStartedMsg{
-			Epoch:         epoch,
-			WorkspaceName: wt.Name,
-			SessionName:   sessionName,
-			PaneID:        paneID,
-			AgentType:     agentType,
-		}
-	}
+	return p.StartAgentWithOptions(wt, agentType, false, nil)
 }
 
 // getAgentCommand returns the command to start an agent.
@@ -546,11 +470,6 @@ rm -f %q
 	}
 
 	return "bash " + shellQuote(launcherFile), nil
-}
-
-// getAgentCommandWithContext returns the agent command with optional task context (legacy, no skip perms).
-func (p *Plugin) getAgentCommandWithContext(agentType AgentType, wt *Worktree) string {
-	return p.buildAgentCommand(agentType, wt, false, nil)
 }
 
 // StartAgentWithOptions creates a tmux session and starts an agent with options.
