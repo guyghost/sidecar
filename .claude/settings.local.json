@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "Bash(td create:*)"
+      "Bash(td create:*)",
+      "Bash(td:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(go test:*)"
     ]
   }
 }
