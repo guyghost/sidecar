@@ -4,8 +4,6 @@ import (
 	"regexp"
 	"sort"
 	"sync"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // themeMu protects access to themeRegistry and currentTheme for thread safety
@@ -14,7 +12,7 @@ var themeMu sync.RWMutex
 // hexColorRegex validates hex color codes (#RRGGBB or #RRGGBBAA with alpha)
 var hexColorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$`)
 
-// ColorPalette holds all theme colors
+// ColorPalette holds all theme colors (from config files)
 type ColorPalette struct {
 	// Brand colors
 	Primary   string `json:"primary"`
@@ -594,16 +592,106 @@ func RegisterTheme(theme Theme) {
 	themeRegistry[theme.Name] = theme
 }
 
-// ApplyTheme applies a theme by name, updating all style variables
+// paletteFromColorPalette converts a ColorPalette (from Theme) to a Palette (for NewStyles)
+func paletteFromColorPalette(c ColorPalette) Palette {
+	return Palette{
+		Primary:   c.Primary,
+		Secondary: c.Secondary,
+		Accent:    c.Accent,
+
+		Success: c.Success,
+		Warning: c.Warning,
+		Error:   c.Error,
+		Info:    c.Info,
+
+		TextPrimary:        c.TextPrimary,
+		TextSecondary:      c.TextSecondary,
+		TextMuted:          c.TextMuted,
+		TextSubtle:         c.TextSubtle,
+		TextSelectionColor: c.TextSelection,
+
+		BgPrimary:   c.BgPrimary,
+		BgSecondary: c.BgSecondary,
+		BgTertiary:  c.BgTertiary,
+		BgOverlay:   c.BgOverlay,
+
+		BorderNormal: c.BorderNormal,
+		BorderActive: c.BorderActive,
+		BorderMuted:  c.BorderMuted,
+
+		DiffAddFg:    c.DiffAddFg,
+		DiffRemoveFg: c.DiffRemoveFg,
+		DiffAddBg:    c.DiffAddBg,
+		DiffRemoveBg: c.DiffRemoveBg,
+
+		TextHighlight:         c.TextHighlight,
+		ButtonHoverColor:      c.ButtonHover,
+		TabTextInactiveColor:  c.TabTextInactive,
+		LinkColor:             c.Link,
+		ToastSuccessTextColor: c.ToastSuccessText,
+		ToastErrorTextColor:   c.ToastErrorText,
+
+		DangerLight:  c.DangerLight,
+		DangerDark:   c.DangerDark,
+		DangerBright: c.DangerBright,
+		DangerHover:  c.DangerHover,
+		TextInverse:  c.TextInverse,
+
+		ScrollbarTrackColor: c.ScrollbarTrack,
+		ScrollbarThumbColor: c.ScrollbarThumb,
+
+		BlameAge1: c.BlameAge1,
+		BlameAge2: c.BlameAge2,
+		BlameAge3: c.BlameAge3,
+		BlameAge4: c.BlameAge4,
+		BlameAge5: c.BlameAge5,
+
+		SyntaxTheme:   c.SyntaxTheme,
+		MarkdownTheme: c.MarkdownTheme,
+	}
+}
+
+// ApplyTheme applies a theme by name, creating a new immutable Styles instance
+// and atomically swapping it into Current. This is thread-safe.
 func ApplyTheme(name string) {
 	theme := GetTheme(name)
 	ApplyThemeColors(theme)
 	themeMu.Lock()
 	currentTheme = name
+	currentThemeValue = theme
 	themeMu.Unlock()
 }
 
-// ApplyThemeWithOverrides applies a theme with color overrides from config
+// ApplyThemeColors creates a new Styles instance from a Theme and atomically
+// swaps it into Current. This is thread-safe.
+func ApplyThemeColors(theme Theme) {
+	c := theme.Colors
+
+	// Update tab theme state (mutable state separate from immutable styles)
+	CurrentTabStyle = c.TabStyle
+	CurrentTabColors = parseTabColors(c.TabColors)
+
+	// Update third-party theme names
+	CurrentSyntaxTheme = c.SyntaxTheme
+	CurrentMarkdownTheme = c.MarkdownTheme
+
+	// Build palette and create new Styles instance
+	palette := paletteFromColorPalette(c)
+	newStyles := NewStyles(palette)
+
+	// Atomically swap current styles
+	Current.Store(newStyles)
+
+	// Sync to package-level variables for backward compatibility
+	syncFromStyles(newStyles)
+
+	themeMu.Lock()
+	currentThemeValue = theme
+	themeMu.Unlock()
+}
+
+// ApplyThemeWithOverrides applies a theme with color overrides from config.
+// This creates a new immutable Styles instance and atomically swaps it.
 func ApplyThemeWithOverrides(name string, overrides map[string]string) {
 	theme := GetTheme(name)
 
@@ -796,392 +884,12 @@ func applyFloatOverride(palette *ColorPalette, key string, value float64) {
 	}
 }
 
-// ApplyThemeColors updates all style package variables from a theme.
-//
-// IMPORTANT: This function is NOT thread-safe for concurrent reads.
-// It must only be called during initialization, before the TUI starts.
-// The TUI's single-threaded Bubble Tea model ensures safe access after init.
-func ApplyThemeColors(theme Theme) {
-	c := theme.Colors
-
-	// Update color variables
-	Primary = lipgloss.Color(c.Primary)
-	Secondary = lipgloss.Color(c.Secondary)
-	Accent = lipgloss.Color(c.Accent)
-
-	Success = lipgloss.Color(c.Success)
-	Warning = lipgloss.Color(c.Warning)
-	Error = lipgloss.Color(c.Error)
-	Info = lipgloss.Color(c.Info)
-
-	TextPrimary = lipgloss.Color(c.TextPrimary)
-	TextSecondary = lipgloss.Color(c.TextSecondary)
-	TextMuted = lipgloss.Color(c.TextMuted)
-	TextSubtle = lipgloss.Color(c.TextSubtle)
-	// TextSelectionColor with fallback to TextPrimary
-	if c.TextSelection != "" {
-		TextSelectionColor = lipgloss.Color(c.TextSelection)
-	} else {
-		TextSelectionColor = lipgloss.Color(c.TextPrimary)
-	}
-
-	BgPrimary = lipgloss.Color(c.BgPrimary)
-	BgSecondary = lipgloss.Color(c.BgSecondary)
-	BgTertiary = lipgloss.Color(c.BgTertiary)
-	BgOverlay = lipgloss.Color(c.BgOverlay)
-
-	BorderNormal = lipgloss.Color(c.BorderNormal)
-	BorderActive = lipgloss.Color(c.BorderActive)
-	BorderMuted = lipgloss.Color(c.BorderMuted)
-
-	DiffAddFg = lipgloss.Color(c.DiffAddFg)
-	DiffAddBg = lipgloss.Color(c.DiffAddBg)
-	DiffRemoveFg = lipgloss.Color(c.DiffRemoveFg)
-	DiffRemoveBg = lipgloss.Color(c.DiffRemoveBg)
-
-	TextHighlight = lipgloss.Color(c.TextHighlight)
-	ButtonHoverColor = lipgloss.Color(c.ButtonHover)
-	TabTextInactiveColor = lipgloss.Color(c.TabTextInactive)
-	LinkColor = lipgloss.Color(c.Link)
-	ToastSuccessTextColor = lipgloss.Color(c.ToastSuccessText)
-	ToastErrorTextColor = lipgloss.Color(c.ToastErrorText)
-
-	// Danger button colors (with defaults)
-	if c.DangerLight != "" {
-		DangerLight = lipgloss.Color(c.DangerLight)
-	}
-	if c.DangerDark != "" {
-		DangerDark = lipgloss.Color(c.DangerDark)
-	}
-	if c.DangerBright != "" {
-		DangerBright = lipgloss.Color(c.DangerBright)
-	}
-	if c.DangerHover != "" {
-		DangerHover = lipgloss.Color(c.DangerHover)
-	}
-	if c.TextInverse != "" {
-		TextInverse = lipgloss.Color(c.TextInverse)
-	}
-
-	// Blame age gradient colors (with defaults)
-	if c.BlameAge1 != "" {
-		BlameAge1 = lipgloss.Color(c.BlameAge1)
-	}
-	if c.BlameAge2 != "" {
-		BlameAge2 = lipgloss.Color(c.BlameAge2)
-	}
-	if c.BlameAge3 != "" {
-		BlameAge3 = lipgloss.Color(c.BlameAge3)
-	}
-	if c.BlameAge4 != "" {
-		BlameAge4 = lipgloss.Color(c.BlameAge4)
-	}
-	if c.BlameAge5 != "" {
-		BlameAge5 = lipgloss.Color(c.BlameAge5)
-	}
-
-	// Scrollbar colors (with fallback to TextSubtle/TextMuted)
-	if c.ScrollbarTrack != "" {
-		ScrollbarTrackColor = lipgloss.Color(c.ScrollbarTrack)
-	} else {
-		ScrollbarTrackColor = TextSubtle
-	}
-	if c.ScrollbarThumb != "" {
-		ScrollbarThumbColor = lipgloss.Color(c.ScrollbarThumb)
-	} else {
-		ScrollbarThumbColor = TextMuted
-	}
-
-	// Store syntax/markdown theme names for external use
-	CurrentSyntaxTheme = c.SyntaxTheme
-	CurrentMarkdownTheme = c.MarkdownTheme
-
-	// Update tab theme state
-	CurrentTabStyle = c.TabStyle
-	CurrentTabColors = parseTabColors(c.TabColors)
-
-	themeMu.Lock()
-	currentThemeValue = theme
-	themeMu.Unlock()
-
-	// Rebuild all styles that depend on these colors
-	rebuildStyles()
-}
-
-// rebuildStyles recreates all lipgloss styles with current colors
-func rebuildStyles() {
-	// Panel styles
-	PanelActive = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(BorderActive).
-		Padding(0, 1)
-
-	PanelInactive = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(BorderNormal).
-		Padding(0, 1)
-
-	PanelHeader = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(TextPrimary).
-		MarginBottom(1)
-
-	PanelNoBorder = lipgloss.NewStyle().
-		Padding(0, 1)
-
-	// Text styles
-	Title = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(TextPrimary)
-
-	Subtitle = lipgloss.NewStyle().
-		Foreground(TextHighlight)
-
-	// WorktreeIndicator shows the current worktree branch in the header
-	WorktreeIndicator = lipgloss.NewStyle().
-		Foreground(Warning).
-		Bold(true)
-
-	Body = lipgloss.NewStyle().
-		Foreground(TextPrimary)
-
-	Muted = lipgloss.NewStyle().
-		Foreground(TextMuted)
-
-	Subtle = lipgloss.NewStyle().
-		Foreground(TextSubtle)
-
-	Code = lipgloss.NewStyle().
-		Foreground(Accent)
-
-	Link = lipgloss.NewStyle().
-		Foreground(LinkColor).
-		Underline(true)
-
-	KeyHint = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Background(BgTertiary).
-		Padding(0, 1)
-
-	Logo = lipgloss.NewStyle().
-		Foreground(Primary).
-		Bold(true)
-
-	// Status indicator styles
-	StatusStaged = lipgloss.NewStyle().
-		Foreground(Success).
-		Bold(true)
-
-	StatusModified = lipgloss.NewStyle().
-		Foreground(Warning).
-		Bold(true)
-
-	ToastSuccess = lipgloss.NewStyle().
-		Background(Success).
-		Foreground(ToastSuccessTextColor).
-		Bold(true).
-		Padding(0, 1)
-
-	ToastError = lipgloss.NewStyle().
-		Background(Error).
-		Foreground(ToastErrorTextColor).
-		Bold(true).
-		Padding(0, 1)
-
-	StatusUntracked = lipgloss.NewStyle().
-		Foreground(TextMuted)
-
-	StatusDeleted = lipgloss.NewStyle().
-		Foreground(Error).
-		Bold(true)
-
-	StatusInProgress = lipgloss.NewStyle().
-		Foreground(Info).
-		Bold(true)
-
-	StatusCompleted = lipgloss.NewStyle().
-		Foreground(Success)
-
-	StatusBlocked = lipgloss.NewStyle().
-		Foreground(Error)
-
-	StatusPending = lipgloss.NewStyle().
-		Foreground(TextMuted)
-
-	// List item styles
-	ListItemNormal = lipgloss.NewStyle().
-		Foreground(TextPrimary)
-
-	ListItemSelected = lipgloss.NewStyle().
-		Foreground(TextSelectionColor).
-		Background(BgTertiary)
-
-	ListItemFocused = lipgloss.NewStyle().
-		Foreground(TextPrimary).
-		Background(Primary)
-
-	ListCursor = lipgloss.NewStyle().
-		Foreground(Primary).
-		Bold(true)
-
-	// Bar element styles
-	BarTitle = lipgloss.NewStyle().
-		Foreground(TextPrimary).
-		Bold(true)
-
-	BarText = lipgloss.NewStyle().
-		Foreground(TextMuted)
-
-	BarChip = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Background(BgTertiary).
-		Padding(0, 1)
-
-	BarChipActive = lipgloss.NewStyle().
-		Foreground(TextPrimary).
-		Background(Primary).
-		Padding(0, 1).
-		Bold(true)
-
-	// Tab styles
-	TabTextActive = lipgloss.NewStyle().
-		Foreground(TextPrimary).
-		Bold(true)
-
-	TabTextInactive = lipgloss.NewStyle().
-		Foreground(TabTextInactiveColor)
-
-	// Diff line styles
-	DiffAdd = lipgloss.NewStyle().
-		Foreground(Success)
-
-	DiffRemove = lipgloss.NewStyle().
-		Foreground(Error)
-
-	DiffContext = lipgloss.NewStyle().
-		Foreground(TextMuted)
-
-	DiffHeader = lipgloss.NewStyle().
-		Foreground(Info).
-		Bold(true)
-
-	// File browser styles
-	FileBrowserDir = lipgloss.NewStyle().
-		Foreground(Secondary).
-		Bold(true)
-
-	FileBrowserFile = lipgloss.NewStyle().
-		Foreground(TextPrimary)
-
-	FileBrowserIgnored = lipgloss.NewStyle().
-		Foreground(TextSubtle)
-
-	FileBrowserLineNumber = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Width(5).
-		AlignHorizontal(lipgloss.Right)
-
-	FileBrowserIcon = lipgloss.NewStyle().
-		Foreground(TextMuted)
-
-	SearchMatch = lipgloss.NewStyle().
-		Background(Warning)
-
-	SearchMatchCurrent = lipgloss.NewStyle().
-		Background(Primary).
-		Foreground(TextPrimary)
-
-	FuzzyMatchChar = lipgloss.NewStyle().
-		Foreground(Primary).
-		Bold(true)
-
-	QuickOpenItem = lipgloss.NewStyle().
-		Foreground(TextPrimary)
-
-	QuickOpenItemSelected = lipgloss.NewStyle().
-		Foreground(TextSelectionColor).
-		Background(BgTertiary)
-
-	PaletteEntry = lipgloss.NewStyle().
-		Foreground(TextPrimary)
-
-	PaletteEntrySelected = lipgloss.NewStyle().
-		Foreground(TextSelectionColor).
-		Background(BgTertiary)
-
-	PaletteKey = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Background(BgTertiary).
-		Padding(0, 1)
-
-	TextSelection = lipgloss.NewStyle().
-		Background(BgTertiary).
-		Foreground(TextSelectionColor)
-
-	// Footer and header
-	Footer = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Background(BgSecondary)
-
-	Header = lipgloss.NewStyle().
-		Background(BgSecondary)
-
-	// Modal styles
-	ModalOverlay = lipgloss.NewStyle().
-		Background(BgOverlay)
-
-	ModalBox = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(Primary).
-		Background(BgSecondary).
-		Padding(1, 2)
-
-	ModalTitle = lipgloss.NewStyle().
-		Foreground(TextPrimary).
-		Bold(true).
-		MarginBottom(1)
-
-	// Button styles
-	Button = lipgloss.NewStyle().
-		Foreground(TextSecondary).
-		Background(BgTertiary).
-		Padding(0, 2)
-
-	ButtonFocused = lipgloss.NewStyle().
-		Foreground(TextPrimary).
-		Background(Primary).
-		Padding(0, 2).
-		Bold(true)
-
-	ButtonHover = lipgloss.NewStyle().
-		Foreground(TextPrimary).
-		Background(ButtonHoverColor).
-		Padding(0, 2)
-
-	// Danger button styles
-	ButtonDanger = lipgloss.NewStyle().
-		Foreground(DangerLight).
-		Background(DangerDark).
-		Padding(0, 2)
-
-	ButtonDangerFocused = lipgloss.NewStyle().
-		Foreground(TextInverse).
-		Background(DangerBright).
-		Padding(0, 2).
-		Bold(true)
-
-	ButtonDangerHover = lipgloss.NewStyle().
-		Foreground(TextInverse).
-		Background(DangerHover).
-		Padding(0, 2)
-}
-
-// GetSyntaxTheme returns the current syntax highlighting theme name
+// GetSyntaxTheme returns current syntax highlighting theme name
 func GetSyntaxTheme() string {
 	return CurrentSyntaxTheme
 }
 
-// GetMarkdownTheme returns the current markdown rendering theme name
+// GetMarkdownTheme returns current markdown rendering theme name
 func GetMarkdownTheme() string {
 	return CurrentMarkdownTheme
 }

@@ -1,67 +1,601 @@
 package styles
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"sync/atomic"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// Styles contains all color values (as lipgloss.Color) and all lipgloss.Style
+// definitions. This is immutable once created - a new Styles instance is
+// built for each theme change.
+type Styles struct {
+	// Color palette (as lipgloss.Color for direct use)
+	// Primary colors
+	Primary   lipgloss.Color
+	Secondary lipgloss.Color
+	Accent    lipgloss.Color
+
+	// Status colors
+	Success lipgloss.Color
+	Warning lipgloss.Color
+	Error   lipgloss.Color
+	Info    lipgloss.Color
+
+	// Text colors
+	TextPrimary        lipgloss.Color
+	TextSecondary      lipgloss.Color
+	TextMuted          lipgloss.Color
+	TextSubtle         lipgloss.Color
+	TextSelectionColor lipgloss.Color
+
+	// Background colors
+	BgPrimary   lipgloss.Color
+	BgSecondary lipgloss.Color
+	BgTertiary  lipgloss.Color
+	BgOverlay   lipgloss.Color
+
+	// Border colors
+	BorderNormal lipgloss.Color
+	BorderActive lipgloss.Color
+	BorderMuted  lipgloss.Color
+
+	// Diff colors
+	DiffAddFg    lipgloss.Color
+	DiffRemoveFg lipgloss.Color
+	DiffAddBg    lipgloss.Color
+	DiffRemoveBg lipgloss.Color
+
+	// Additional themeable colors
+	TextHighlight         lipgloss.Color
+	ButtonHoverColor      lipgloss.Color
+	TabTextInactiveColor  lipgloss.Color
+	LinkColor             lipgloss.Color
+	ToastSuccessTextColor lipgloss.Color
+	ToastErrorTextColor   lipgloss.Color
+
+	// Danger button colors
+	DangerLight  lipgloss.Color
+	DangerDark   lipgloss.Color
+	DangerBright lipgloss.Color
+	DangerHover  lipgloss.Color
+	TextInverse  lipgloss.Color
+
+	// Scrollbar colors
+	ScrollbarTrackColor lipgloss.Color
+	ScrollbarThumbColor lipgloss.Color
+
+	// Blame age gradient colors
+	BlameAge1 lipgloss.Color
+	BlameAge2 lipgloss.Color
+	BlameAge3 lipgloss.Color
+	BlameAge4 lipgloss.Color
+	BlameAge5 lipgloss.Color
+
+	// Panel styles
+	PanelActive   lipgloss.Style
+	PanelInactive lipgloss.Style
+	PanelHeader   lipgloss.Style
+	PanelNoBorder lipgloss.Style
+
+	// Text styles
+	Title    lipgloss.Style
+	Subtitle lipgloss.Style
+
+	// WorktreeIndicator shows the current worktree branch in the header
+	WorktreeIndicator lipgloss.Style
+
+	Body    lipgloss.Style
+	Muted   lipgloss.Style
+	Subtle  lipgloss.Style
+	Code    lipgloss.Style
+	Link    lipgloss.Style
+	KeyHint lipgloss.Style
+	Logo    lipgloss.Style
+
+	// Status indicator styles
+	StatusStaged     lipgloss.Style
+	StatusModified   lipgloss.Style
+	ToastSuccess     lipgloss.Style
+	ToastError       lipgloss.Style
+	StatusUntracked  lipgloss.Style
+	StatusDeleted    lipgloss.Style
+	StatusInProgress lipgloss.Style
+	StatusCompleted  lipgloss.Style
+	StatusBlocked    lipgloss.Style
+	StatusPending    lipgloss.Style
+
+	// Note status indicator styles
+	StatusArchived    lipgloss.Style
+	StatusDeletedNote lipgloss.Style
+
+	// List item styles
+	ListItemNormal   lipgloss.Style
+	ListItemSelected lipgloss.Style
+	ListItemFocused  lipgloss.Style
+	ListCursor       lipgloss.Style
+
+	// Bar element styles (shared by header/footer)
+	BarTitle      lipgloss.Style
+	BarText       lipgloss.Style
+	BarChip       lipgloss.Style
+	BarChipActive lipgloss.Style
+
+	// Tab styles
+	TabTextActive   lipgloss.Style
+	TabTextInactive lipgloss.Style
+
+	// Diff line styles
+	DiffAdd     lipgloss.Style
+	DiffRemove  lipgloss.Style
+	DiffContext lipgloss.Style
+	DiffHeader  lipgloss.Style
+
+	// File browser styles
+	FileBrowserDir        lipgloss.Style
+	FileBrowserFile       lipgloss.Style
+	FileBrowserIgnored    lipgloss.Style
+	FileBrowserLineNumber lipgloss.Style
+	FileBrowserIcon       lipgloss.Style
+	SearchMatch           lipgloss.Style
+	SearchMatchCurrent    lipgloss.Style
+	FuzzyMatchChar        lipgloss.Style
+	QuickOpenItem         lipgloss.Style
+	QuickOpenItemSelected lipgloss.Style
+	PaletteEntry          lipgloss.Style
+	PaletteEntrySelected  lipgloss.Style
+	PaletteKey            lipgloss.Style
+	TextSelection         lipgloss.Style
+
+	// Footer and header
+	Footer lipgloss.Style
+	Header lipgloss.Style
+
+	// Modal styles
+	ModalOverlay lipgloss.Style
+	ModalBox     lipgloss.Style
+	ModalTitle   lipgloss.Style
+
+	// Button styles
+	Button              lipgloss.Style
+	ButtonFocused       lipgloss.Style
+	ButtonHover         lipgloss.Style
+	ButtonDanger        lipgloss.Style
+	ButtonDangerFocused lipgloss.Style
+	ButtonDangerHover   lipgloss.Style
+}
+
+// NewStyles creates a complete Styles instance from a color palette.
+// All lipgloss styles are built from palette's color values.
+func NewStyles(p Palette) *Styles {
+	return &Styles{
+		// Color palette
+		Primary:   lipgloss.Color(p.Primary),
+		Secondary: lipgloss.Color(p.Secondary),
+		Accent:    lipgloss.Color(p.Accent),
+
+		Success: lipgloss.Color(p.Success),
+		Warning: lipgloss.Color(p.Warning),
+		Error:   lipgloss.Color(p.Error),
+		Info:    lipgloss.Color(p.Info),
+
+		TextPrimary:        lipgloss.Color(p.TextPrimary),
+		TextSecondary:      lipgloss.Color(p.TextSecondary),
+		TextMuted:          lipgloss.Color(p.TextMuted),
+		TextSubtle:         lipgloss.Color(p.TextSubtle),
+		TextSelectionColor: lipgloss.Color(p.TextSelectionColor),
+
+		BgPrimary:   lipgloss.Color(p.BgPrimary),
+		BgSecondary: lipgloss.Color(p.BgSecondary),
+		BgTertiary:  lipgloss.Color(p.BgTertiary),
+		BgOverlay:   lipgloss.Color(p.BgOverlay),
+
+		BorderNormal: lipgloss.Color(p.BorderNormal),
+		BorderActive: lipgloss.Color(p.BorderActive),
+		BorderMuted:  lipgloss.Color(p.BorderMuted),
+
+		DiffAddFg:    lipgloss.Color(p.DiffAddFg),
+		DiffRemoveFg: lipgloss.Color(p.DiffRemoveFg),
+		DiffAddBg:    lipgloss.Color(p.DiffAddBg),
+		DiffRemoveBg: lipgloss.Color(p.DiffRemoveBg),
+
+		TextHighlight:         lipgloss.Color(p.TextHighlight),
+		ButtonHoverColor:      lipgloss.Color(p.ButtonHoverColor),
+		TabTextInactiveColor:  lipgloss.Color(p.TabTextInactiveColor),
+		LinkColor:             lipgloss.Color(p.LinkColor),
+		ToastSuccessTextColor: lipgloss.Color(p.ToastSuccessTextColor),
+		ToastErrorTextColor:   lipgloss.Color(p.ToastErrorTextColor),
+
+		DangerLight:  lipgloss.Color(p.DangerLight),
+		DangerDark:   lipgloss.Color(p.DangerDark),
+		DangerBright: lipgloss.Color(p.DangerBright),
+		DangerHover:  lipgloss.Color(p.DangerHover),
+		TextInverse:  lipgloss.Color(p.TextInverse),
+
+		ScrollbarTrackColor: lipgloss.Color(p.ScrollbarTrackColor),
+		ScrollbarThumbColor: lipgloss.Color(p.ScrollbarThumbColor),
+
+		BlameAge1: lipgloss.Color(p.BlameAge1),
+		BlameAge2: lipgloss.Color(p.BlameAge2),
+		BlameAge3: lipgloss.Color(p.BlameAge3),
+		BlameAge4: lipgloss.Color(p.BlameAge4),
+		BlameAge5: lipgloss.Color(p.BlameAge5),
+
+		// Panel styles
+		PanelActive: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(p.BorderActive)).
+			Padding(0, 1),
+
+		PanelInactive: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(p.BorderNormal)).
+			Padding(0, 1),
+
+		PanelHeader: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			MarginBottom(1),
+
+		PanelNoBorder: lipgloss.NewStyle().
+			Padding(0, 1),
+
+		// Text styles
+		Title: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color(p.TextPrimary)),
+
+		Subtitle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextHighlight)),
+
+		// WorktreeIndicator shows the current worktree branch in the header
+		WorktreeIndicator: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Warning)).
+			Bold(true),
+
+		Body: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)),
+
+		Muted: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)),
+
+		Subtle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextSubtle)),
+
+		Code: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Accent)),
+
+		Link: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.LinkColor)).
+			Underline(true),
+
+		KeyHint: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)).
+			Background(lipgloss.Color(p.BgTertiary)).
+			Padding(0, 1),
+
+		Logo: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Primary)).
+			Bold(true),
+
+		// Status indicator styles
+		StatusStaged: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Success)).
+			Bold(true),
+
+		StatusModified: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Warning)).
+			Bold(true),
+
+		// Toast styles for status messages
+		ToastSuccess: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.Success)).
+			Foreground(lipgloss.Color(p.ToastSuccessTextColor)).
+			Bold(true).
+			Padding(0, 1),
+
+		ToastError: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.Error)).
+			Foreground(lipgloss.Color(p.ToastErrorTextColor)).
+			Bold(true).
+			Padding(0, 1),
+
+		StatusUntracked: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)),
+
+		StatusDeleted: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Error)).
+			Bold(true),
+
+		StatusInProgress: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Info)).
+			Bold(true),
+
+		StatusCompleted: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Success)),
+
+		StatusBlocked: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Error)),
+
+		StatusPending: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)),
+
+		// Note status indicator styles
+		StatusArchived: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Info)),
+
+		StatusDeletedNote: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Error)),
+
+		// List item styles
+		ListItemNormal: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)),
+
+		ListItemSelected: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextSelectionColor)).
+			Background(lipgloss.Color(p.BgTertiary)),
+
+		ListItemFocused: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			Background(lipgloss.Color(p.Primary)),
+
+		ListCursor: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Primary)).
+			Bold(true),
+
+		// Bar element styles (shared by header/footer)
+		BarTitle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			Bold(true),
+
+		BarText: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)),
+
+		BarChip: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)).
+			Background(lipgloss.Color(p.BgTertiary)).
+			Padding(0, 1),
+
+		BarChipActive: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			Background(lipgloss.Color(p.Primary)).
+			Padding(0, 1).
+			Bold(true),
+
+		// TabTextActive is the text color for active tabs
+		TabTextActive: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			Bold(true),
+
+		// TabTextInactive is the text color for inactive tabs
+		TabTextInactive: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TabTextInactiveColor)),
+
+		// Diff line styles
+		DiffAdd: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Success)),
+
+		DiffRemove: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Error)),
+
+		DiffContext: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)),
+
+		DiffHeader: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Info)).
+			Bold(true),
+
+		// File browser styles
+		// Directory names - bold blue
+		FileBrowserDir: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Secondary)).
+			Bold(true),
+
+		// Regular file names
+		FileBrowserFile: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)),
+
+		// Gitignored files - muted/dimmed
+		FileBrowserIgnored: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextSubtle)),
+
+		// Line numbers in preview
+		FileBrowserLineNumber: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)).
+			Width(5).
+			AlignHorizontal(lipgloss.Right),
+
+		// Tree icons (>, +)
+		FileBrowserIcon: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)),
+
+		// Content search match highlighting
+		SearchMatch: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.Warning)),
+
+		SearchMatchCurrent: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.Primary)).
+			Foreground(lipgloss.Color(p.TextPrimary)),
+
+		// Fuzzy match character highlighting (bold in result list)
+		FuzzyMatchChar: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Primary)).
+			Bold(true),
+
+		// Quick open result row (normal)
+		QuickOpenItem: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)),
+
+		// Quick open result row (selected)
+		QuickOpenItemSelected: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextSelectionColor)).
+			Background(lipgloss.Color(p.BgTertiary)),
+
+		// Palette entry styles (reusable for modals)
+		PaletteEntry: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)),
+
+		PaletteEntrySelected: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextSelectionColor)).
+			Background(lipgloss.Color(p.BgTertiary)),
+
+		PaletteKey: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)).
+			Background(lipgloss.Color(p.BgTertiary)).
+			Padding(0, 1),
+
+		// Text selection for preview pane drag selection
+		TextSelection: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.BgTertiary)).
+			Foreground(lipgloss.Color(p.TextSelectionColor)),
+
+		// Footer and header
+		Footer: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextMuted)).
+			Background(lipgloss.Color(p.BgSecondary)),
+
+		Header: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.BgSecondary)),
+
+		// Modal styles
+		ModalOverlay: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.BgOverlay)),
+
+		ModalBox: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(p.Primary)).
+			Background(lipgloss.Color(p.BgSecondary)).
+			Padding(1, 2),
+
+		ModalTitle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			Bold(true).
+			MarginBottom(1),
+
+		// Button styles
+		Button: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextSecondary)).
+			Background(lipgloss.Color(p.BgTertiary)).
+			Padding(0, 2),
+
+		ButtonFocused: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			Background(lipgloss.Color(p.Primary)).
+			Padding(0, 2).
+			Bold(true),
+
+		ButtonHover: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextPrimary)).
+			Background(lipgloss.Color(p.ButtonHoverColor)).
+			Padding(0, 2),
+
+		// Danger button styles (for destructive actions like delete)
+		ButtonDanger: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.DangerLight)).
+			Background(lipgloss.Color(p.DangerDark)).
+			Padding(0, 2),
+
+		ButtonDangerFocused: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextInverse)).
+			Background(lipgloss.Color(p.DangerBright)).
+			Padding(0, 2).
+			Bold(true),
+
+		ButtonDangerHover: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.TextInverse)).
+			Background(lipgloss.Color(p.DangerHover)).
+			Padding(0, 2),
+	}
+}
+
+// Current holds the active Styles instance. This is atomically swappable
+// to enable thread-safe theme switching without stopping the TUI.
+var Current atomic.Pointer[Styles]
+
+// Initialize sets up the initial styles. This must be called once at startup.
+// It is safe to call multiple times (idempotent).
+func Initialize() {
+	if Current.Load() == nil {
+		Current.Store(NewStyles(DefaultPalette()))
+	}
+}
+
+// GetStyles returns the current active Styles instance.
+// This is thread-safe and can be called from anywhere.
+func GetStyles() *Styles {
+	if s := Current.Load(); s != nil {
+		return s
+	}
+	// Fallback: initialize if not yet done
+	Initialize()
+	return Current.Load()
+}
+
+// Backward-compatible package-level variables.
+// These are updated atomically by ApplyThemeColors and can be read directly
+// by existing code that references styles.Primary, styles.PanelActive, etc.
 
 // Color palette - default dark theme
 var (
 	// Primary colors
-	Primary   = lipgloss.Color("#7C3AED") // Purple
-	Secondary = lipgloss.Color("#3B82F6") // Blue
-	Accent    = lipgloss.Color("#F59E0B") // Amber
+	Primary   lipgloss.Color
+	Secondary lipgloss.Color
+	Accent    lipgloss.Color
 
 	// Status colors
-	Success = lipgloss.Color("#10B981") // Green
-	Warning = lipgloss.Color("#F59E0B") // Amber
-	Error   = lipgloss.Color("#EF4444") // Red
-	Info    = lipgloss.Color("#3B82F6") // Blue
+	Success lipgloss.Color
+	Warning lipgloss.Color
+	Error   lipgloss.Color
+	Info    lipgloss.Color
 
 	// Text colors
-	TextPrimary        = lipgloss.Color("#F9FAFB")
-	TextSecondary      = lipgloss.Color("#9CA3AF")
-	TextMuted          = lipgloss.Color("#6B7280")
-	TextSubtle         = lipgloss.Color("#4B5563")
-	TextSelectionColor = lipgloss.Color("#F9FAFB") // Text on selection backgrounds (BgTertiary)
+	TextPrimary        lipgloss.Color
+	TextSecondary      lipgloss.Color
+	TextMuted          lipgloss.Color
+	TextSubtle         lipgloss.Color
+	TextSelectionColor lipgloss.Color // Text on selection backgrounds (BgTertiary)
 
 	// Background colors
-	BgPrimary   = lipgloss.Color("#111827")
-	BgSecondary = lipgloss.Color("#1F2937")
-	BgTertiary  = lipgloss.Color("#374151")
-	BgOverlay   = lipgloss.Color("#00000080")
+	BgPrimary   lipgloss.Color
+	BgSecondary lipgloss.Color
+	BgTertiary  lipgloss.Color
+	BgOverlay   lipgloss.Color
 
 	// Border colors
-	BorderNormal = lipgloss.Color("#374151")
-	BorderActive = lipgloss.Color("#7C3AED")
-	BorderMuted  = lipgloss.Color("#1F2937")
+	BorderNormal lipgloss.Color
+	BorderActive lipgloss.Color
+	BorderMuted  lipgloss.Color
 
 	// Diff foreground colors (also updated by ApplyTheme)
-	DiffAddFg    = lipgloss.Color("#10B981")
-	DiffRemoveFg = lipgloss.Color("#EF4444")
+	DiffAddFg    lipgloss.Color
+	DiffRemoveFg lipgloss.Color
 
 	// Additional themeable colors
-	TextHighlight         = lipgloss.Color("#E5E7EB") // For subtitle, special text
-	ButtonHoverColor      = lipgloss.Color("#9D174D") // Button hover background
-	TabTextInactiveColor  = lipgloss.Color("#1a1a1a") // Inactive tab text
-	LinkColor             = lipgloss.Color("#60A5FA") // Hyperlink color
-	ToastSuccessTextColor = lipgloss.Color("#000000") // Toast success foreground
-	ToastErrorTextColor   = lipgloss.Color("#FFFFFF") // Toast error foreground
+	TextHighlight         lipgloss.Color // For subtitle, special text
+	ButtonHoverColor      lipgloss.Color // Button hover background
+	TabTextInactiveColor  lipgloss.Color // Inactive tab text
+	LinkColor             lipgloss.Color // Hyperlink color
+	ToastSuccessTextColor lipgloss.Color // Toast success foreground
+	ToastErrorTextColor   lipgloss.Color // Toast error foreground
 
 	// Danger button colors
-	DangerLight  = lipgloss.Color("#FCA5A5") // Light red text
-	DangerDark   = lipgloss.Color("#7F1D1D") // Dark red background
-	DangerBright = lipgloss.Color("#DC2626") // Bright red focused bg
-	DangerHover  = lipgloss.Color("#B91C1C") // Darker red hover bg
-	TextInverse  = lipgloss.Color("#FFFFFF") // Inverse/contrast text
+	DangerLight  lipgloss.Color // Light red text
+	DangerDark   lipgloss.Color // Dark red background
+	DangerBright lipgloss.Color // Bright red focused bg
+	DangerHover  lipgloss.Color // Darker red hover bg
+	TextInverse  lipgloss.Color // Inverse/contrast text
 
 	// Scrollbar colors (default to TextSubtle/TextMuted)
-	ScrollbarTrackColor = lipgloss.Color("#4B5563") // Same as TextSubtle
-	ScrollbarThumbColor = lipgloss.Color("#6B7280") // Same as TextMuted
+	ScrollbarTrackColor lipgloss.Color // Same as TextSubtle
+	ScrollbarThumbColor lipgloss.Color // Same as TextMuted
 
 	// Blame age gradient colors
-	BlameAge1 = lipgloss.Color("#34D399") // < 1 week
-	BlameAge2 = lipgloss.Color("#84CC16") // < 1 month
-	BlameAge3 = lipgloss.Color("#FBBF24") // < 3 months
-	BlameAge4 = lipgloss.Color("#F97316") // < 6 months
-	BlameAge5 = lipgloss.Color("#9CA3AF") // < 1 year
+	BlameAge1 lipgloss.Color // < 1 week
+	BlameAge2 lipgloss.Color // < 1 month
+	BlameAge3 lipgloss.Color // < 3 months
+	BlameAge4 lipgloss.Color // < 6 months
+	BlameAge5 lipgloss.Color // < 1 year
 
 	// Third-party theme names (updated by ApplyTheme)
 	CurrentSyntaxTheme   = "monokai"
@@ -80,315 +614,330 @@ var PillTabsEnabled = false
 // Panel styles
 var (
 	// Active panel with highlighted border
-	PanelActive = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(BorderActive).
-			Padding(0, 1)
+	PanelActive lipgloss.Style
 
 	// Inactive panel with subtle border
-	PanelInactive = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(BorderNormal).
-			Padding(0, 1)
+	PanelInactive lipgloss.Style
 
 	// Panel header
-	PanelHeader = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(TextPrimary).
-			MarginBottom(1)
+	PanelHeader lipgloss.Style
 
 	// Panel with no border
-	PanelNoBorder = lipgloss.NewStyle().
-			Padding(0, 1)
+	PanelNoBorder lipgloss.Style
 )
 
 // Text styles
 var (
-	Title = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(TextPrimary)
+	Title lipgloss.Style
 
-	Subtitle = lipgloss.NewStyle().
-			Foreground(TextHighlight)
+	Subtitle lipgloss.Style
 
 	// WorktreeIndicator shows the current worktree branch in the header
-	WorktreeIndicator = lipgloss.NewStyle().
-				Foreground(Warning).
-				Bold(true)
+	WorktreeIndicator lipgloss.Style
 
-	Body = lipgloss.NewStyle().
-		Foreground(TextPrimary)
+	Body lipgloss.Style
 
-	Muted = lipgloss.NewStyle().
-		Foreground(TextMuted)
+	Muted lipgloss.Style
 
-	Subtle = lipgloss.NewStyle().
-		Foreground(TextSubtle)
+	Subtle lipgloss.Style
 
-	Code = lipgloss.NewStyle().
-		Foreground(Accent)
+	Code lipgloss.Style
 
-	Link = lipgloss.NewStyle().
-		Foreground(LinkColor).
-		Underline(true)
+	Link lipgloss.Style
 
-	KeyHint = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Background(BgTertiary).
-		Padding(0, 1)
+	KeyHint lipgloss.Style
 
-	Logo = lipgloss.NewStyle().
-		Foreground(Primary).
-		Bold(true)
+	Logo lipgloss.Style
 )
 
 // Status indicator styles
 var (
-	StatusStaged = lipgloss.NewStyle().
-			Foreground(Success).
-			Bold(true)
+	StatusStaged lipgloss.Style
 
-	StatusModified = lipgloss.NewStyle().
-			Foreground(Warning).
-			Bold(true)
+	StatusModified lipgloss.Style
 
 	// Toast styles for status messages
-	ToastSuccess = lipgloss.NewStyle().
-			Background(Success).
-			Foreground(ToastSuccessTextColor).
-			Bold(true).
-			Padding(0, 1)
+	ToastSuccess lipgloss.Style
 
-	ToastError = lipgloss.NewStyle().
-			Background(Error).
-			Foreground(ToastErrorTextColor).
-			Bold(true).
-			Padding(0, 1)
+	ToastError lipgloss.Style
 
-	StatusUntracked = lipgloss.NewStyle().
-			Foreground(TextMuted)
+	StatusUntracked lipgloss.Style
 
-	StatusDeleted = lipgloss.NewStyle().
-			Foreground(Error).
-			Bold(true)
+	StatusDeleted lipgloss.Style
 
-	StatusInProgress = lipgloss.NewStyle().
-				Foreground(Info).
-				Bold(true)
+	StatusInProgress lipgloss.Style
 
-	StatusCompleted = lipgloss.NewStyle().
-			Foreground(Success)
+	StatusCompleted lipgloss.Style
 
-	StatusBlocked = lipgloss.NewStyle().
-			Foreground(Error)
+	StatusBlocked lipgloss.Style
 
-	StatusPending = lipgloss.NewStyle().
-			Foreground(TextMuted)
+	StatusPending lipgloss.Style
 
 	// Note status indicator styles
-	StatusArchived = lipgloss.NewStyle().
-			Foreground(Info)
+	StatusArchived lipgloss.Style
 
-	StatusDeletedNote = lipgloss.NewStyle().
-				Foreground(Error)
+	StatusDeletedNote lipgloss.Style
 )
 
 // List item styles
 var (
-	ListItemNormal = lipgloss.NewStyle().
-			Foreground(TextPrimary)
+	ListItemNormal lipgloss.Style
 
-	ListItemSelected = lipgloss.NewStyle().
-				Foreground(TextSelectionColor).
-				Background(BgTertiary)
+	ListItemSelected lipgloss.Style
 
-	ListItemFocused = lipgloss.NewStyle().
-			Foreground(TextPrimary).
-			Background(Primary)
+	ListItemFocused lipgloss.Style
 
-	ListCursor = lipgloss.NewStyle().
-			Foreground(Primary).
-			Bold(true)
+	ListCursor lipgloss.Style
 )
 
 // Bar element styles (shared by header/footer)
 var (
-	BarTitle = lipgloss.NewStyle().
-			Foreground(TextPrimary).
-			Bold(true)
+	BarTitle lipgloss.Style
 
-	BarText = lipgloss.NewStyle().
-		Foreground(TextMuted)
+	BarText lipgloss.Style
 
-	BarChip = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Background(BgTertiary).
-		Padding(0, 1)
+	BarChip lipgloss.Style
 
-	BarChipActive = lipgloss.NewStyle().
-			Foreground(TextPrimary).
-			Background(Primary).
-			Padding(0, 1).
-			Bold(true)
+	BarChipActive lipgloss.Style
 )
 
 // TabTextActive is the text color for active tabs
-var TabTextActive = lipgloss.NewStyle().
-	Foreground(TextPrimary).
-	Bold(true)
+var TabTextActive lipgloss.Style
 
 // TabTextInactive is the text color for inactive tabs
-var TabTextInactive = lipgloss.NewStyle().
-	Foreground(TabTextInactiveColor)
+var TabTextInactive lipgloss.Style
 
 // Diff line styles
 var (
-	DiffAdd = lipgloss.NewStyle().
-		Foreground(Success)
+	DiffAdd lipgloss.Style
 
-	DiffRemove = lipgloss.NewStyle().
-			Foreground(Error)
+	DiffRemove lipgloss.Style
 
-	DiffContext = lipgloss.NewStyle().
-			Foreground(TextMuted)
+	DiffContext lipgloss.Style
 
-	DiffHeader = lipgloss.NewStyle().
-			Foreground(Info).
-			Bold(true)
+	DiffHeader lipgloss.Style
 
 	// Subtle diff backgrounds for syntax-highlighted lines
-	DiffAddBg    = lipgloss.Color("#0D2818") // Very subtle dark green
-	DiffRemoveBg = lipgloss.Color("#2D1A1A") // Very subtle dark red
+	DiffAddBg    lipgloss.Color
+	DiffRemoveBg lipgloss.Color
 )
 
 // File browser styles
 var (
 	// Directory names - bold blue
-	FileBrowserDir = lipgloss.NewStyle().
-			Foreground(Secondary).
-			Bold(true)
+	FileBrowserDir lipgloss.Style
 
 	// Regular file names
-	FileBrowserFile = lipgloss.NewStyle().
-			Foreground(TextPrimary)
+	FileBrowserFile lipgloss.Style
 
 	// Gitignored files - muted/dimmed
-	FileBrowserIgnored = lipgloss.NewStyle().
-				Foreground(TextSubtle)
+	FileBrowserIgnored lipgloss.Style
 
 	// Line numbers in preview
-	FileBrowserLineNumber = lipgloss.NewStyle().
-				Foreground(TextMuted).
-				Width(5).
-				AlignHorizontal(lipgloss.Right)
+	FileBrowserLineNumber lipgloss.Style
 
 	// Tree icons (>, +)
-	FileBrowserIcon = lipgloss.NewStyle().
-			Foreground(TextMuted)
+	FileBrowserIcon lipgloss.Style
 
 	// Content search match highlighting
-	SearchMatch = lipgloss.NewStyle().
-			Background(Warning) // Yellow background for all matches
+	SearchMatch lipgloss.Style
 
-	SearchMatchCurrent = lipgloss.NewStyle().
-				Background(Primary). // Purple background for current match
-				Foreground(TextPrimary)
+	SearchMatchCurrent lipgloss.Style
 
 	// Fuzzy match character highlighting (bold in result list)
-	FuzzyMatchChar = lipgloss.NewStyle().
-			Foreground(Primary).
-			Bold(true)
+	FuzzyMatchChar lipgloss.Style
 
 	// Quick open result row (normal)
-	QuickOpenItem = lipgloss.NewStyle().
-			Foreground(TextPrimary)
+	QuickOpenItem lipgloss.Style
 
 	// Quick open result row (selected)
-	QuickOpenItemSelected = lipgloss.NewStyle().
-				Foreground(TextSelectionColor).
-				Background(BgTertiary)
+	QuickOpenItemSelected lipgloss.Style
 
 	// Palette entry styles (reusable for modals)
-	PaletteEntry = lipgloss.NewStyle().
-			Foreground(TextPrimary)
+	PaletteEntry lipgloss.Style
 
-	PaletteEntrySelected = lipgloss.NewStyle().
-				Foreground(TextSelectionColor).
-				Background(BgTertiary)
+	PaletteEntrySelected lipgloss.Style
 
-	PaletteKey = lipgloss.NewStyle().
-			Foreground(TextMuted).
-			Background(BgTertiary).
-			Padding(0, 1)
+	PaletteKey lipgloss.Style
 
 	// Text selection for preview pane drag selection
-	TextSelection = lipgloss.NewStyle().
-			Background(BgTertiary).
-			Foreground(TextSelectionColor)
+	TextSelection lipgloss.Style
 )
 
 // Footer and header
 var (
-	Footer = lipgloss.NewStyle().
-		Foreground(TextMuted).
-		Background(BgSecondary)
+	Footer lipgloss.Style
 
-	Header = lipgloss.NewStyle().
-		Background(BgSecondary)
+	Header lipgloss.Style
 )
 
 // Modal styles
 var (
-	ModalOverlay = lipgloss.NewStyle().
-			Background(BgOverlay)
+	ModalOverlay lipgloss.Style
 
-	ModalBox = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(Primary).
-			Background(BgSecondary).
-			Padding(1, 2)
+	ModalBox lipgloss.Style
 
-	ModalTitle = lipgloss.NewStyle().
-			Foreground(TextPrimary).
-			Bold(true).
-			MarginBottom(1)
+	ModalTitle lipgloss.Style
 )
 
 // Button styles
 var (
-	Button = lipgloss.NewStyle().
-		Foreground(TextSecondary).
-		Background(BgTertiary).
-		Padding(0, 2)
+	Button lipgloss.Style
 
-	ButtonFocused = lipgloss.NewStyle().
-			Foreground(TextPrimary).
-			Background(Primary).
-			Padding(0, 2).
-			Bold(true)
+	ButtonFocused lipgloss.Style
 
-	ButtonHover = lipgloss.NewStyle().
-			Foreground(TextPrimary).
-			Background(ButtonHoverColor).
-			Padding(0, 2)
+	ButtonHover lipgloss.Style
 
 	// Danger button styles (for destructive actions like delete)
-	ButtonDanger = lipgloss.NewStyle().
-			Foreground(DangerLight).
-			Background(DangerDark).
-			Padding(0, 2)
+	ButtonDanger lipgloss.Style
 
-	ButtonDangerFocused = lipgloss.NewStyle().
-				Foreground(TextInverse).
-				Background(DangerBright).
-				Padding(0, 2).
-				Bold(true)
+	ButtonDangerFocused lipgloss.Style
 
-	ButtonDangerHover = lipgloss.NewStyle().
-				Foreground(TextInverse).
-				Background(DangerHover).
-				Padding(0, 2)
+	ButtonDangerHover lipgloss.Style
 )
+
+// syncFromStyles copies all colors and styles from a Styles instance
+// to the package-level variables. This is called by ApplyThemeColors
+// to maintain backward compatibility with existing code.
+func syncFromStyles(s *Styles) {
+	// Colors
+	Primary = s.Primary
+	Secondary = s.Secondary
+	Accent = s.Accent
+	Success = s.Success
+	Warning = s.Warning
+	Error = s.Error
+	Info = s.Info
+	TextPrimary = s.TextPrimary
+	TextSecondary = s.TextSecondary
+	TextMuted = s.TextMuted
+	TextSubtle = s.TextSubtle
+	TextSelectionColor = s.TextSelectionColor
+	BgPrimary = s.BgPrimary
+	BgSecondary = s.BgSecondary
+	BgTertiary = s.BgTertiary
+	BgOverlay = s.BgOverlay
+	BorderNormal = s.BorderNormal
+	BorderActive = s.BorderActive
+	BorderMuted = s.BorderMuted
+	DiffAddFg = s.DiffAddFg
+	DiffRemoveFg = s.DiffRemoveFg
+	DiffAddBg = s.DiffAddBg
+	DiffRemoveBg = s.DiffRemoveBg
+	TextHighlight = s.TextHighlight
+	ButtonHoverColor = s.ButtonHoverColor
+	TabTextInactiveColor = s.TabTextInactiveColor
+	LinkColor = s.LinkColor
+	ToastSuccessTextColor = s.ToastSuccessTextColor
+	ToastErrorTextColor = s.ToastErrorTextColor
+	DangerLight = s.DangerLight
+	DangerDark = s.DangerDark
+	DangerBright = s.DangerBright
+	DangerHover = s.DangerHover
+	TextInverse = s.TextInverse
+	ScrollbarTrackColor = s.ScrollbarTrackColor
+	ScrollbarThumbColor = s.ScrollbarThumbColor
+	BlameAge1 = s.BlameAge1
+	BlameAge2 = s.BlameAge2
+	BlameAge3 = s.BlameAge3
+	BlameAge4 = s.BlameAge4
+	BlameAge5 = s.BlameAge5
+
+	// Styles
+	PanelActive = s.PanelActive
+	PanelInactive = s.PanelInactive
+	PanelHeader = s.PanelHeader
+	PanelNoBorder = s.PanelNoBorder
+	Title = s.Title
+	Subtitle = s.Subtitle
+	WorktreeIndicator = s.WorktreeIndicator
+	Body = s.Body
+	Muted = s.Muted
+	Subtle = s.Subtle
+	Code = s.Code
+	Link = s.Link
+	KeyHint = s.KeyHint
+	Logo = s.Logo
+	StatusStaged = s.StatusStaged
+	StatusModified = s.StatusModified
+	ToastSuccess = s.ToastSuccess
+	ToastError = s.ToastError
+	StatusUntracked = s.StatusUntracked
+	StatusDeleted = s.StatusDeleted
+	StatusInProgress = s.StatusInProgress
+	StatusCompleted = s.StatusCompleted
+	StatusBlocked = s.StatusBlocked
+	StatusPending = s.StatusPending
+	StatusArchived = s.StatusArchived
+	StatusDeletedNote = s.StatusDeletedNote
+	ListItemNormal = s.ListItemNormal
+	ListItemSelected = s.ListItemSelected
+	ListItemFocused = s.ListItemFocused
+	ListCursor = s.ListCursor
+	BarTitle = s.BarTitle
+	BarText = s.BarText
+	BarChip = s.BarChip
+	BarChipActive = s.BarChipActive
+	TabTextActive = s.TabTextActive
+	TabTextInactive = s.TabTextInactive
+	DiffAdd = s.DiffAdd
+	DiffRemove = s.DiffRemove
+	DiffContext = s.DiffContext
+	DiffHeader = s.DiffHeader
+	FileBrowserDir = s.FileBrowserDir
+	FileBrowserFile = s.FileBrowserFile
+	FileBrowserIgnored = s.FileBrowserIgnored
+	FileBrowserLineNumber = s.FileBrowserLineNumber
+	FileBrowserIcon = s.FileBrowserIcon
+	SearchMatch = s.SearchMatch
+	SearchMatchCurrent = s.SearchMatchCurrent
+	FuzzyMatchChar = s.FuzzyMatchChar
+	QuickOpenItem = s.QuickOpenItem
+	QuickOpenItemSelected = s.QuickOpenItemSelected
+	PaletteEntry = s.PaletteEntry
+	PaletteEntrySelected = s.PaletteEntrySelected
+	PaletteKey = s.PaletteKey
+	TextSelection = s.TextSelection
+	Footer = s.Footer
+	Header = s.Header
+	ModalOverlay = s.ModalOverlay
+	ModalBox = s.ModalBox
+	ModalTitle = s.ModalTitle
+	Button = s.Button
+	ButtonFocused = s.ButtonFocused
+	ButtonHover = s.ButtonHover
+	ButtonDanger = s.ButtonDanger
+	ButtonDangerFocused = s.ButtonDangerFocused
+	ButtonDangerHover = s.ButtonDangerHover
+}
+
+// parseTabColors converts hex color strings to RGB values for tab rendering
+func parseTabColors(hexColors []string) []RGB {
+	if len(hexColors) == 0 {
+		// Return default rainbow colors
+		return []RGB{{220, 60, 60}, {60, 220, 60}, {60, 60, 220}, {156, 60, 220}}
+	}
+
+	colors := make([]RGB, len(hexColors))
+	for i, hex := range hexColors {
+		colors[i] = HexToRGB(hex)
+	}
+	return colors
+}
+
+// ColorVars tracks initialization time to detect stale cached values
+var initTime time.Time
+
+func init() {
+	Initialize()
+	syncFromStyles(GetStyles())
+	initTime = time.Now()
+}
+
+// IsStale returns true if the styles may be stale (for debugging/testing).
+func IsStale() bool {
+	return time.Since(initTime) > time.Hour
+}
 
 // RenderTab renders a tab label using the current tab theme.
 // tabIndex is the 0-based index of this tab, totalTabs is the total count.
@@ -713,18 +1262,4 @@ func interpolateColors(pos float64, colors []RGB) (uint8, uint8, uint8) {
 	b := uint8(c1.B + frac*(c2.B-c1.B))
 
 	return r, g, b
-}
-
-// parseTabColors converts hex color strings to RGB values for tab rendering
-func parseTabColors(hexColors []string) []RGB {
-	if len(hexColors) == 0 {
-		// Return default rainbow colors
-		return []RGB{{220, 60, 60}, {60, 220, 60}, {60, 60, 220}, {156, 60, 220}}
-	}
-
-	colors := make([]RGB, len(hexColors))
-	for i, hex := range hexColors {
-		colors[i] = HexToRGB(hex)
-	}
-	return colors
 }
