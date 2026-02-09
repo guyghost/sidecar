@@ -11,7 +11,7 @@ import (
 // CommandSelectedMsg is sent when a command is selected from the palette.
 type CommandSelectedMsg struct {
 	CommandID string
-	Context   string
+	Context   keymap.FocusContext
 }
 
 // Model is the command palette state.

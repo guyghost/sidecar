@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"github.com/marcus/sidecar/internal/features"
+	"github.com/marcus/sidecar/internal/keymap"
 	"github.com/marcus/sidecar/internal/plugin"
 )
 
@@ -10,9 +11,9 @@ func (p *Plugin) Commands() []plugin.Command {
 	switch p.viewMode {
 	case ViewModeInteractive:
 		return []plugin.Command{
-			{ID: "exit-interactive", Name: "Exit", Description: "Exit interactive mode (" + p.getInteractiveExitKey() + ")", Context: "workspace-interactive", Priority: 1},
-			{ID: "copy", Name: "Copy", Description: "Copy selection (" + p.getInteractiveCopyKey() + ")", Context: "workspace-interactive", Priority: 2},
-			{ID: "paste", Name: "Paste", Description: "Paste clipboard (" + p.getInteractivePasteKey() + ")", Context: "workspace-interactive", Priority: 3},
+			{ID: "exit-interactive", Name: "Exit", Description: "Exit interactive mode (" + p.getInteractiveExitKey() + ")", Context: keymap.ContextWorkspaceInteractive, Priority: 1},
+			{ID: "copy", Name: "Copy", Description: "Copy selection (" + p.getInteractiveCopyKey() + ")", Context: keymap.ContextWorkspaceInteractive, Priority: 2},
+			{ID: "paste", Name: "Paste", Description: "Paste clipboard (" + p.getInteractivePasteKey() + ")", Context: keymap.ContextWorkspaceInteractive, Priority: 3},
 		}
 	case ViewModeCreate:
 		return []plugin.Command{
@@ -27,8 +28,8 @@ func (p *Plugin) Commands() []plugin.Command {
 	case ViewModeMerge:
 		if p.mergeState != nil && p.mergeState.Step == MergeStepError {
 			return []plugin.Command{
-				{ID: "dismiss-merge-error", Name: "Dismiss", Description: "Dismiss error", Context: "workspace-merge-error", Priority: 1},
-				{ID: "yank-merge-error", Name: "Yank", Description: "Copy error to clipboard", Context: "workspace-merge-error", Priority: 2},
+				{ID: "dismiss-merge-error", Name: "Dismiss", Description: "Dismiss error", Context: keymap.ContextWorkspaceMergeError, Priority: 1},
+				{ID: "yank-merge-error", Name: "Yank", Description: "Copy error to clipboard", Context: keymap.ContextWorkspaceMergeError, Priority: 2},
 			}
 		}
 		cmds := []plugin.Command{
@@ -52,13 +53,13 @@ func (p *Plugin) Commands() []plugin.Command {
 		}
 	case ViewModeConfirmDelete:
 		return []plugin.Command{
-			{ID: "cancel", Name: "Cancel", Description: "Cancel deletion", Context: "workspace-confirm-delete", Priority: 1},
-			{ID: "delete", Name: "Delete", Description: "Confirm deletion", Context: "workspace-confirm-delete", Priority: 2},
+			{ID: "cancel", Name: "Cancel", Description: "Cancel deletion", Context: keymap.ContextWorkspaceConfirmDelete, Priority: 1},
+			{ID: "delete", Name: "Delete", Description: "Confirm deletion", Context: keymap.ContextWorkspaceConfirmDelete, Priority: 2},
 		}
 	case ViewModeConfirmDeleteShell:
 		return []plugin.Command{
-			{ID: "cancel", Name: "Cancel", Description: "Cancel deletion", Context: "workspace-confirm-delete-shell", Priority: 1},
-			{ID: "delete", Name: "Delete", Description: "Terminate shell", Context: "workspace-confirm-delete-shell", Priority: 2},
+			{ID: "cancel", Name: "Cancel", Description: "Cancel deletion", Context: keymap.ContextWorkspaceConfirmDeleteShell, Priority: 1},
+			{ID: "delete", Name: "Delete", Description: "Terminate shell", Context: keymap.ContextWorkspaceConfirmDeleteShell, Priority: 2},
 		}
 	case ViewModeCommitForMerge:
 		return []plugin.Command{
@@ -164,11 +165,11 @@ func (p *Plugin) Commands() []plugin.Command {
 		// Priority 5-8: Worktree-specific commands
 		// Priority 10-14: Agent commands (highest visibility when applicable)
 		cmds := []plugin.Command{
-			{ID: "new-workspace", Name: "New", Description: "Create new workspace", Context: "workspace-list", Priority: 1},
-			{ID: "fetch-pr", Name: "Fetch", Description: "Fetch remote PR as workspace", Context: "workspace-list", Priority: 2},
-			{ID: "toggle-view", Name: viewToggleName, Description: "Toggle list/kanban view", Context: "workspace-list", Priority: 3},
-			{ID: "toggle-sidebar", Name: "Sidebar", Description: "Toggle sidebar visibility", Context: "workspace-list", Priority: 4},
-			{ID: "refresh", Name: "Refresh", Description: "Refresh workspace list", Context: "workspace-list", Priority: 5},
+			{ID: "new-workspace", Name: "New", Description: "Create new workspace", Context: keymap.ContextWorkspaceList, Priority: 1},
+			{ID: "fetch-pr", Name: "Fetch", Description: "Fetch remote PR as workspace", Context: keymap.ContextWorkspaceList, Priority: 2},
+			{ID: "toggle-view", Name: viewToggleName, Description: "Toggle list/kanban view", Context: keymap.ContextWorkspaceList, Priority: 3},
+			{ID: "toggle-sidebar", Name: "Sidebar", Description: "Toggle sidebar visibility", Context: keymap.ContextWorkspaceList, Priority: 4},
+			{ID: "refresh", Name: "Refresh", Description: "Refresh workspace list", Context: keymap.ContextWorkspaceList, Priority: 5},
 		}
 
 		// Shell-specific commands when shell is selected
@@ -176,14 +177,14 @@ func (p *Plugin) Commands() []plugin.Command {
 			shell := p.getSelectedShell()
 			if shell == nil || shell.Agent == nil {
 				cmds = append(cmds,
-					plugin.Command{ID: "attach-shell", Name: "Attach", Description: "Create and attach to shell", Context: "workspace-list", Priority: 10},
-				plugin.Command{ID: "rename-shell", Name: "Rename", Description: "Rename shell", Context: "workspace-list", Priority: 11},
+					plugin.Command{ID: "attach-shell", Name: "Attach", Description: "Create and attach to shell", Context: keymap.ContextWorkspaceList, Priority: 10},
+					plugin.Command{ID: "rename-shell", Name: "Rename", Description: "Rename shell", Context: keymap.ContextWorkspaceList, Priority: 11},
 				)
 			} else {
 				cmds = append(cmds,
-					plugin.Command{ID: "attach-shell", Name: "Attach", Description: "Attach to shell", Context: "workspace-list", Priority: 10},
-					plugin.Command{ID: "kill-shell", Name: "Kill", Description: "Kill shell session", Context: "workspace-list", Priority: 11},
-				plugin.Command{ID: "rename-shell", Name: "Rename", Description: "Rename shell", Context: "workspace-list", Priority: 12},
+					plugin.Command{ID: "attach-shell", Name: "Attach", Description: "Attach to shell", Context: keymap.ContextWorkspaceList, Priority: 10},
+					plugin.Command{ID: "kill-shell", Name: "Kill", Description: "Kill shell session", Context: keymap.ContextWorkspaceList, Priority: 11},
+					plugin.Command{ID: "rename-shell", Name: "Rename", Description: "Rename shell", Context: keymap.ContextWorkspaceList, Priority: 12},
 				)
 			}
 			return cmds
@@ -194,37 +195,37 @@ func (p *Plugin) Commands() []plugin.Command {
 			// Agent commands first (most context-dependent, highest visibility)
 			if wt.Agent == nil {
 				cmds = append(cmds,
-					plugin.Command{ID: "start-agent", Name: "Start", Description: "Start agent", Context: "workspace-list", Priority: 10},
+					plugin.Command{ID: "start-agent", Name: "Start", Description: "Start agent", Context: keymap.ContextWorkspaceList, Priority: 10},
 				)
 			} else {
 				cmds = append(cmds,
-					plugin.Command{ID: "start-agent", Name: "Agent", Description: "Agent options (attach/restart)", Context: "workspace-list", Priority: 9},
-					plugin.Command{ID: "attach", Name: "Attach", Description: "Attach to session", Context: "workspace-list", Priority: 10},
-					plugin.Command{ID: "stop-agent", Name: "Stop", Description: "Stop agent", Context: "workspace-list", Priority: 11},
+					plugin.Command{ID: "start-agent", Name: "Agent", Description: "Agent options (attach/restart)", Context: keymap.ContextWorkspaceList, Priority: 9},
+					plugin.Command{ID: "attach", Name: "Attach", Description: "Attach to session", Context: keymap.ContextWorkspaceList, Priority: 10},
+					plugin.Command{ID: "stop-agent", Name: "Stop", Description: "Stop agent", Context: keymap.ContextWorkspaceList, Priority: 11},
 				)
 				if wt.Status == StatusWaiting {
 					cmds = append(cmds,
-						plugin.Command{ID: "approve", Name: "Approve", Description: "Approve agent prompt", Context: "workspace-list", Priority: 12},
-						plugin.Command{ID: "reject", Name: "Reject", Description: "Reject agent prompt", Context: "workspace-list", Priority: 13},
-						plugin.Command{ID: "approve-all", Name: "Approve All", Description: "Approve all agent prompts", Context: "workspace-list", Priority: 14},
+						plugin.Command{ID: "approve", Name: "Approve", Description: "Approve agent prompt", Context: keymap.ContextWorkspaceList, Priority: 12},
+						plugin.Command{ID: "reject", Name: "Reject", Description: "Reject agent prompt", Context: keymap.ContextWorkspaceList, Priority: 13},
+						plugin.Command{ID: "approve-all", Name: "Approve All", Description: "Approve all agent prompts", Context: keymap.ContextWorkspaceList, Priority: 14},
 					)
 				}
 			}
 			// Workspace commands
 			cmds = append(cmds,
-				plugin.Command{ID: "delete-workspace", Name: "Delete", Description: "Delete selected workspace", Context: "workspace-list", Priority: 5},
-				plugin.Command{ID: "push", Name: "Push", Description: "Push branch to remote", Context: "workspace-list", Priority: 6},
-				plugin.Command{ID: "merge-workflow", Name: "Merge", Description: "Start merge workflow", Context: "workspace-list", Priority: 7},
-				plugin.Command{ID: "open-in-git", Name: "Git", Description: "Open in Git tab", Context: "workspace-list", Priority: 16},
+				plugin.Command{ID: "delete-workspace", Name: "Delete", Description: "Delete selected workspace", Context: keymap.ContextWorkspaceList, Priority: 5},
+				plugin.Command{ID: "push", Name: "Push", Description: "Push branch to remote", Context: keymap.ContextWorkspaceList, Priority: 6},
+				plugin.Command{ID: "merge-workflow", Name: "Merge", Description: "Start merge workflow", Context: keymap.ContextWorkspaceList, Priority: 7},
+				plugin.Command{ID: "open-in-git", Name: "Git", Description: "Open in Git tab", Context: keymap.ContextWorkspaceList, Priority: 16},
 			)
 			// Task linking
 			if wt.TaskID != "" {
 				cmds = append(cmds,
-					plugin.Command{ID: "link-task", Name: "Unlink", Description: "Unlink task", Context: "workspace-list", Priority: 8},
+					plugin.Command{ID: "link-task", Name: "Unlink", Description: "Unlink task", Context: keymap.ContextWorkspaceList, Priority: 8},
 				)
 			} else {
 				cmds = append(cmds,
-					plugin.Command{ID: "link-task", Name: "Task", Description: "Link task", Context: "workspace-list", Priority: 8},
+					plugin.Command{ID: "link-task", Name: "Task", Description: "Link task", Context: keymap.ContextWorkspaceList, Priority: 8},
 				)
 			}
 		}
@@ -233,42 +234,42 @@ func (p *Plugin) Commands() []plugin.Command {
 }
 
 // FocusContext returns the current focus context for keybinding dispatch.
-func (p *Plugin) FocusContext() string {
+func (p *Plugin) FocusContext() keymap.FocusContext {
 	switch p.viewMode {
 	case ViewModeInteractive:
-		return "workspace-interactive"
+		return keymap.ContextWorkspaceInteractive
 	case ViewModeCreate:
-		return "workspace-create"
+		return keymap.ContextWorkspaceCreate
 	case ViewModeTaskLink:
-		return "workspace-task-link"
+		return keymap.ContextWorkspaceTaskLink
 	case ViewModeMerge:
 		if p.mergeState != nil && p.mergeState.Step == MergeStepError {
-			return "workspace-merge-error"
+			return keymap.ContextWorkspaceMergeError
 		}
-		return "workspace-merge"
+		return keymap.ContextWorkspaceMerge
 	case ViewModeAgentChoice:
-		return "workspace-agent-choice"
+		return keymap.ContextWorkspaceAgentChoice
 	case ViewModeConfirmDelete:
-		return "workspace-confirm-delete"
+		return keymap.ContextWorkspaceConfirmDelete
 	case ViewModeConfirmDeleteShell:
-		return "workspace-confirm-delete-shell"
+		return keymap.ContextWorkspaceConfirmDeleteShell
 	case ViewModeCommitForMerge:
-		return "workspace-commit-for-merge"
+		return keymap.ContextWorkspaceCommitForMerge
 	case ViewModePromptPicker:
-		return "workspace-prompt-picker"
+		return keymap.ContextWorkspacePromptPicker
 	case ViewModeRenameShell:
-		return "workspace-rename-shell"
+		return keymap.ContextWorkspaceRenameShell
 	case ViewModeTypeSelector:
-		return "workspace-type-selector"
+		return keymap.ContextWorkspaceTypeSelector
 	case ViewModeFetchPR:
-		return "workspace-fetch-pr"
+		return keymap.ContextWorkspaceFetchPR
 	case ViewModeFilePicker:
-		return "workspace-file-picker"
+		return keymap.ContextWorkspaceFilePicker
 	default:
 		if p.activePane == PanePreview {
-			return "workspace-preview"
+			return keymap.ContextWorkspacePreview
 		}
-		return "workspace-list"
+		return keymap.ContextWorkspaceList
 	}
 }
 

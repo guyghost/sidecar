@@ -7,11 +7,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/td/pkg/monitor"
 	"github.com/marcus/sidecar/internal/app"
+	"github.com/marcus/sidecar/internal/keymap"
 	"github.com/marcus/sidecar/internal/plugin"
 	"github.com/marcus/sidecar/internal/plugins/workspace"
 	"github.com/marcus/sidecar/internal/styles"
+	"github.com/marcus/td/pkg/monitor"
 )
 
 const (
@@ -328,7 +329,7 @@ func (p *Plugin) Commands() []plugin.Command {
 			ID:          cmd.ID,
 			Name:        cmd.Name,
 			Description: cmd.Description,
-			Context:     cmd.Context,
+			Context:     keymap.FocusContext(cmd.Context),
 			Priority:    cmd.Priority,
 			Category:    categorizeCommand(cmd.ID),
 		})
@@ -361,13 +362,13 @@ func categorizeCommand(id string) plugin.Category {
 }
 
 // FocusContext returns the current focus context by consuming TD's context state.
-func (p *Plugin) FocusContext() string {
+func (p *Plugin) FocusContext() keymap.FocusContext {
 	if p.model == nil {
-		return "td-monitor"
+		return keymap.ContextTDMonitor
 	}
 
 	// Delegate to TD's context tracking (single source of truth)
-	return p.model.CurrentContextString()
+	return keymap.FocusContext(p.model.CurrentContextString())
 }
 
 // ConsumesTextInput reports whether TD monitor is in a text-entry context.

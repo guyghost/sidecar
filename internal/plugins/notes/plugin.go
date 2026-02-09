@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcus/sidecar/internal/app"
+	"github.com/marcus/sidecar/internal/keymap"
 	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/msg"
@@ -1585,29 +1586,29 @@ func (p *Plugin) Commands() []plugin.Command {
 }
 
 // FocusContext returns the current focus context.
-func (p *Plugin) FocusContext() string {
+func (p *Plugin) FocusContext() keymap.FocusContext {
 	if p.showInfoModal {
-		return "notes-info"
+		return keymap.ContextNotesInfo
 	}
 	if p.showDeleteModal {
-		return "notes-delete-modal"
+		return keymap.ContextNotesDeleteModal
 	}
 	if p.showTaskModal {
-		return "notes-task-modal"
+		return keymap.ContextNotesTaskModal
 	}
 	if p.inlineEditMode {
-		return "notes-inline-edit"
+		return keymap.ContextNotesInlineEdit
 	}
 	if p.searchMode {
-		return "notes-search"
+		return keymap.ContextNotesSearch
 	}
 	if p.activePane == PaneEditor && p.editorNote != nil {
 		if p.previewMode {
-			return "notes-preview"
+			return keymap.ContextNotesPreview
 		}
-		return "notes-editor"
+		return keymap.ContextNotesEditor
 	}
-	return "notes-list"
+	return keymap.ContextNotesList
 }
 
 // ConsumesTextInput reports whether notes currently has an active text-entry

@@ -746,7 +746,7 @@ func (m Model) pluginFooterHints(p plugin.Plugin, context string) []footerHint {
 
 	var cmds []cmdWithPriority
 	for _, cmd := range p.Commands() {
-		if cmd.Context != context {
+		if cmd.Context != keymap.FocusContext(context) {
 			continue
 		}
 		keys := keysByCmd[cmd.ID]
@@ -856,13 +856,13 @@ func (m *Model) helpPluginSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
 		if p := m.ActivePlugin(); p != nil {
 			ctx := p.FocusContext()
-			if ctx != "global" && ctx != "" {
-				bindings := m.keymap.BindingsForContext(ctx)
+			if ctx != keymap.ContextGlobal && ctx != "" {
+				bindings := m.keymap.BindingsForContext(ctx.String())
 				if len(bindings) > 0 {
 					var b strings.Builder
 					b.WriteString(styles.Title.Render(p.Name()))
 					b.WriteString("\n")
-					m.renderBindingSection(&b, ctx)
+					m.renderBindingSection(&b, ctx.String())
 					return modal.RenderedSection{Content: b.String()}
 				}
 			}

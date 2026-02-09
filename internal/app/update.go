@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/marcus/sidecar/internal/community"
 	"github.com/marcus/sidecar/internal/config"
+	"github.com/marcus/sidecar/internal/keymap"
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/palette"
 	"github.com/marcus/sidecar/internal/plugin"
@@ -1290,7 +1291,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // updateContext sets activeContext based on current state.
 func (m *Model) updateContext() {
 	if p := m.ActivePlugin(); p != nil {
-		m.activeContext = p.FocusContext()
+		m.activeContext = p.FocusContext().String()
 	} else {
 		m.activeContext = "global"
 	}
@@ -1310,25 +1311,8 @@ func (m *Model) consumesTextInput() bool {
 // isRootContext returns true if the context is a root view where 'q' should quit.
 // Root contexts are plugin top-level views (not sub-views like detail/diff/commit).
 func isRootContext(ctx string) bool {
-	switch ctx {
-	case "global", "":
-		return true
-	// Plugin root contexts where 'q' is not used for navigation
-	case "conversations", "conversations-sidebar", "conversations-main":
-		return true
-	case "git-status", "git-status-commits", "git-status-diff", "git-commit-preview":
-		return true
-	case "file-browser-tree", "file-browser-preview":
-		return true
-	case "workspace-list", "workspace-preview":
-		return true
-	case "td-monitor", "td-board":
-		return true
-	case "notes-list":
-		return true
-	default:
-		return false
-	}
+	fc := keymap.FocusContext(ctx)
+	return fc.IsRoot()
 }
 
 // isTextInputContext returns true if the context is a text input mode

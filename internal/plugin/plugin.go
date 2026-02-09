@@ -1,6 +1,10 @@
 package plugin
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/marcus/sidecar/internal/keymap"
+)
 
 // Plugin defines the interface for all sidecar plugins.
 type Plugin interface {
@@ -15,7 +19,7 @@ type Plugin interface {
 	IsFocused() bool
 	SetFocused(bool)
 	Commands() []Command
-	FocusContext() string
+	FocusContext() keymap.FocusContext
 }
 
 // TextInputConsumer is an optional capability for plugins that need
@@ -40,13 +44,13 @@ const (
 
 // Command represents a keybinding command exposed by a plugin.
 type Command struct {
-	ID          string         // Unique identifier (e.g., "stage-file")
-	Name        string         // Short name for footer (e.g., "Stage")
-	Description string         // Full description for palette
-	Category    Category       // Logical grouping for palette display
-	Handler     func() tea.Cmd // Action to execute (optional)
-	Context     string         // Activation context
-	Priority    int            // Footer display priority: 1=highest, 0=default (treated as 99)
+	ID          string              // Unique identifier (e.g., "stage-file")
+	Name        string              // Short name for footer (e.g., "Stage")
+	Description string              // Full description for palette
+	Category    Category            // Logical grouping for palette display
+	Handler     func() tea.Cmd      // Action to execute (optional)
+	Context     keymap.FocusContext // Activation context
+	Priority    int                 // Footer display priority: 1=highest, 0=default (treated as 99)
 }
 
 // DiagnosticProvider is implemented by plugins that expose diagnostics.

@@ -15,21 +15,21 @@ type Command struct {
 	ID      string
 	Name    string
 	Handler func() tea.Cmd
-	Context string
+	Context FocusContext
 }
 
 // Binding maps a key or key sequence to a command.
 type Binding struct {
-	Key     string // e.g., "tab", "ctrl+s", "g g"
-	Command string // Command ID
-	Context string // "global", plugin ID, etc.
+	Key     string       // e.g., "tab", "ctrl+s", "g g"
+	Command string       // Command ID
+	Context FocusContext // "global", plugin ID, etc.
 }
 
 // Registry manages key bindings and command dispatch.
 type Registry struct {
-	commands      map[string]Command  // ID -> Command
-	bindings      map[string][]Binding // context -> bindings
-	userOverrides map[string]string   // key -> command ID
+	commands      map[string]Command         // ID -> Command
+	bindings      map[FocusContext][]Binding // context -> bindings
+	userOverrides map[string]string          // key -> command ID
 	pendingKey    string
 	pendingTime   time.Time
 	mu            sync.RWMutex
@@ -39,7 +39,7 @@ type Registry struct {
 func NewRegistry() *Registry {
 	return &Registry{
 		commands:      make(map[string]Command),
-		bindings:      make(map[string][]Binding),
+		bindings:      make(map[FocusContext][]Binding),
 		userOverrides: make(map[string]string),
 	}
 }
@@ -61,7 +61,8 @@ func (r *Registry) RegisterBinding(b Binding) {
 // RegisterPluginBinding satisfies plugin.BindingRegistrar interface.
 // It converts plugin.Binding to keymap.Binding and registers it.
 func (r *Registry) RegisterPluginBinding(key, command, context string) {
-	r.RegisterBinding(Binding{Key: key, Command: command, Context: context})
+	fc := FocusContext(context)
+	r.RegisterBinding(Binding{Key: key, Command: command, Context: fc})
 }
 
 // SetUserOverride sets a user-configured key override.
@@ -78,13 +79,14 @@ func (r *Registry) Handle(key tea.KeyMsg, activeContext string) tea.Cmd {
 	defer r.mu.Unlock()
 
 	keyStr := keyToString(key)
+	fc := FocusContext(activeContext)
 
 	// Check for pending key sequence
 	if r.pendingKey != "" {
 		if time.Since(r.pendingTime) < sequenceTimeout {
 			seq := r.pendingKey + " " + keyStr
 			r.pendingKey = ""
-			if cmd := r.findCommand(seq, activeContext); cmd != nil {
+			if cmd := r.findCommand(seq, fc); cmd != nil {
 				return cmd
 			}
 			// Sequence didn't match, try just the new key
@@ -94,17 +96,17 @@ func (r *Registry) Handle(key tea.KeyMsg, activeContext string) tea.Cmd {
 	}
 
 	// Check if this key starts a sequence
-	if r.isSequenceStart(keyStr, activeContext) {
+	if r.isSequenceStart(keyStr, fc) {
 		r.pendingKey = keyStr
 		r.pendingTime = time.Now()
 		return nil
 	}
 
-	return r.findCommand(keyStr, activeContext)
+	return r.findCommand(keyStr, fc)
 }
 
 // findCommand looks up a command for the given key in order of precedence.
-func (r *Registry) findCommand(key, activeContext string) tea.Cmd {
+func (r *Registry) findCommand(key string, activeContext FocusContext) tea.Cmd {
 	// 1. Check user overrides first
 	if cmdID, ok := r.userOverrides[key]; ok {
 		if cmd, ok := r.commands[cmdID]; ok && cmd.Handler != nil {
@@ -113,20 +115,20 @@ func (r *Registry) findCommand(key, activeContext string) tea.Cmd {
 	}
 
 	// 2. Check active context bindings
-	if activeContext != "" && activeContext != "global" {
+	if activeContext != "" && activeContext != ContextGlobal {
 		if cmd, found := r.findInContext(key, activeContext); found {
 			return cmd
 		}
 	}
 
 	// 3. Fall back to global bindings
-	cmd, _ := r.findInContext(key, "global")
+	cmd, _ := r.findInContext(key, ContextGlobal)
 	return cmd
 }
 
 // findInContext finds a command for a key in a specific context.
 // Returns the command result and whether a binding was found.
-func (r *Registry) findInContext(key, context string) (tea.Cmd, bool) {
+func (r *Registry) findInContext(key string, context FocusContext) (tea.Cmd, bool) {
 	for _, b := range r.bindings[context] {
 		if b.Key == key {
 			if cmd, ok := r.commands[b.Command]; ok && cmd.Handler != nil {
@@ -138,12 +140,12 @@ func (r *Registry) findInContext(key, context string) (tea.Cmd, bool) {
 }
 
 // isSequenceStart checks if this key could start a multi-key sequence.
-func (r *Registry) isSequenceStart(key, activeContext string) bool {
+func (r *Registry) isSequenceStart(key string, activeContext FocusContext) bool {
 	prefix := key + " "
 
 	// Check all contexts that could be active
-	contexts := []string{"global"}
-	if activeContext != "" && activeContext != "global" {
+	contexts := []FocusContext{ContextGlobal}
+	if activeContext != "" && activeContext != ContextGlobal {
 		contexts = append(contexts, activeContext)
 	}
 
@@ -185,7 +187,8 @@ func (r *Registry) GetCommand(id string) (Command, bool) {
 func (r *Registry) BindingsForContext(context string) []Binding {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.bindings[context]
+	fc := FocusContext(context)
+	return r.bindings[fc]
 }
 
 // AllContexts returns all contexts that have bindings.
@@ -194,7 +197,7 @@ func (r *Registry) AllContexts() []string {
 	defer r.mu.RUnlock()
 	contexts := make([]string, 0, len(r.bindings))
 	for ctx := range r.bindings {
-		contexts = append(contexts, ctx)
+		contexts = append(contexts, string(ctx))
 	}
 	return contexts
 }

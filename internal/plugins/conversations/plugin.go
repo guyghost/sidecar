@@ -15,6 +15,7 @@ import (
 	"github.com/marcus/sidecar/internal/adapter"
 	"github.com/marcus/sidecar/internal/adapter/tieredwatcher"
 	"github.com/marcus/sidecar/internal/app"
+	"github.com/marcus/sidecar/internal/keymap"
 	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/plugin"
@@ -1121,34 +1122,34 @@ func (p *Plugin) Commands() []plugin.Command {
 }
 
 // FocusContext returns the current focus context.
-func (p *Plugin) FocusContext() string {
+func (p *Plugin) FocusContext() keymap.FocusContext {
 	// Content search modal takes precedence (td-6ac70a)
 	if p.contentSearchMode {
-		return "conversations-content-search"
+		return keymap.ContextConversationsContentSearch
 	}
 	// Resume modal takes precedence (td-aa4136)
 	if p.showResumeModal {
-		return "conversations-resume-modal"
+		return keymap.ContextConversationsResumeModal
 	}
 	if p.searchMode {
-		return "conversations-search"
+		return keymap.ContextConversationsSearch
 	}
 	if p.filterMode {
-		return "conversations-filter"
+		return keymap.ContextConversationsFilter
 	}
 	// Detail mode (right pane shows turn detail)
 	if p.detailMode {
-		return "turn-detail"
+		return keymap.ContextTurnDetail
 	}
 	switch p.view {
 	case ViewAnalytics:
-		return "analytics"
+		return keymap.ContextTDMonitor
 	default:
 		// Return context based on active pane
 		if p.activePane == PaneSidebar {
-			return "conversations-sidebar"
+			return keymap.ContextConversationsSidebar
 		}
-		return "conversations-main"
+		return keymap.ContextConversationsMain
 	}
 }
 

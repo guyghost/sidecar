@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcus/sidecar/internal/app"
 	"github.com/marcus/sidecar/internal/image"
+	"github.com/marcus/sidecar/internal/keymap"
 	"github.com/marcus/sidecar/internal/markdown"
 	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/mouse"
@@ -863,38 +864,38 @@ func (p *Plugin) Commands() []plugin.Command {
 }
 
 // FocusContext returns the current focus context.
-func (p *Plugin) FocusContext() string {
+func (p *Plugin) FocusContext() keymap.FocusContext {
 	if p.inlineEditMode {
-		return "file-browser-inline-edit"
+		return keymap.ContextFileBrowserInlineEdit
 	}
 	if p.projectSearchMode {
-		return "file-browser-project-search"
+		return keymap.ContextFileBrowserProjectSearch
 	}
 	if p.quickOpenMode {
-		return "file-browser-quick-open"
+		return keymap.ContextFileBrowserQuickOpen
 	}
 	if p.infoMode {
-		return "file-browser-info"
+		return keymap.ContextFileBrowserInfo
 	}
 	if p.blameMode {
-		return "file-browser-blame"
+		return keymap.ContextFileBrowserBlame
 	}
 	if p.fileOpMode != FileOpNone {
-		return "file-browser-file-op"
+		return keymap.ContextFileBrowserFileOp
 	}
 	if p.lineJumpMode {
-		return "file-browser-line-jump"
+		return keymap.ContextFileBrowserLineJump
 	}
 	if p.contentSearchMode {
-		return "file-browser-content-search"
+		return keymap.ContextFileBrowserContentSearch
 	}
 	if p.searchMode {
-		return "file-browser-search"
+		return keymap.ContextFileBrowserSearch
 	}
 	if p.activePane == PanePreview {
-		return "file-browser-preview"
+		return keymap.ContextFileBrowserPreview
 	}
-	return "file-browser-tree"
+	return keymap.ContextFileBrowserTree
 }
 
 // ConsumesTextInput reports whether the file browser currently expects typed

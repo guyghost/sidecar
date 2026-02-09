@@ -32,16 +32,16 @@ func (l Layer) Name() string {
 
 // PaletteEntry represents a single searchable entry in the command palette.
 type PaletteEntry struct {
-	Key          string          // Display key(s): "s" or "ctrl+s"
-	CommandID    string          // Command ID
-	Name         string          // Short name
-	Description  string          // Full description
-	Category     plugin.Category // Category for grouping
-	Context      string          // Source context
-	Layer        Layer           // Which layer: CurrentMode, Plugin, Global
-	Score        int             // Fuzzy match score (computed during search)
-	MatchRanges  []MatchRange    // For highlighting matches in name
-	ContextCount int             // Number of contexts this command appears in (for grouped display)
+	Key          string              // Display key(s): "s" or "ctrl+s"
+	CommandID    string              // Command ID
+	Name         string              // Short name
+	Description  string              // Full description
+	Category     plugin.Category     // Category for grouping
+	Context      keymap.FocusContext // Source context
+	Layer        Layer               // Which layer: CurrentMode, Plugin, Global
+	Score        int                 // Fuzzy match score (computed during search)
+	MatchRanges  []MatchRange        // For highlighting matches in name
+	ContextCount int                 // Number of contexts this command appears in (for grouped display)
 }
 
 // BuildEntries aggregates commands from keymap bindings and plugin commands.
@@ -53,7 +53,7 @@ func BuildEntries(km *keymap.Registry, plugins []plugin.Plugin, activeContext, p
 	cmdMeta := make(map[string]plugin.Command)
 	for _, p := range plugins {
 		for _, cmd := range p.Commands() {
-			key := cmd.ID + ":" + cmd.Context
+			key := cmd.ID + ":" + cmd.Context.String()
 			cmdMeta[key] = cmd
 		}
 	}
@@ -68,7 +68,7 @@ func BuildEntries(km *keymap.Registry, plugins []plugin.Plugin, activeContext, p
 	for _, ctx := range contexts {
 		bindings := km.BindingsForContext(ctx)
 		for _, b := range bindings {
-			key := b.Command + ":" + b.Context
+			key := b.Command + ":" + b.Context.String()
 			if seen[key] {
 				continue
 			}
@@ -88,11 +88,11 @@ func bindingToEntry(b keymap.Binding, cmdMeta map[string]plugin.Command, activeC
 		Key:       b.Key,
 		CommandID: b.Command,
 		Context:   b.Context,
-		Layer:     determineLayer(b.Context, activeContext, pluginContext),
+		Layer:     determineLayer(b.Context.String(), activeContext, pluginContext),
 	}
 
 	// Try to get metadata from plugin command using "commandID:context" key
-	metaKey := b.Command + ":" + b.Context
+	metaKey := b.Command + ":" + b.Context.String()
 	if cmd, ok := cmdMeta[metaKey]; ok {
 		entry.Name = cmd.Name
 		entry.Description = cmd.Description
@@ -210,7 +210,7 @@ func FilterEntriesForContext(entries []PaletteEntry, activeContext string) []Pal
 	var result []PaletteEntry
 	for _, e := range entries {
 		// Only include current context or global
-		if e.Context == activeContext || e.Context == "global" {
+		if e.Context.String() == activeContext || e.Context == keymap.ContextGlobal {
 			result = append(result, e)
 		}
 	}

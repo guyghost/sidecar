@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marcus/sidecar/internal/app"
+	"github.com/marcus/sidecar/internal/keymap"
 	"github.com/marcus/sidecar/internal/modal"
 	"github.com/marcus/sidecar/internal/mouse"
 	"github.com/marcus/sidecar/internal/plugin"
@@ -1015,45 +1016,45 @@ func (p *Plugin) Commands() []plugin.Command {
 }
 
 // FocusContext returns the current focus context.
-func (p *Plugin) FocusContext() string {
+func (p *Plugin) FocusContext() keymap.FocusContext {
 	if p.inNoRepoMode() {
-		return "git-no-repo"
+		return keymap.ContextGitNoRepo
 	}
 	if p.historySearchMode {
-		return "git-history-search"
+		return keymap.ContextGitHistorySearch
 	}
 	if p.pathFilterMode {
-		return "git-path-filter"
+		return keymap.ContextGitPathFilter
 	}
 
 	switch p.viewMode {
 	case ViewModeDiff:
-		return "git-diff"
+		return keymap.ContextGitDiff
 	case ViewModeCommit:
-		return "git-commit"
+		return keymap.ContextGitCommit
 	case ViewModePushMenu:
-		return "git-push-menu"
+		return keymap.ContextGitPushMenu
 	case ViewModePullMenu:
-		return "git-pull-menu"
+		return keymap.ContextGitPullMenu
 	case ViewModePullConflict:
-		return "git-pull-conflict"
+		return keymap.ContextGitPullConflict
 	case ViewModeError:
-		return "git-error"
+		return keymap.ContextGitError
 	case ViewModeConfirmStashPop:
-		return "git-stash-pop"
+		return keymap.ContextGitStashPop
 	default:
 		if p.activePane == PaneDiff {
 			// Commit preview pane has different context than file diff pane
 			if p.previewCommit != nil && p.cursorOnCommit() {
-				return "git-commit-preview"
+				return keymap.ContextGitCommitPreview
 			}
-			return "git-status-diff"
+			return keymap.ContextGitStatusDiff
 		}
 		// Show different context when on a commit in sidebar
 		if p.cursorOnCommit() {
-			return "git-status-commits"
+			return keymap.ContextGitStatusCommits
 		}
-		return "git-status"
+		return keymap.ContextGitStatus
 	}
 }
 
