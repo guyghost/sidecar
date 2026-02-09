@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/styles"
 )
 
 // ScrollbarParams configures a vertical scrollbar rendering.

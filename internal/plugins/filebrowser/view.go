@@ -8,9 +8,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/cellbuf"
-	"github.com/marcus/sidecar/internal/image"
-	"github.com/marcus/sidecar/internal/styles"
-	"github.com/marcus/sidecar/internal/ui"
+	"github.com/guyghost/sidecar/internal/image"
+	"github.com/guyghost/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/ui"
 )
 
 // FocusPane represents which pane is active.

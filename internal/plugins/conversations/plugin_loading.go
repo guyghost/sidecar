@@ -13,10 +13,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/adapter"
-	"github.com/marcus/sidecar/internal/adapter/tieredwatcher"
-	"github.com/marcus/sidecar/internal/app"
-	"github.com/marcus/sidecar/internal/fdmonitor"
+	"github.com/guyghost/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter/tieredwatcher"
+	"github.com/guyghost/sidecar/internal/app"
+	"github.com/guyghost/sidecar/internal/fdmonitor"
 )
 
 // Data loading and file watching methods

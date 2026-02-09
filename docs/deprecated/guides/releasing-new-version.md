@@ -109,7 +109,7 @@ brew install marcus/tap/sidecar
 sidecar --version
 
 # Test that users can install from source (critical!)
-GOWORK=off go install github.com/marcus/sidecar/cmd/sidecar@vX.Y.Z
+GOWORK=off go install github.com/guyghost/sidecar/cmd/sidecar@vX.Y.Z
 
 # Verify binary shows correct version
 sidecar --version
@@ -141,7 +141,7 @@ Without ldflags, version falls back to:
 ## Update Mechanism
 
 Users see update notifications because:
-1. On startup, sidecar checks `https://api.github.com/repos/marcus/sidecar/releases/latest`
+1. On startup, sidecar checks `https://api.github.com/repos/guyghost/sidecar/releases/latest`
 2. Compares `tag_name` against current version
 3. Shows toast if newer version exists
 4. Results cached for 3 hours (configured in `internal/version/cache.go`)
@@ -170,10 +170,10 @@ goreleaser release --clean
 
 Users can install sidecar in several ways:
 
-1. **Setup script**: `curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/setup.sh | bash`
+1. **Setup script**: `curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/setup.sh | bash`
 2. **Homebrew**: `brew install marcus/tap/sidecar`
-3. **Download binary**: grab the appropriate binary from the [GitHub Releases](https://github.com/marcus/sidecar/releases) page
-4. **From source**: `go install github.com/marcus/sidecar/cmd/sidecar@latest`
+3. **Download binary**: grab the appropriate binary from the [GitHub Releases](https://github.com/guyghost/sidecar/releases) page
+4. **From source**: `go install github.com/guyghost/sidecar/cmd/sidecar@latest`
 
 ## Checklist
 

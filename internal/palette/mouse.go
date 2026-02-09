@@ -2,7 +2,7 @@ package palette
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/mouse"
+	"github.com/guyghost/sidecar/internal/mouse"
 )
 
 // Mouse region identifiers

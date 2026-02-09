@@ -204,7 +204,7 @@ themeConfig: {
     items: [
       { type: 'docSidebar', sidebarId: 'tutorialSidebar', label: 'Docs' },
       { to: '/blog', label: 'Blog' },
-      { href: 'https://github.com/marcus/sidecar', label: 'GitHub' },
+      { href: 'https://github.com/guyghost/sidecar', label: 'GitHub' },
     ],
   },
 }

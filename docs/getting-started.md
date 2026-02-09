@@ -3,7 +3,7 @@
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash
 ```
 
 Or install via Homebrew:
@@ -37,25 +37,25 @@ The script will ask what you want to install:
 Run the same command - the script detects installed versions and only updates what's needed.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash
 ```
 
 ## Headless/CI Installation
 
 ```bash
 # Install both (default)
-curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash -s -- --yes
 
 # Install sidecar only
-curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash -s -- --yes --sidecar-only
+curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash -s -- --yes --sidecar-only
 
 # Force reinstall even if up-to-date
-curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash -s -- --yes --force
+curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash -s -- --yes --force
 ```
 
 ## Binary Download
 
-Download pre-built binaries directly from [GitHub Releases](https://github.com/marcus/sidecar/releases). Available for macOS and Linux (amd64 and arm64).
+Download pre-built binaries directly from [GitHub Releases](https://github.com/guyghost/sidecar/releases). Available for macOS and Linux (amd64 and arm64).
 
 1. Download the archive for your platform
 2. Extract: `tar -xzf sidecar_*.tar.gz`
@@ -89,7 +89,7 @@ export PATH="$HOME/go/bin:$PATH"
 ### 3. Install sidecar
 
 ```bash
-go install github.com/marcus/sidecar/cmd/sidecar@latest
+go install github.com/guyghost/sidecar/cmd/sidecar@latest
 ```
 
 ### 4. (Optional) Install td

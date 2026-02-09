@@ -9,13 +9,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/markdown"
-	"github.com/marcus/sidecar/internal/modal"
-	"github.com/marcus/sidecar/internal/mouse"
-	"github.com/marcus/sidecar/internal/plugin"
-	"github.com/marcus/sidecar/internal/ui"
-	"github.com/marcus/sidecar/internal/plugins/gitstatus"
-	"github.com/marcus/sidecar/internal/state"
+	"github.com/guyghost/sidecar/internal/markdown"
+	"github.com/guyghost/sidecar/internal/modal"
+	"github.com/guyghost/sidecar/internal/mouse"
+	"github.com/guyghost/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/ui"
+	"github.com/guyghost/sidecar/internal/plugins/gitstatus"
+	"github.com/guyghost/sidecar/internal/state"
 )
 
 const (

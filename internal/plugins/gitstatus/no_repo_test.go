@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/plugin"
 )
 
 func TestInit_NoRepoKeepsPluginAvailable(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/marcus/sidecar/internal/tdroot"
+	"github.com/guyghost/sidecar/internal/tdroot"
 )
 
 // Note represents a single note.

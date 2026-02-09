@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 // SessionSummary holds aggregated statistics for a session.

@@ -10,15 +10,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/markdown"
-	"github.com/marcus/sidecar/internal/modal"
-	"github.com/marcus/sidecar/internal/mouse"
-	"github.com/marcus/sidecar/internal/styles"
-	"github.com/marcus/sidecar/internal/ui"
-	"github.com/marcus/sidecar/internal/version"
+	"github.com/guyghost/sidecar/internal/markdown"
+	"github.com/guyghost/sidecar/internal/modal"
+	"github.com/guyghost/sidecar/internal/mouse"
+	"github.com/guyghost/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/ui"
+	"github.com/guyghost/sidecar/internal/version"
 )
 
-const changelogURL = "https://raw.githubusercontent.com/marcus/sidecar/main/CHANGELOG.md"
+const changelogURL = "https://raw.githubusercontent.com/guyghost/sidecar/main/CHANGELOG.md"
 
 // changelogViewState holds mutable state shared between the model and the
 // modal's Custom section closure. Using a heap-allocated struct avoids
@@ -152,7 +152,7 @@ func (m *Model) ensureUpdatePreviewModal() {
 			modal.Btn(" Later ", "cancel"),
 		}
 	case version.InstallMethodBinary:
-		downloadURL := fmt.Sprintf("https://github.com/marcus/sidecar/releases/tag/%s",
+		downloadURL := fmt.Sprintf("https://github.com/guyghost/sidecar/releases/tag/%s",
 			m.updateAvailable.LatestVersion)
 		methodHint = styles.Muted.Render("Download: " + downloadURL)
 		buttons = []modal.ButtonDef{

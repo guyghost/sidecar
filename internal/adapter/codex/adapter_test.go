@@ -3,7 +3,7 @@ package codex
 import (
 	"os"
 	"path/filepath"
-	"github.com/marcus/sidecar/internal/adapter/adapterutil"
+	"github.com/guyghost/sidecar/internal/adapter/adapterutil"
 	"testing"
 	"time"
 )

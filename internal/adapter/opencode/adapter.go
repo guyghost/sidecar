@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 const (

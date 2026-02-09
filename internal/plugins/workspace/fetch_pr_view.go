@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/modal"
-	"github.com/marcus/sidecar/internal/styles"
-	"github.com/marcus/sidecar/internal/ui"
+	"github.com/guyghost/sidecar/internal/modal"
+	"github.com/guyghost/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/ui"
 )
 
 // ensureFetchPRModal builds/rebuilds the fetch PR modal when needed.

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/styles"
 )
 
 // DiffViewMode specifies the diff rendering mode.

@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/styles"
 )
 
 // Stallion ASCII art - a galloping horse

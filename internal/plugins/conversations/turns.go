@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 // xmlTagRegex is pre-compiled for performance in hot path (called per turn on render)

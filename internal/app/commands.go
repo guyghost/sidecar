@@ -4,8 +4,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/msg"
-	"github.com/marcus/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/msg"
+	"github.com/guyghost/sidecar/internal/plugin"
 )
 
 // ToastMsg is re-exported from msg package for backward compatibility.

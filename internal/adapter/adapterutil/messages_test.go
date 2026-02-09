@@ -3,7 +3,7 @@ package adapterutil
 import (
 	"testing"
 
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 func TestCopyMessages(t *testing.T) {

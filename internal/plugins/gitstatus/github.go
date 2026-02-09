@@ -8,8 +8,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/app"
-	"github.com/marcus/sidecar/internal/msg"
+	"github.com/guyghost/sidecar/internal/app"
+	"github.com/guyghost/sidecar/internal/msg"
 )
 
 // GitHubInfo holds parsed GitHub repository information.

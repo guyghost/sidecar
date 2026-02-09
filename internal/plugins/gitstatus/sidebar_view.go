@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/styles"
-	"github.com/marcus/sidecar/internal/ui"
+	"github.com/guyghost/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/ui"
 )
 
 // dividerWidth is the width of the draggable divider between panes.

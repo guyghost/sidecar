@@ -1,7 +1,7 @@
 package claudecode
 
 import (
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 // SearchMessages searches message content within a session.

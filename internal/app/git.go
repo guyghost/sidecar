@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/marcus/sidecar/internal/git"
+	"github.com/guyghost/sidecar/internal/git"
 )
 
 // Re-export git worktree types and functions from internal/git for backward compatibility.

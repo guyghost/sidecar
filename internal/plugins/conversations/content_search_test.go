@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 // Helper to create test data

@@ -1,7 +1,7 @@
 package codex
 
 import (
-	"github.com/marcus/sidecar/internal/adapter/adapterutil"
+	"github.com/guyghost/sidecar/internal/adapter/adapterutil"
 	"fmt"
 	"os"
 	"path/filepath"

@@ -94,7 +94,7 @@ When adding a modal:
    - Show dimmed background → Use `ui.OverlayModal()`
 
 2. **For dimmed background modals** (preferred for most cases):
-   - Import `github.com/marcus/sidecar/internal/ui`
+   - Import `github.com/guyghost/sidecar/internal/ui`
    - Call `ui.OverlayModal(background, modalContent, width, height)`
    - Pass the full background content (the function handles dimming)
    - Pass raw modal content (don't pre-center with `lipgloss.Place()`)

@@ -3,7 +3,7 @@ package plugin
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/marcus/sidecar/internal/keymap"
+	"github.com/guyghost/sidecar/internal/keymap"
 )
 
 // Plugin defines the interface for all sidecar plugins.

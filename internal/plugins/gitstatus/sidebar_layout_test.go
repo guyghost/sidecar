@@ -3,7 +3,7 @@ package gitstatus
 import (
 	"testing"
 
-	"github.com/marcus/sidecar/internal/mouse"
+	"github.com/guyghost/sidecar/internal/mouse"
 )
 
 func makeEntries(count int, status FileStatus) []*FileEntry {

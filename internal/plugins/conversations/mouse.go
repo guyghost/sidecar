@@ -2,8 +2,8 @@ package conversations
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/mouse"
-	"github.com/marcus/sidecar/internal/state"
+	"github.com/guyghost/sidecar/internal/mouse"
+	"github.com/guyghost/sidecar/internal/state"
 )
 
 // handleMouse processes mouse events in the two-pane view.

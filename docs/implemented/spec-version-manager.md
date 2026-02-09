@@ -32,7 +32,7 @@ Add automatic version checking that queries GitHub releases on startup, compares
 func Check(currentVersion string) CheckResult
 ```
 
-- Uses `https://api.github.com/repos/marcus/sidecar/releases/latest`
+- Uses `https://api.github.com/repos/guyghost/sidecar/releases/latest`
 - 5-second timeout to avoid blocking
 - Skips check for dev versions (`devel`, empty, `devel+abc123`)
 
@@ -105,7 +105,7 @@ Version
   Latest:  v0.2.0  ← Update available
 
   Update command:
-  go install -ldflags "-X main.Version=v0.2.0" github.com/marcus/sidecar/cmd/sidecar@v0.2.0
+  go install -ldflags "-X main.Version=v0.2.0" github.com/guyghost/sidecar/cmd/sidecar@v0.2.0
 ```
 
 - Full update instructions in existing modal (press `!`)

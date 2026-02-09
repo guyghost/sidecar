@@ -327,7 +327,7 @@ import (
     "sort"
     "time"
 
-    "github.com/marcus/sidecar/internal/adapter"
+    "github.com/guyghost/sidecar/internal/adapter"
     _ "github.com/mattn/go-sqlite3"
 )
 
@@ -674,7 +674,7 @@ import (
     "time"
 
     "github.com/fsnotify/fsnotify"
-    "github.com/marcus/sidecar/internal/adapter"
+    "github.com/guyghost/sidecar/internal/adapter"
 )
 
 func NewWatcher(workspaceDir string) (<-chan adapter.Event, error) {
@@ -771,7 +771,7 @@ func NewWatcher(workspaceDir string) (<-chan adapter.Event, error) {
 ```go
 package cursorcli
 
-import "github.com/marcus/sidecar/internal/adapter"
+import "github.com/guyghost/sidecar/internal/adapter"
 
 func init() {
     adapter.RegisterFactory(func() adapter.Adapter {
@@ -786,7 +786,7 @@ Add to `cmd/sidecar/main.go`:
 
 ```go
 import (
-    _ "github.com/marcus/sidecar/internal/adapter/cursorcli"
+    _ "github.com/guyghost/sidecar/internal/adapter/cursorcli"
 )
 ```
 

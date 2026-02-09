@@ -10,17 +10,17 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/community"
-	"github.com/marcus/sidecar/internal/config"
-	"github.com/marcus/sidecar/internal/keymap"
-	"github.com/marcus/sidecar/internal/modal"
-	"github.com/marcus/sidecar/internal/mouse"
-	"github.com/marcus/sidecar/internal/palette"
-	"github.com/marcus/sidecar/internal/plugin"
-	"github.com/marcus/sidecar/internal/state"
-	"github.com/marcus/sidecar/internal/styles"
-	"github.com/marcus/sidecar/internal/theme"
-	"github.com/marcus/sidecar/internal/version"
+	"github.com/guyghost/sidecar/internal/community"
+	"github.com/guyghost/sidecar/internal/config"
+	"github.com/guyghost/sidecar/internal/keymap"
+	"github.com/guyghost/sidecar/internal/modal"
+	"github.com/guyghost/sidecar/internal/mouse"
+	"github.com/guyghost/sidecar/internal/palette"
+	"github.com/guyghost/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/state"
+	"github.com/guyghost/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/theme"
+	"github.com/guyghost/sidecar/internal/version"
 )
 
 // ModalKind identifies an app-level modal with explicit priority ordering.
@@ -499,7 +499,7 @@ func (m *Model) runInstallPhase() tea.Cmd {
 				args := []string{
 					"install",
 					"-ldflags", fmt.Sprintf("-X main.Version=%s", sidecarUpdate.LatestVersion),
-					fmt.Sprintf("github.com/marcus/sidecar/cmd/sidecar@%s", sidecarUpdate.LatestVersion),
+					fmt.Sprintf("github.com/guyghost/sidecar/cmd/sidecar@%s", sidecarUpdate.LatestVersion),
 				}
 				cmd := exec.Command("go", args...)
 				if output, err := cmd.CombinedOutput(); err != nil {

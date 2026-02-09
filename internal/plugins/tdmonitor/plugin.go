@@ -7,11 +7,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/app"
-	"github.com/marcus/sidecar/internal/keymap"
-	"github.com/marcus/sidecar/internal/plugin"
-	"github.com/marcus/sidecar/internal/plugins/workspace"
-	"github.com/marcus/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/app"
+	"github.com/guyghost/sidecar/internal/keymap"
+	"github.com/guyghost/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/plugins/workspace"
+	"github.com/guyghost/sidecar/internal/styles"
 	"github.com/marcus/td/pkg/monitor"
 )
 

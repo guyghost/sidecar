@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/marcus/sidecar/internal/modal"
-	"github.com/marcus/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/modal"
+	"github.com/guyghost/sidecar/internal/styles"
 )
 
 // renderInfoModalContent renders the file info modal.

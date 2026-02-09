@@ -1,6 +1,6 @@
 package gitstatus
 
-import "github.com/marcus/sidecar/internal/git"
+import "github.com/guyghost/sidecar/internal/git"
 
 // Re-export branch types from internal/git for backward compatibility.
 type (

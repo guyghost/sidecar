@@ -1,7 +1,7 @@
 package gitstatus
 
 import (
-	"github.com/marcus/sidecar/internal/git"
+	"github.com/guyghost/sidecar/internal/git"
 )
 
 // Re-export diff types from internal/git for backward compatibility.

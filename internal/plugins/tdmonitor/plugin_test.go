@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/marcus/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/plugin"
 )
 
 func TestNew(t *testing.T) {

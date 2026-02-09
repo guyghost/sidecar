@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/marcus/sidecar/internal/keymap"
+	"github.com/guyghost/sidecar/internal/keymap"
 )
 
 // mockPlugin implements Plugin for testing.

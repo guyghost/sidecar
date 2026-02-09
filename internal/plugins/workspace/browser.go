@@ -5,7 +5,7 @@ import (
 	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/app"
+	"github.com/guyghost/sidecar/internal/app"
 )
 
 // openInBrowser opens the URL in the default browser.

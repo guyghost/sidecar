@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/plugin"
-	"github.com/marcus/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/styles"
 )
 
 // HistorySearchState holds state for commit history search.

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 func TestParseContent_String(t *testing.T) {

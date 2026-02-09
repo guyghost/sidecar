@@ -3,7 +3,7 @@ package codex
 import (
 	"testing"
 
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 func TestSearchMessages_InterfaceCompliance(t *testing.T) {

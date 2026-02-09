@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/marcus/sidecar/internal/adapter"
-	"github.com/marcus/sidecar/internal/adapter/adapterutil"
+	"github.com/guyghost/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter/adapterutil"
 )
 
 func TestParseTimestamp(t *testing.T) {

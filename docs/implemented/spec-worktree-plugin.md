@@ -785,7 +785,7 @@ The worktree plugin supports mouse interactions for list selection, scrolling, p
 #### 4.11.1 Handler Setup
 
 ```go
-import "github.com/marcus/sidecar/internal/mouse"
+import "github.com/guyghost/sidecar/internal/mouse"
 
 func New(ctx *plugin.Context) *Plugin {
     return &Plugin{

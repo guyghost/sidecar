@@ -2,7 +2,7 @@ package warp
 
 import (
 	"testing"
-	"github.com/marcus/sidecar/internal/adapter/adapterutil"
+	"github.com/guyghost/sidecar/internal/adapter/adapterutil"
 	"time"
 )
 

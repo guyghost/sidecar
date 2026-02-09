@@ -10,9 +10,9 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	appmsg "github.com/marcus/sidecar/internal/msg"
-	"github.com/marcus/sidecar/internal/plugin"
-	"github.com/marcus/sidecar/internal/state"
+	appmsg "github.com/guyghost/sidecar/internal/msg"
+	"github.com/guyghost/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/state"
 )
 
 func (p *Plugin) handleKey(msg tea.KeyMsg) (plugin.Plugin, tea.Cmd) {

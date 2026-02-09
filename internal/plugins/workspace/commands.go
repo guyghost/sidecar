@@ -1,9 +1,9 @@
 package workspace
 
 import (
-	"github.com/marcus/sidecar/internal/features"
-	"github.com/marcus/sidecar/internal/keymap"
-	"github.com/marcus/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/features"
+	"github.com/guyghost/sidecar/internal/keymap"
+	"github.com/guyghost/sidecar/internal/plugin"
 )
 
 // Commands returns the available commands.

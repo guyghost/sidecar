@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/marcus/sidecar/internal/styles"
+	"github.com/guyghost/sidecar/internal/styles"
 )
 
 func TestResolveButtonStyle_FocusMatch(t *testing.T) {

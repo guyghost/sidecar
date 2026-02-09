@@ -57,7 +57,7 @@ Note: Using an unknown feature name in a CLI flag produces a warning but doesn't
 ### Checking Feature State
 
 ```go
-import "github.com/marcus/sidecar/internal/features"
+import "github.com/guyghost/sidecar/internal/features"
 
 if features.IsEnabled("tmux_interactive_input") {
     // Feature-gated code

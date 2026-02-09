@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/marcus/sidecar/internal/adapter/cache"
-	"github.com/marcus/sidecar/internal/adapter/testutil"
+	"github.com/guyghost/sidecar/internal/adapter/cache"
+	"github.com/guyghost/sidecar/internal/adapter/testutil"
 )
 
 // Benchmark targets (td-336ee0):

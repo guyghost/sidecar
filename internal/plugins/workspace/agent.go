@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/features"
+	"github.com/guyghost/sidecar/internal/features"
 )
 
 // paneCacheEntry holds cached capture output with timestamp

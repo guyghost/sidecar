@@ -12,9 +12,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/features"
-	"github.com/marcus/sidecar/internal/state"
-	"github.com/marcus/sidecar/internal/tty"
+	"github.com/guyghost/sidecar/internal/features"
+	"github.com/guyghost/sidecar/internal/state"
+	"github.com/guyghost/sidecar/internal/tty"
 )
 
 // Shell session constants

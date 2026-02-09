@@ -7,7 +7,7 @@ import (
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/msg"
+	"github.com/guyghost/sidecar/internal/msg"
 )
 
 // copyCommitIDToClipboard copies just the short commit hash to clipboard.

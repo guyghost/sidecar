@@ -7,11 +7,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/marcus/sidecar/internal/adapter"
-	"github.com/marcus/sidecar/internal/app"
-	"github.com/marcus/sidecar/internal/modal"
-	"github.com/marcus/sidecar/internal/plugins/workspace"
-	"github.com/marcus/sidecar/internal/ui"
+	"github.com/guyghost/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/app"
+	"github.com/guyghost/sidecar/internal/modal"
+	"github.com/guyghost/sidecar/internal/plugins/workspace"
+	"github.com/guyghost/sidecar/internal/ui"
 )
 
 // Resume target type constants

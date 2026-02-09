@@ -2,7 +2,7 @@
 
 You might never open your editor again.
 
-**Status: Ready for daily use.** Please [report any issues](https://github.com/marcus/sidecar/issues) you encounter.
+**Status: Ready for daily use.** Please [report any issues](https://github.com/guyghost/sidecar/issues) you encounter.
 
 [Documentation](https://marcus.github.io/sidecar/) · [Getting Started](https://marcus.github.io/sidecar/docs/intro)
 
@@ -25,10 +25,10 @@ This builds from source and avoids macOS Gatekeeper warnings.
 ### Linux / Other
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash
 ```
 
-**More options:** [Binary downloads](https://github.com/marcus/sidecar/releases) · [Manual install](docs/getting-started.md)
+**More options:** [Binary downloads](https://github.com/guyghost/sidecar/releases) · [Manual install](docs/getting-started.md)
 
 ## Requirements
 
@@ -263,7 +263,7 @@ Config file: `~/.config/sidecar/config.json`
 
 ## Contributing
 
-- **Bug reports**: [Open an issue](https://github.com/marcus/sidecar/issues)
+- **Bug reports**: [Open an issue](https://github.com/guyghost/sidecar/issues)
 - **Feature requests**: Check the [Sidecar Roadmap](https://github.com/users/marcus/projects/3) for planned features and backlog
 
 ## Development

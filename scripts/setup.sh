@@ -68,13 +68,13 @@ Options:
 
 Examples:
   # Interactive install
-  curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash
 
   # Headless install (both tools)
-  curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash -s -- --yes
+  curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash -s -- --yes
 
   # Headless install (sidecar only)
-  curl -fsSL https://raw.githubusercontent.com/marcus/sidecar/main/scripts/setup.sh | bash -s -- --yes --sidecar-only
+  curl -fsSL https://raw.githubusercontent.com/guyghost/sidecar/main/scripts/setup.sh | bash -s -- --yes --sidecar-only
 EOF
 }
 
@@ -467,7 +467,7 @@ main() {
 
     # Fetch latest versions
     echo "Checking latest versions..."
-    LATEST_SIDECAR=$(get_latest_release "marcus/sidecar" || echo "")
+    LATEST_SIDECAR=$(get_latest_release "guyghost/sidecar" || echo "")
     if ! $SIDECAR_ONLY; then
         LATEST_TD=$(get_latest_release "marcus/td" || echo "")
     fi
@@ -676,17 +676,17 @@ main() {
 
             if confirm "Install sidecar ${sc_version}?"; then
                 echo "Installing sidecar..."
-                if [[ "$sc_version" != "latest" ]] && install_binary "marcus/sidecar" "sidecar" "$sc_version"; then
+                if [[ "$sc_version" != "latest" ]] && install_binary "guyghost/sidecar" "sidecar" "$sc_version"; then
                     SIDECAR_VERSION=$(get_sidecar_version)
                     style_success "sidecar installed: $SIDECAR_VERSION"
                 elif command -v go &> /dev/null; then
                     echo "Installing from source..."
-                    go install -ldflags "-X main.Version=${sc_version}" "github.com/marcus/sidecar/cmd/sidecar@${sc_version}"
+                    go install -ldflags "-X main.Version=${sc_version}" "github.com/guyghost/sidecar/cmd/sidecar@${sc_version}"
                     SIDECAR_VERSION=$(get_sidecar_version)
                     style_success "sidecar installed: $SIDECAR_VERSION"
                 else
                     style_error "Installation failed. Install Go or download from:"
-                    echo "  https://github.com/marcus/sidecar/releases"
+                    echo "  https://github.com/guyghost/sidecar/releases"
                 fi
             fi
         else

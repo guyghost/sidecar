@@ -3,7 +3,7 @@ package gitstatus
 import (
 	"testing"
 
-	"github.com/marcus/sidecar/internal/git"
+	"github.com/guyghost/sidecar/internal/git"
 )
 
 // Tests for diff parsing live in internal/git/diff_test.go.

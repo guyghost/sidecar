@@ -1,7 +1,7 @@
 package adapterutil
 
 import (
-	"github.com/marcus/sidecar/internal/adapter"
+	"github.com/guyghost/sidecar/internal/adapter"
 )
 
 // CopyMessages creates a deep copy of messages slice.

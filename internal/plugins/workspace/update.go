@@ -8,9 +8,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	app "github.com/marcus/sidecar/internal/app"
-	"github.com/marcus/sidecar/internal/plugin"
-	"github.com/marcus/sidecar/internal/plugins/gitstatus"
+	app "github.com/guyghost/sidecar/internal/app"
+	"github.com/guyghost/sidecar/internal/plugin"
+	"github.com/guyghost/sidecar/internal/plugins/gitstatus"
 )
 
 // Update handles messages.

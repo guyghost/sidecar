@@ -105,7 +105,7 @@ func init() {
 Add blank import:
 
 ```go
-_ "github.com/marcus/sidecar/internal/adapter/geminicli"
+_ "github.com/guyghost/sidecar/internal/adapter/geminicli"
 ```
 
 ### 6. `internal/plugins/conversations/view.go`

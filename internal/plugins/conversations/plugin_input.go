@@ -4,8 +4,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	appmsg "github.com/marcus/sidecar/internal/msg"
-	"github.com/marcus/sidecar/internal/plugin"
+	appmsg "github.com/guyghost/sidecar/internal/msg"
+	"github.com/guyghost/sidecar/internal/plugin"
 )
 
 // Update methods for handling key events in various views
