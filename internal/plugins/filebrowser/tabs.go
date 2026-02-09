@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/guyghost/sidecar/internal/styles"
+	ieditor "github.com/guyghost/sidecar/internal/ui/editor"
 )
 
 type TabOpenMode int
@@ -572,7 +573,7 @@ func (p *Plugin) restoreEditStateFromTab() bool {
 		return false
 	}
 	// Check if session is still alive
-	if !isSessionAlive(tab.EditSession) {
+	if !ieditor.IsSessionAlive(tab.EditSession) {
 		// Session died while away - clear tab edit state
 		tab.EditSession = ""
 		tab.EditOrigMtime = time.Time{}
@@ -595,7 +596,7 @@ func (p *Plugin) killTabEditSession(index int) {
 	}
 	tab := &p.tabs[index]
 	if tab.EditSession != "" {
-		killSession(tab.EditSession)
+		ieditor.KillSession(tab.EditSession)
 		tab.EditSession = ""
 		tab.EditOrigMtime = time.Time{}
 		tab.EditEditor = ""
@@ -630,13 +631,13 @@ func (p *Plugin) closeTabsForPath(deletedPath string) {
 func (p *Plugin) cleanupAllEditSessions() {
 	// Clean up current plugin-level edit state
 	if p.inlineEditMode && p.inlineEditSession != "" {
-		killSession(p.inlineEditSession)
+		ieditor.KillSession(p.inlineEditSession)
 		p.clearPluginEditState()
 	}
 	// Clean up any backgrounded sessions in tabs
 	for i := range p.tabs {
 		if p.tabs[i].EditSession != "" {
-			killSession(p.tabs[i].EditSession)
+			ieditor.KillSession(p.tabs[i].EditSession)
 			p.tabs[i].EditSession = ""
 			p.tabs[i].EditOrigMtime = time.Time{}
 			p.tabs[i].EditEditor = ""

@@ -11,6 +11,7 @@ import (
 	"github.com/guyghost/sidecar/internal/app"
 	"github.com/guyghost/sidecar/internal/mouse"
 	"github.com/guyghost/sidecar/internal/state"
+	ieditor "github.com/guyghost/sidecar/internal/ui/editor"
 )
 
 // dragForwardThrottle is the minimum interval between forwarding mouse drag
@@ -78,7 +79,7 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 					if ok {
 						p.inlineEditorDragging = true
 						p.lastDragForwardTime = time.Time{}
-						return p, p.forwardMousePressToInlineEditor(col, row)
+						return p, ieditor.ForwardMousePress(p.inlineEditSession, col, row)
 					}
 					cmd := p.inlineEditor.Update(msg)
 					return p, cmd
@@ -101,7 +102,7 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 			col, row, ok := p.calculateInlineEditorMouseCoords(action.X, action.Y)
 			if ok {
 				p.lastDragForwardTime = now
-				return p, p.forwardMouseDragToInlineEditor(col, row)
+				return p, ieditor.ForwardMouseDrag(p.inlineEditSession, col, row)
 			}
 		}
 
@@ -112,7 +113,7 @@ func (p *Plugin) handleMouse(msg tea.MouseMsg) (*Plugin, tea.Cmd) {
 				p.lastDragForwardTime = time.Time{}
 				col, row, ok := p.calculateInlineEditorMouseCoords(msg.X, msg.Y)
 				if ok {
-					return p, p.forwardMouseReleaseToInlineEditor(col, row)
+					return p, ieditor.ForwardMouseRelease(p.inlineEditSession, col, row)
 				}
 			}
 			return p, nil
