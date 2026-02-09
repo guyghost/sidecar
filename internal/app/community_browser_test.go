@@ -80,14 +80,14 @@ func TestUnifiedThemeCursorNavigation(t *testing.T) {
 	m.height = 40
 	m.initThemeSwitcher()
 
-	if len(m.themeSwitcherFiltered) == 0 {
+	if len(m.theme.Filtered) == 0 {
 		t.Fatal("expected themes to be available")
 	}
 
 	// Verify list has both built-in and community entries
 	hasBuiltIn := false
 	hasCommunity := false
-	for _, e := range m.themeSwitcherFiltered {
+	for _, e := range m.theme.Filtered {
 		if e.IsBuiltIn {
 			hasBuiltIn = true
 		} else {

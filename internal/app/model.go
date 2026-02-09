@@ -49,21 +49,21 @@ func (m *Model) activeModal() ModalKind {
 		return ModalPalette
 	case m.showHelp:
 		return ModalHelp
-	case m.updateModalState != UpdateModalClosed:
+	case m.update.ModalState != UpdateModalClosed:
 		return ModalUpdate
 	case m.showDiagnostics:
 		return ModalDiagnostics
 	case m.showQuitConfirm:
 		return ModalQuitConfirm
-	case m.showProjectSwitcher:
+	case m.project.Show:
 		return ModalProjectSwitcher
-	case m.showWorktreeSwitcher:
+	case m.worktree.Show:
 		return ModalWorktreeSwitcher
-	case m.showThemeSwitcher:
+	case m.theme.Show:
 		return ModalThemeSwitcher
-	case m.showIssueInput:
+	case m.issue.ShowInput:
 		return ModalIssueInput
-	case m.showIssuePreview:
+	case m.issue.ShowPreview:
 		return ModalIssuePreview
 	default:
 		return ModalNone
@@ -85,6 +85,121 @@ type projectAddState struct {
 	pathInput     textinput.Model
 	errorMessage  string
 	themeSelected string
+}
+
+// ProjectSwitcherState holds all state for the project switcher modal.
+type ProjectSwitcherState struct {
+	Show         bool
+	Cursor       int
+	Scroll       int
+	Input        textinput.Model
+	Filtered     []config.ProjectConfig
+	Modal        *modal.Modal
+	ModalWidth   int
+	MouseHandler *mouse.Handler
+	// Add sub-mode (within project switcher)
+	AddMode         bool
+	Add             *projectAddState
+	AddModal        *modal.Modal
+	AddModalWidth   int
+	AddMouseHandler *mouse.Handler
+	// Theme picker within add-project flow
+	AddThemeMode       bool
+	AddThemeCursor     int
+	AddThemeScroll     int
+	AddThemeInput      textinput.Model
+	AddThemeFiltered   []string // filtered built-in theme list
+	AddCommunityMode   bool     // in community sub-browser?
+	AddCommunityList   []string // filtered community scheme names
+	AddCommunityCursor int
+	AddCommunityScroll int
+}
+
+// WorktreeSwitcherState holds all state for the worktree switcher modal.
+type WorktreeSwitcherState struct {
+	Show         bool
+	Cursor       int
+	Scroll       int
+	Input        textinput.Model
+	Filtered     []WorktreeInfo
+	All          []WorktreeInfo
+	Modal        *modal.Modal
+	ModalWidth   int
+	MouseHandler *mouse.Handler
+	CheckCounter int           // Counter for periodic worktree existence check
+	CachedInfo   *WorktreeInfo // avoids git subprocess forks on every View render
+}
+
+// ThemeSwitcherState holds all state for the theme switcher modal.
+type ThemeSwitcherState struct {
+	Show         bool
+	Modal        *modal.Modal
+	ModalWidth   int
+	MouseHandler *mouse.Handler
+	SelectedIdx  int
+	Input        textinput.Model
+	Filtered     []themeEntry
+	Original     themeEntry // original theme to restore on cancel
+	Scope        string     // "global" or "project"
+}
+
+// IssueState holds all state for the issue input and preview modals.
+type IssueState struct {
+	// Input phase
+	ShowInput         bool
+	InputModel        textinput.Model
+	InputModal        *modal.Modal
+	InputModalWidth   int
+	InputMouseHandler *mouse.Handler
+	// Search auto-complete
+	SearchResults       []IssueSearchResult
+	SearchQuery         string // last query sent to td search
+	SearchLoading       bool
+	SearchCursor        int  // selected result index (-1 = none/input focused)
+	SearchScrollOffset  int  // viewport scroll offset for search results
+	SearchIncludeClosed bool // whether to include closed issues in search
+	// Preview phase
+	ShowPreview         bool
+	PreviewData         *IssuePreviewData
+	PreviewLoading      bool
+	PreviewError        error
+	PreviewModal        *modal.Modal
+	PreviewModalWidth   int
+	PreviewMouseHandler *mouse.Handler
+}
+
+// UpdateState holds all state for the update modal and update process.
+type UpdateState struct {
+	InProgress    bool
+	Error         string
+	NeedsRestart  bool
+	SpinnerFrame  int
+	InstallMethod version.InstallMethod
+	// Modal state
+	ModalState            UpdateModalState
+	Phase                 UpdatePhase
+	PhaseStatus           map[UpdatePhase]string
+	StartTime             time.Time
+	ReleaseNotes          string // Release notes for current update
+	Changelog             string // Full changelog content
+	ChangelogVisible      bool
+	ChangelogScrollOffset int
+	ChangelogScrollState  *changelogViewState // Shared state for modal closure
+	// Declarative modals
+	PreviewModal             *modal.Modal
+	PreviewModalWidth        int
+	PreviewMouseHandler      *mouse.Handler
+	CompleteModal            *modal.Modal
+	CompleteModalWidth       int
+	CompleteMouseHandler     *mouse.Handler
+	ErrorModal               *modal.Modal
+	ErrorModalWidth          int
+	ErrorMouseHandler        *mouse.Handler
+	ChangelogModal           *modal.Modal
+	ChangelogModalWidth      int
+	ChangelogMouseHandler    *mouse.Handler
+	ChangelogRenderedLines   []string // Cached rendered changelog lines
+	ChangelogMaxVisibleLines int      // Max lines visible in viewport
 }
 
 // Model is the root Bubble Tea model for the sidecar application.
@@ -117,83 +232,12 @@ type Model struct {
 	quitMouseHandler        *mouse.Handler
 	palette                 palette.Model
 
-	// Project switcher modal
-	showProjectSwitcher         bool
-	projectSwitcherCursor       int
-	projectSwitcherScroll       int // scroll offset for list
-	projectSwitcherInput        textinput.Model
-	projectSwitcherFiltered     []config.ProjectConfig
-	projectSwitcherModal        *modal.Modal
-	projectSwitcherModalWidth   int
-	projectSwitcherMouseHandler *mouse.Handler
-
-	// Project add sub-mode (within project switcher)
-	projectAddMode         bool
-	projectAdd             *projectAddState
-	projectAddModal        *modal.Modal
-	projectAddModalWidth   int
-	projectAddMouseHandler *mouse.Handler
-
-	// Theme picker within add-project flow
-	projectAddThemeMode       bool // is theme picker sub-modal open?
-	projectAddThemeCursor     int
-	projectAddThemeScroll     int
-	projectAddThemeInput      textinput.Model
-	projectAddThemeFiltered   []string // filtered built-in theme list
-	projectAddCommunityMode   bool     // in community sub-browser?
-	projectAddCommunityList   []string // filtered community scheme names
-	projectAddCommunityCursor int
-	projectAddCommunityScroll int
-
-	// Worktree switcher modal
-	showWorktreeSwitcher         bool
-	worktreeSwitcherCursor       int
-	worktreeSwitcherScroll       int
-	worktreeSwitcherInput        textinput.Model
-	worktreeSwitcherFiltered     []WorktreeInfo
-	worktreeSwitcherAll          []WorktreeInfo
-	worktreeSwitcherModal        *modal.Modal
-	worktreeSwitcherModalWidth   int
-	worktreeSwitcherMouseHandler *mouse.Handler
-	worktreeCheckCounter         int // Counter for periodic worktree existence check
-
-	// Worktree info cache (avoids git subprocess forks on every View render)
-	cachedWorktreeInfo *WorktreeInfo
-
-	// Theme switcher modal
-	showThemeSwitcher         bool
-	themeSwitcherModal        *modal.Modal
-	themeSwitcherModalWidth   int
-	themeSwitcherMouseHandler *mouse.Handler
-	themeSwitcherSelectedIdx  int
-	themeSwitcherInput        textinput.Model
-	themeSwitcherFiltered     []themeEntry
-	themeSwitcherOriginal     themeEntry // original theme to restore on cancel
-	themeSwitcherScope        string     // "global" or "project"
-
-	// Issue preview - input phase
-	showIssueInput         bool
-	issueInputInput        textinput.Model
-	issueInputModal        *modal.Modal
-	issueInputModalWidth   int
-	issueInputMouseHandler *mouse.Handler
-
-	// Issue input auto-complete
-	issueSearchResults       []IssueSearchResult
-	issueSearchQuery         string // last query sent to td search
-	issueSearchLoading       bool
-	issueSearchCursor        int  // selected result index (-1 = none/input focused)
-	issueSearchScrollOffset  int  // viewport scroll offset for search results
-	issueSearchIncludeClosed bool // whether to include closed issues in search
-
-	// Issue preview - preview phase
-	showIssuePreview         bool
-	issuePreviewData         *IssuePreviewData
-	issuePreviewLoading      bool
-	issuePreviewError        error
-	issuePreviewModal        *modal.Modal
-	issuePreviewModalWidth   int
-	issuePreviewMouseHandler *mouse.Handler
+	// Domain-specific modal state (extracted sub-structs)
+	project  ProjectSwitcherState
+	worktree WorktreeSwitcherState
+	theme    ThemeSwitcherState
+	issue    IssueState
+	update   UpdateState
 
 	// Header/footer
 	ui *UIState
@@ -213,40 +257,6 @@ type Model struct {
 	currentVersion  string
 	updateAvailable *version.UpdateAvailableMsg
 	tdVersionInfo   *version.TdVersionMsg
-
-	// Update feature state
-	updateInProgress    bool
-	updateError         string
-	needsRestart        bool
-	updateSpinnerFrame  int
-	updateInstallMethod version.InstallMethod
-
-	// Update modal state
-	updateModalState      UpdateModalState
-	updatePhase           UpdatePhase
-	updatePhaseStatus     map[UpdatePhase]string
-	updateStartTime       time.Time
-	updateReleaseNotes    string // Release notes for current update
-	updateChangelog       string // Full changelog content
-	changelogVisible      bool
-	changelogScrollOffset int
-	changelogScrollState  *changelogViewState // Shared state for modal closure
-
-	// Update modal (declarative)
-	updatePreviewModal         *modal.Modal
-	updatePreviewModalWidth    int
-	updatePreviewMouseHandler  *mouse.Handler
-	updateCompleteModal        *modal.Modal
-	updateCompleteModalWidth   int
-	updateCompleteMouseHandler *mouse.Handler
-	updateErrorModal           *modal.Modal
-	updateErrorModalWidth      int
-	updateErrorMouseHandler    *mouse.Handler
-	changelogModal             *modal.Modal
-	changelogModalWidth        int
-	changelogMouseHandler      *mouse.Handler
-	changelogRenderedLines     []string // Cached rendered changelog lines
-	changelogMaxVisibleLines   int      // Max lines visible in viewport
 
 	// Intro animation
 	intro IntroModel
@@ -272,18 +282,18 @@ func New(reg *plugin.Registry, km *keymap.Registry, cfg *config.Config, currentV
 	}
 
 	return Model{
-		cfg:               cfg,
-		registry:          reg,
-		keymap:            km,
-		activePlugin:      activeIdx,
-		activeContext:     "global",
-		showClock:         cfg.UI.ShowClock,
-		palette:           palette.New(),
-		ui:                ui,
-		ready:             false,
-		intro:             NewIntroModel(repoName),
-		currentVersion:    currentVersion,
-		updatePhaseStatus: make(map[UpdatePhase]string),
+		cfg:            cfg,
+		registry:       reg,
+		keymap:         km,
+		activePlugin:   activeIdx,
+		activeContext:  "global",
+		showClock:      cfg.UI.ShowClock,
+		palette:        palette.New(),
+		ui:             ui,
+		ready:          false,
+		intro:          NewIntroModel(repoName),
+		currentVersion: currentVersion,
+		update:         UpdateState{PhaseStatus: make(map[UpdatePhase]string)},
 	}
 }
 
@@ -414,7 +424,7 @@ func (m *Model) hasUpdatesAvailable() bool {
 
 // initPhaseStatus initializes all update phases to pending status.
 func (m *Model) initPhaseStatus() {
-	m.updatePhaseStatus = map[UpdatePhase]string{
+	m.update.PhaseStatus = map[UpdatePhase]string{
 		PhaseCheckPrereqs: "pending",
 		PhaseInstalling:   "pending",
 		PhaseVerifying:    "pending",
@@ -454,7 +464,7 @@ type UpdateInstallDoneMsg struct {
 
 // runCheckPrerequisites runs the prerequisites check phase.
 func (m *Model) runCheckPrerequisites() tea.Cmd {
-	method := m.updateInstallMethod
+	method := m.update.InstallMethod
 	return func() tea.Msg {
 		switch method {
 		case version.InstallMethodHomebrew:
@@ -476,7 +486,7 @@ func (m *Model) runCheckPrerequisites() tea.Cmd {
 func (m *Model) runInstallPhase() tea.Cmd {
 	sidecarUpdate := m.updateAvailable
 	tdUpdate := m.tdVersionInfo
-	method := m.updateInstallMethod
+	method := m.update.InstallMethod
 
 	return func() tea.Msg {
 		var sidecarUpdated, tdUpdated bool
@@ -573,10 +583,10 @@ func (m *Model) runVerifyPhase(installResult UpdateInstallDoneMsg) tea.Cmd {
 
 // resetProjectSwitcher resets the project switcher modal state.
 func (m *Model) resetProjectSwitcher() {
-	m.showProjectSwitcher = false
-	m.projectSwitcherCursor = 0
-	m.projectSwitcherScroll = 0
-	m.projectSwitcherFiltered = nil
+	m.project.Show = false
+	m.project.Cursor = 0
+	m.project.Scroll = 0
+	m.project.Filtered = nil
 	m.clearProjectSwitcherModal()
 	m.resetProjectAdd()
 	// Restore current project's theme (undo any live preview)
@@ -586,9 +596,9 @@ func (m *Model) resetProjectSwitcher() {
 
 // clearProjectSwitcherModal clears the modal cache.
 func (m *Model) clearProjectSwitcherModal() {
-	m.projectSwitcherModal = nil
-	m.projectSwitcherModalWidth = 0
-	m.projectSwitcherMouseHandler = nil
+	m.project.Modal = nil
+	m.project.ModalWidth = 0
+	m.project.MouseHandler = nil
 }
 
 // initProjectSwitcher initializes the project switcher modal.
@@ -599,15 +609,15 @@ func (m *Model) initProjectSwitcher() {
 	ti.Focus()
 	ti.CharLimit = 50
 	ti.Width = 40
-	m.projectSwitcherInput = ti
-	m.projectSwitcherFiltered = m.cfg.Projects.List
-	m.projectSwitcherCursor = 0
-	m.projectSwitcherScroll = 0
+	m.project.Input = ti
+	m.project.Filtered = m.cfg.Projects.List
+	m.project.Cursor = 0
+	m.project.Scroll = 0
 
 	// Set cursor to current project if found
-	for i, proj := range m.projectSwitcherFiltered {
+	for i, proj := range m.project.Filtered {
 		if proj.Path == m.ui.WorkDir {
-			m.projectSwitcherCursor = i
+			m.project.Cursor = i
 			break
 		}
 	}
@@ -747,9 +757,9 @@ func (m *Model) switchProject(projectPath string) tea.Cmd {
 
 // previewProjectTheme applies the theme for the currently selected project in the switcher.
 func (m *Model) previewProjectTheme() {
-	projects := m.projectSwitcherFiltered
-	if m.projectSwitcherCursor >= 0 && m.projectSwitcherCursor < len(projects) {
-		resolved := theme.ResolveTheme(m.cfg, projects[m.projectSwitcherCursor].Path)
+	projects := m.project.Filtered
+	if m.project.Cursor >= 0 && m.project.Cursor < len(projects) {
+		resolved := theme.ResolveTheme(m.cfg, projects[m.project.Cursor].Path)
 		theme.ApplyResolved(resolved)
 	}
 }
@@ -784,7 +794,7 @@ func (m *Model) currentProjectConfig() *config.ProjectConfig {
 // confirmThemeSelection saves the theme, reloads config, resets all theme
 // switcher state, and returns a toast command. displayName is used in the toast.
 func (m *Model) confirmThemeSelection(tc config.ThemeConfig, displayName string) tea.Cmd {
-	scope := m.themeSwitcherScope
+	scope := m.theme.Scope
 
 	// Save before reset clears scope
 	if err := m.saveTheme(tc, scope); err != nil {
@@ -858,35 +868,35 @@ My code is located at: [TELL ME WHERE YOUR CODE DIRECTORIES ARE]`
 
 // initProjectAdd initializes the project add sub-mode.
 func (m *Model) initProjectAdd() {
-	m.projectAddMode = true
+	m.project.AddMode = true
 	m.clearProjectAddModal()
 
-	if m.projectAdd == nil {
-		m.projectAdd = &projectAddState{}
+	if m.project.Add == nil {
+		m.project.Add = &projectAddState{}
 	}
-	m.projectAdd.errorMessage = ""
-	m.projectAdd.themeSelected = ""
+	m.project.Add.errorMessage = ""
+	m.project.Add.themeSelected = ""
 
 	nameInput := textinput.New()
 	nameInput.Placeholder = "project-name"
 	nameInput.CharLimit = 40
 	nameInput.Width = 36
 	nameInput.Focus()
-	m.projectAdd.nameInput = nameInput
+	m.project.Add.nameInput = nameInput
 
 	pathInput := textinput.New()
 	pathInput.Placeholder = "~/code/project-path"
 	pathInput.CharLimit = 200
 	pathInput.Width = 36
-	m.projectAdd.pathInput = pathInput
+	m.project.Add.pathInput = pathInput
 }
 
 // resetProjectAdd resets the project add sub-mode state.
 func (m *Model) resetProjectAdd() {
-	m.projectAddMode = false
-	if m.projectAdd != nil {
-		m.projectAdd.errorMessage = ""
-		m.projectAdd.themeSelected = ""
+	m.project.AddMode = false
+	if m.project.Add != nil {
+		m.project.Add.errorMessage = ""
+		m.project.Add.themeSelected = ""
 	}
 	m.clearProjectAddModal()
 	m.resetProjectAddThemePicker()
@@ -894,33 +904,33 @@ func (m *Model) resetProjectAdd() {
 
 // initProjectAddThemePicker opens the theme picker sub-modal.
 func (m *Model) initProjectAddThemePicker() {
-	m.projectAddThemeMode = true
+	m.project.AddThemeMode = true
 	ti := textinput.New()
 	ti.Placeholder = "Filter themes..."
 	ti.Focus()
 	ti.CharLimit = 50
 	ti.Width = 36
-	m.projectAddThemeInput = ti
-	m.projectAddThemeFiltered = append([]string{"(use global)"}, styles.ListThemes()...)
-	m.projectAddThemeCursor = 0
-	m.projectAddThemeScroll = 0
-	m.projectAddCommunityMode = false
+	m.project.AddThemeInput = ti
+	m.project.AddThemeFiltered = append([]string{"(use global)"}, styles.ListThemes()...)
+	m.project.AddThemeCursor = 0
+	m.project.AddThemeScroll = 0
+	m.project.AddCommunityMode = false
 }
 
 // resetProjectAddThemePicker closes the theme picker sub-modal.
 func (m *Model) resetProjectAddThemePicker() {
-	m.projectAddThemeMode = false
-	m.projectAddCommunityMode = false
-	m.projectAddThemeCursor = 0
-	m.projectAddThemeScroll = 0
-	m.projectAddCommunityCursor = 0
-	m.projectAddCommunityScroll = 0
+	m.project.AddThemeMode = false
+	m.project.AddCommunityMode = false
+	m.project.AddThemeCursor = 0
+	m.project.AddThemeScroll = 0
+	m.project.AddCommunityCursor = 0
+	m.project.AddCommunityScroll = 0
 }
 
 // previewProjectAddTheme previews the currently-selected built-in theme.
 func (m *Model) previewProjectAddTheme() {
-	if m.projectAddThemeCursor >= 0 && m.projectAddThemeCursor < len(m.projectAddThemeFiltered) {
-		name := m.projectAddThemeFiltered[m.projectAddThemeCursor]
+	if m.project.AddThemeCursor >= 0 && m.project.AddThemeCursor < len(m.project.AddThemeFiltered) {
+		name := m.project.AddThemeFiltered[m.project.AddThemeCursor]
 		if name == "(use global)" {
 			resolved := theme.ResolveTheme(m.cfg, m.ui.WorkDir)
 			theme.ApplyResolved(resolved)
@@ -932,8 +942,8 @@ func (m *Model) previewProjectAddTheme() {
 
 // previewProjectAddCommunity previews the currently-selected community theme.
 func (m *Model) previewProjectAddCommunity() {
-	if m.projectAddCommunityCursor >= 0 && m.projectAddCommunityCursor < len(m.projectAddCommunityList) {
-		name := m.projectAddCommunityList[m.projectAddCommunityCursor]
+	if m.project.AddCommunityCursor >= 0 && m.project.AddCommunityCursor < len(m.project.AddCommunityList) {
+		name := m.project.AddCommunityList[m.project.AddCommunityCursor]
 		theme.ApplyResolved(theme.ResolvedTheme{BaseName: "default", CommunityName: name})
 	}
 }
@@ -941,12 +951,12 @@ func (m *Model) previewProjectAddCommunity() {
 // validateProjectAdd validates the project add form inputs.
 // Returns an error message or empty string if valid.
 func (m *Model) validateProjectAdd() string {
-	if m.projectAdd == nil {
+	if m.project.Add == nil {
 		return "Name is required"
 	}
 
-	name := strings.TrimSpace(m.projectAdd.nameInput.Value())
-	path := strings.TrimSpace(m.projectAdd.pathInput.Value())
+	name := strings.TrimSpace(m.project.Add.nameInput.Value())
+	path := strings.TrimSpace(m.project.Add.pathInput.Value())
 
 	if name == "" {
 		return "Name is required"
@@ -985,14 +995,14 @@ func (m *Model) validateProjectAdd() string {
 
 // saveProjectAdd saves the new project to config and refreshes the list.
 func (m *Model) saveProjectAdd() tea.Cmd {
-	if m.projectAdd == nil {
+	if m.project.Add == nil {
 		return func() tea.Msg {
 			return ToastMsg{Message: "Project add state missing", Duration: 3 * time.Second, IsError: true}
 		}
 	}
 
-	name := strings.TrimSpace(m.projectAdd.nameInput.Value())
-	path := strings.TrimSpace(m.projectAdd.pathInput.Value())
+	name := strings.TrimSpace(m.project.Add.nameInput.Value())
+	path := strings.TrimSpace(m.project.Add.pathInput.Value())
 
 	// Build project config
 	proj := config.ProjectConfig{
@@ -1001,15 +1011,15 @@ func (m *Model) saveProjectAdd() tea.Cmd {
 	}
 
 	// Add theme if user selected one
-	if m.projectAdd.themeSelected != "" && m.projectAdd.themeSelected != "(use global)" {
-		if community.GetScheme(m.projectAdd.themeSelected) != nil {
+	if m.project.Add.themeSelected != "" && m.project.Add.themeSelected != "(use global)" {
+		if community.GetScheme(m.project.Add.themeSelected) != nil {
 			proj.Theme = &config.ThemeConfig{
 				Name:      "default",
-				Community: m.projectAdd.themeSelected,
+				Community: m.project.Add.themeSelected,
 			}
 		} else {
 			proj.Theme = &config.ThemeConfig{
-				Name: m.projectAdd.themeSelected,
+				Name: m.project.Add.themeSelected,
 			}
 		}
 	}
@@ -1036,7 +1046,7 @@ func (m *Model) saveProjectAdd() tea.Cmd {
 	m.cfg.Projects.List = cfg.Projects.List
 
 	// Refresh the filtered list
-	m.projectSwitcherFiltered = m.cfg.Projects.List
+	m.project.Filtered = m.cfg.Projects.List
 
 	return func() tea.Msg {
 		return ToastMsg{Message: fmt.Sprintf("Added project: %s", name), Duration: 3 * time.Second}
@@ -1045,19 +1055,19 @@ func (m *Model) saveProjectAdd() tea.Cmd {
 
 // resetThemeSwitcher resets the theme switcher modal state.
 func (m *Model) resetThemeSwitcher() {
-	m.showThemeSwitcher = false
-	m.themeSwitcherSelectedIdx = 0
-	m.themeSwitcherFiltered = nil
-	m.themeSwitcherScope = ""
-	m.themeSwitcherOriginal = themeEntry{}
+	m.theme.Show = false
+	m.theme.SelectedIdx = 0
+	m.theme.Filtered = nil
+	m.theme.Scope = ""
+	m.theme.Original = themeEntry{}
 	m.clearThemeSwitcherModal()
 }
 
 // clearThemeSwitcherModal clears the theme switcher modal state.
 func (m *Model) clearThemeSwitcherModal() {
-	m.themeSwitcherModal = nil
-	m.themeSwitcherModalWidth = 0
-	m.themeSwitcherMouseHandler = nil
+	m.theme.Modal = nil
+	m.theme.ModalWidth = 0
+	m.theme.MouseHandler = nil
 }
 
 // initIssueInput initializes the issue input modal.
@@ -1067,53 +1077,53 @@ func (m *Model) initIssueInput() {
 	ti.Focus()
 	ti.CharLimit = 50
 	ti.Width = 50
-	m.issueInputInput = ti
-	m.issueInputModal = nil
-	m.issueInputModalWidth = 0
-	m.issueInputMouseHandler = mouse.NewHandler()
-	m.issueSearchResults = nil
-	m.issueSearchQuery = ""
-	m.issueSearchLoading = false
-	m.issueSearchCursor = -1
-	m.issueSearchScrollOffset = 0
-	m.issueSearchIncludeClosed = false
+	m.issue.InputModel = ti
+	m.issue.InputModal = nil
+	m.issue.InputModalWidth = 0
+	m.issue.InputMouseHandler = mouse.NewHandler()
+	m.issue.SearchResults = nil
+	m.issue.SearchQuery = ""
+	m.issue.SearchLoading = false
+	m.issue.SearchCursor = -1
+	m.issue.SearchScrollOffset = 0
+	m.issue.SearchIncludeClosed = false
 }
 
 // resetIssueInput resets the issue input modal state.
 func (m *Model) resetIssueInput() {
-	m.showIssueInput = false
-	m.issueInputModal = nil
-	m.issueInputModalWidth = 0
-	m.issueInputMouseHandler = nil
-	m.issueSearchResults = nil
-	m.issueSearchQuery = ""
-	m.issueSearchLoading = false
-	m.issueSearchCursor = -1
-	m.issueSearchScrollOffset = 0
-	m.issueSearchIncludeClosed = false
+	m.issue.ShowInput = false
+	m.issue.InputModal = nil
+	m.issue.InputModalWidth = 0
+	m.issue.InputMouseHandler = nil
+	m.issue.SearchResults = nil
+	m.issue.SearchQuery = ""
+	m.issue.SearchLoading = false
+	m.issue.SearchCursor = -1
+	m.issue.SearchScrollOffset = 0
+	m.issue.SearchIncludeClosed = false
 }
 
 // resetIssuePreview resets the issue preview modal state.
 func (m *Model) resetIssuePreview() {
-	m.showIssuePreview = false
-	m.issuePreviewData = nil
-	m.issuePreviewLoading = false
-	m.issuePreviewError = nil
-	m.issuePreviewModal = nil
-	m.issuePreviewModalWidth = 0
-	m.issuePreviewMouseHandler = nil
+	m.issue.ShowPreview = false
+	m.issue.PreviewData = nil
+	m.issue.PreviewLoading = false
+	m.issue.PreviewError = nil
+	m.issue.PreviewModal = nil
+	m.issue.PreviewModalWidth = 0
+	m.issue.PreviewMouseHandler = nil
 }
 
 // backToIssueInput closes the preview and returns to the search modal
 // with the previous query, results, and cursor intact.
 func (m *Model) backToIssueInput() {
 	m.resetIssuePreview()
-	m.showIssueInput = true
+	m.issue.ShowInput = true
 	m.activeContext = "issue-input"
-	m.issueInputInput.Focus()
-	m.issueInputModal = nil
-	m.issueInputModalWidth = 0
-	m.issueInputMouseHandler = mouse.NewHandler()
+	m.issue.InputModel.Focus()
+	m.issue.InputModal = nil
+	m.issue.InputModalWidth = 0
+	m.issue.InputMouseHandler = mouse.NewHandler()
 }
 
 // initThemeSwitcher initializes the theme switcher modal.
@@ -1123,39 +1133,39 @@ func (m *Model) initThemeSwitcher() {
 	ti.Focus()
 	ti.CharLimit = 50
 	ti.Width = 54
-	m.themeSwitcherInput = ti
+	m.theme.Input = ti
 
 	allEntries := buildUnifiedThemeList()
-	m.themeSwitcherFiltered = allEntries
-	m.themeSwitcherSelectedIdx = 0
+	m.theme.Filtered = allEntries
+	m.theme.SelectedIdx = 0
 	if m.currentProjectConfig() != nil {
-		m.themeSwitcherScope = "project"
+		m.theme.Scope = "project"
 	} else {
-		m.themeSwitcherScope = "global"
+		m.theme.Scope = "global"
 	}
 	m.clearThemeSwitcherModal()
 
 	// Determine original theme from config
-	m.themeSwitcherOriginal = themeEntry{Name: "default", IsBuiltIn: true, ThemeKey: "default"}
+	m.theme.Original = themeEntry{Name: "default", IsBuiltIn: true, ThemeKey: "default"}
 	if freshCfg, err := config.Load(); err == nil {
 		if freshCfg.UI.Theme.Community != "" {
 			// Current theme is a community theme
 			communityName := freshCfg.UI.Theme.Community
-			m.themeSwitcherOriginal = themeEntry{Name: communityName, IsBuiltIn: false, ThemeKey: communityName}
+			m.theme.Original = themeEntry{Name: communityName, IsBuiltIn: false, ThemeKey: communityName}
 		} else if freshCfg.UI.Theme.Name != "" {
 			name := freshCfg.UI.Theme.Name
 			displayName := name
 			if t := styles.GetTheme(name); t.DisplayName != "" {
 				displayName = t.DisplayName
 			}
-			m.themeSwitcherOriginal = themeEntry{Name: displayName, IsBuiltIn: true, ThemeKey: name}
+			m.theme.Original = themeEntry{Name: displayName, IsBuiltIn: true, ThemeKey: name}
 		}
 	}
 
 	// Set cursor to current theme
-	for i, entry := range m.themeSwitcherFiltered {
-		if entry.IsBuiltIn == m.themeSwitcherOriginal.IsBuiltIn && entry.ThemeKey == m.themeSwitcherOriginal.ThemeKey {
-			m.themeSwitcherSelectedIdx = i
+	for i, entry := range m.theme.Filtered {
+		if entry.IsBuiltIn == m.theme.Original.IsBuiltIn && entry.ThemeKey == m.theme.Original.ThemeKey {
+			m.theme.SelectedIdx = i
 			break
 		}
 	}

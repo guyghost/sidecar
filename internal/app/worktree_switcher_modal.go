@@ -34,20 +34,20 @@ func (m *Model) initWorktreeSwitcher() {
 	ti.Focus()
 	ti.CharLimit = 50
 	ti.Width = 40
-	m.worktreeSwitcherInput = ti
+	m.worktree.Input = ti
 
 	// Load all worktrees
-	m.worktreeSwitcherAll = GetWorktrees(m.ui.WorkDir)
-	m.worktreeSwitcherFiltered = m.worktreeSwitcherAll
-	m.worktreeSwitcherCursor = 0
-	m.worktreeSwitcherScroll = 0
+	m.worktree.All = GetWorktrees(m.ui.WorkDir)
+	m.worktree.Filtered = m.worktree.All
+	m.worktree.Cursor = 0
+	m.worktree.Scroll = 0
 
 	// Set cursor to current worktree if found
-	for i, wt := range m.worktreeSwitcherFiltered {
+	for i, wt := range m.worktree.Filtered {
 		normalizedPath, _ := normalizePath(wt.Path)
 		normalizedWorkDir, _ := normalizePath(m.ui.WorkDir)
 		if normalizedPath == normalizedWorkDir {
-			m.worktreeSwitcherCursor = i
+			m.worktree.Cursor = i
 			break
 		}
 	}
@@ -55,19 +55,19 @@ func (m *Model) initWorktreeSwitcher() {
 
 // resetWorktreeSwitcher resets the worktree switcher modal state.
 func (m *Model) resetWorktreeSwitcher() {
-	m.showWorktreeSwitcher = false
-	m.worktreeSwitcherCursor = 0
-	m.worktreeSwitcherScroll = 0
-	m.worktreeSwitcherFiltered = nil
-	m.worktreeSwitcherAll = nil
+	m.worktree.Show = false
+	m.worktree.Cursor = 0
+	m.worktree.Scroll = 0
+	m.worktree.Filtered = nil
+	m.worktree.All = nil
 	m.clearWorktreeSwitcherModal()
 }
 
 // clearWorktreeSwitcherModal clears the modal cache.
 func (m *Model) clearWorktreeSwitcherModal() {
-	m.worktreeSwitcherModal = nil
-	m.worktreeSwitcherModalWidth = 0
-	m.worktreeSwitcherMouseHandler = nil
+	m.worktree.Modal = nil
+	m.worktree.ModalWidth = 0
+	m.worktree.MouseHandler = nil
 }
 
 // filterWorktrees filters worktrees by branch name or path.
@@ -108,16 +108,16 @@ func (m *Model) ensureWorktreeSwitcherModal() {
 	}
 
 	// Only rebuild if modal doesn't exist or width changed
-	if m.worktreeSwitcherModal != nil && m.worktreeSwitcherModalWidth == modalW {
+	if m.worktree.Modal != nil && m.worktree.ModalWidth == modalW {
 		return
 	}
-	m.worktreeSwitcherModalWidth = modalW
+	m.worktree.ModalWidth = modalW
 
-	m.worktreeSwitcherModal = modal.New("Switch Worktree",
+	m.worktree.Modal = modal.New("Switch Worktree",
 		modal.WithWidth(modalW),
 		modal.WithHints(false),
 	).
-		AddSection(modal.Input(worktreeSwitcherFilterID, &m.worktreeSwitcherInput, modal.WithSubmitOnEnter(false))).
+		AddSection(modal.Input(worktreeSwitcherFilterID, &m.worktree.Input, modal.WithSubmitOnEnter(false))).
 		AddSection(m.worktreeSwitcherCountSection()).
 		AddSection(modal.Spacer()).
 		AddSection(m.worktreeSwitcherListSection()).
@@ -127,11 +127,11 @@ func (m *Model) ensureWorktreeSwitcherModal() {
 // worktreeSwitcherCountSection renders the worktree count.
 func (m *Model) worktreeSwitcherCountSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
-		worktrees := m.worktreeSwitcherFiltered
-		allWorktrees := m.worktreeSwitcherAll
+		worktrees := m.worktree.Filtered
+		allWorktrees := m.worktree.All
 
 		var countText string
-		if m.worktreeSwitcherInput.Value() != "" {
+		if m.worktree.Input.Value() != "" {
 			countText = fmt.Sprintf("%d of %d worktrees", len(worktrees), len(allWorktrees))
 		} else if len(allWorktrees) > 0 {
 			countText = fmt.Sprintf("%d worktrees", len(allWorktrees))
@@ -143,7 +143,7 @@ func (m *Model) worktreeSwitcherCountSection() modal.Section {
 // worktreeSwitcherListSection renders the worktree list with selection.
 func (m *Model) worktreeSwitcherListSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
-		worktrees := m.worktreeSwitcherFiltered
+		worktrees := m.worktree.Filtered
 
 		// No worktrees
 		if len(worktrees) == 0 {
@@ -166,7 +166,7 @@ func (m *Model) worktreeSwitcherListSection() modal.Section {
 		if visibleCount > maxVisible {
 			visibleCount = maxVisible
 		}
-		scrollOffset := m.worktreeSwitcherScroll
+		scrollOffset := m.worktree.Scroll
 
 		var sb strings.Builder
 		focusables := make([]modal.FocusableInfo, 0, visibleCount)
@@ -181,7 +181,7 @@ func (m *Model) worktreeSwitcherListSection() modal.Section {
 
 		for i := scrollOffset; i < scrollOffset+visibleCount && i < len(worktrees); i++ {
 			wt := worktrees[i]
-			isCursor := i == m.worktreeSwitcherCursor
+			isCursor := i == m.worktree.Cursor
 			itemID := worktreeSwitcherItemID(i)
 			isHovered := itemID == hoverID
 
@@ -270,30 +270,30 @@ func (m *Model) worktreeSwitcherListUpdate(msg tea.Msg, focusID string) (string,
 		return "", nil
 	}
 
-	worktrees := m.worktreeSwitcherFiltered
+	worktrees := m.worktree.Filtered
 	if len(worktrees) == 0 {
 		return "", nil
 	}
 
 	switch keyMsg.String() {
 	case "up", "k", "ctrl+p":
-		if m.worktreeSwitcherCursor > 0 {
-			m.worktreeSwitcherCursor--
-			m.worktreeSwitcherScroll = worktreeSwitcherEnsureCursorVisible(m.worktreeSwitcherCursor, m.worktreeSwitcherScroll, 8)
-			m.worktreeSwitcherModalWidth = 0 // Force modal rebuild for scroll
+		if m.worktree.Cursor > 0 {
+			m.worktree.Cursor--
+			m.worktree.Scroll = worktreeSwitcherEnsureCursorVisible(m.worktree.Cursor, m.worktree.Scroll, 8)
+			m.worktree.ModalWidth = 0 // Force modal rebuild for scroll
 		}
 		return "", nil
 
 	case "down", "j", "ctrl+n":
-		if m.worktreeSwitcherCursor < len(worktrees)-1 {
-			m.worktreeSwitcherCursor++
-			m.worktreeSwitcherScroll = worktreeSwitcherEnsureCursorVisible(m.worktreeSwitcherCursor, m.worktreeSwitcherScroll, 8)
-			m.worktreeSwitcherModalWidth = 0 // Force modal rebuild for scroll
+		if m.worktree.Cursor < len(worktrees)-1 {
+			m.worktree.Cursor++
+			m.worktree.Scroll = worktreeSwitcherEnsureCursorVisible(m.worktree.Cursor, m.worktree.Scroll, 8)
+			m.worktree.ModalWidth = 0 // Force modal rebuild for scroll
 		}
 		return "", nil
 
 	case "enter":
-		if m.worktreeSwitcherCursor >= 0 && m.worktreeSwitcherCursor < len(worktrees) {
+		if m.worktree.Cursor >= 0 && m.worktree.Cursor < len(worktrees) {
 			return "select", nil
 		}
 		return "", nil
@@ -305,7 +305,7 @@ func (m *Model) worktreeSwitcherListUpdate(msg tea.Msg, focusID string) (string,
 // worktreeSwitcherHintsSection renders the help text.
 func (m *Model) worktreeSwitcherHintsSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
-		worktrees := m.worktreeSwitcherFiltered
+		worktrees := m.worktree.Filtered
 
 		var sb strings.Builder
 		sb.WriteString("\n")
@@ -331,34 +331,34 @@ func (m *Model) worktreeSwitcherHintsSection() modal.Section {
 // renderWorktreeSwitcherModal renders the worktree switcher modal.
 func (m *Model) renderWorktreeSwitcherModal(content string) string {
 	m.ensureWorktreeSwitcherModal()
-	if m.worktreeSwitcherModal == nil {
+	if m.worktree.Modal == nil {
 		return content
 	}
 
-	if m.worktreeSwitcherMouseHandler == nil {
-		m.worktreeSwitcherMouseHandler = mouse.NewHandler()
+	if m.worktree.MouseHandler == nil {
+		m.worktree.MouseHandler = mouse.NewHandler()
 	}
-	modalContent := m.worktreeSwitcherModal.Render(m.width, m.height, m.worktreeSwitcherMouseHandler)
+	modalContent := m.worktree.Modal.Render(m.width, m.height, m.worktree.MouseHandler)
 	return ui.OverlayModal(content, modalContent, m.width, m.height)
 }
 
 // handleWorktreeSwitcherMouse handles mouse events for the worktree switcher modal.
 func (m *Model) handleWorktreeSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	m.ensureWorktreeSwitcherModal()
-	if m.worktreeSwitcherModal == nil {
+	if m.worktree.Modal == nil {
 		return m, nil
 	}
-	if m.worktreeSwitcherMouseHandler == nil {
-		m.worktreeSwitcherMouseHandler = mouse.NewHandler()
+	if m.worktree.MouseHandler == nil {
+		m.worktree.MouseHandler = mouse.NewHandler()
 	}
 
-	action := m.worktreeSwitcherModal.HandleMouse(msg, m.worktreeSwitcherMouseHandler)
+	action := m.worktree.Modal.HandleMouse(msg, m.worktree.MouseHandler)
 
 	// Check if action is a worktree item click
 	if strings.HasPrefix(action, worktreeSwitcherItemPrefix) {
 		var idx int
 		if _, err := fmt.Sscanf(action, worktreeSwitcherItemPrefix+"%d", &idx); err == nil {
-			worktrees := m.worktreeSwitcherFiltered
+			worktrees := m.worktree.Filtered
 			if idx >= 0 && idx < len(worktrees) {
 				selectedPath := worktrees[idx].Path
 				m.resetWorktreeSwitcher()
@@ -375,9 +375,9 @@ func (m *Model) handleWorktreeSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cm
 		m.updateContext()
 		return m, nil
 	case "select":
-		worktrees := m.worktreeSwitcherFiltered
-		if m.worktreeSwitcherCursor >= 0 && m.worktreeSwitcherCursor < len(worktrees) {
-			selectedPath := worktrees[m.worktreeSwitcherCursor].Path
+		worktrees := m.worktree.Filtered
+		if m.worktree.Cursor >= 0 && m.worktree.Cursor < len(worktrees) {
+			selectedPath := worktrees[m.worktree.Cursor].Path
 			m.resetWorktreeSwitcher()
 			m.updateContext()
 			return m, m.switchWorktree(selectedPath)
@@ -415,11 +415,11 @@ func (m *Model) switchWorktree(worktreePath string) tea.Cmd {
 func (m *Model) refreshWorktreeCache() {
 	worktrees := GetWorktrees(m.ui.WorkDir)
 	normalizedWorkDir, _ := normalizePath(m.ui.WorkDir)
-	m.cachedWorktreeInfo = nil
+	m.worktree.CachedInfo = nil
 	for i, wt := range worktrees {
 		normalizedPath, _ := normalizePath(wt.Path)
 		if normalizedPath == normalizedWorkDir {
-			m.cachedWorktreeInfo = &worktrees[i]
+			m.worktree.CachedInfo = &worktrees[i]
 			return
 		}
 	}
@@ -428,5 +428,5 @@ func (m *Model) refreshWorktreeCache() {
 // currentWorktreeInfo returns the cached WorktreeInfo for the current WorkDir, or nil.
 // Cache is populated eagerly in Update() (TickMsg, switchProject) — never in View().
 func (m *Model) currentWorktreeInfo() *WorktreeInfo {
-	return m.cachedWorktreeInfo
+	return m.worktree.CachedInfo
 }

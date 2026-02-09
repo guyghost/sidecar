@@ -71,13 +71,13 @@ func formatSearchStatusTag(status string) string {
 
 func (m *Model) renderIssueInputOverlay(content string) string {
 	m.ensureIssueInputModal()
-	if m.issueInputModal == nil {
+	if m.issue.InputModal == nil {
 		return content
 	}
-	if m.issueInputMouseHandler == nil {
-		m.issueInputMouseHandler = mouse.NewHandler()
+	if m.issue.InputMouseHandler == nil {
+		m.issue.InputMouseHandler = mouse.NewHandler()
 	}
-	rendered := m.issueInputModal.Render(m.width, m.height, m.issueInputMouseHandler)
+	rendered := m.issue.InputModal.Render(m.width, m.height, m.issue.InputMouseHandler)
 	return ui.OverlayModal(content, rendered, m.width, m.height)
 }
 
@@ -92,14 +92,14 @@ func (m *Model) ensureIssueInputModal() {
 	if modalW < 20 {
 		modalW = 20
 	}
-	if m.issueInputModal != nil && m.issueInputModalWidth == modalW {
+	if m.issue.InputModal != nil && m.issue.InputModalWidth == modalW {
 		return
 	}
-	m.issueInputModalWidth = modalW
+	m.issue.InputModalWidth = modalW
 
 	// Build footer hint string (always visible outside viewport)
 	var hintBuf strings.Builder
-	hasResults := len(m.issueSearchResults) > 0
+	hasResults := len(m.issue.SearchResults) > 0
 	if hasResults {
 		hintBuf.WriteString(styles.KeyHint.Render("enter"))
 		hintBuf.WriteString(styles.Muted.Render(" open  "))
@@ -108,7 +108,7 @@ func (m *Model) ensureIssueInputModal() {
 		hintBuf.WriteString(styles.KeyHint.Render("tab"))
 		hintBuf.WriteString(styles.Muted.Render(" fill  "))
 	}
-	if m.issueSearchIncludeClosed {
+	if m.issue.SearchIncludeClosed {
 		hintBuf.WriteString(styles.KeyHint.Render("^x"))
 		hintBuf.WriteString(styles.Muted.Render(" hide closed  "))
 	} else {
@@ -125,14 +125,14 @@ func (m *Model) ensureIssueInputModal() {
 		modal.WithHints(false),
 		modal.WithCustomFooter(hintBuf.String()),
 	).
-		AddSection(modal.Input("issue-id", &m.issueInputInput))
+		AddSection(modal.Input("issue-id", &m.issue.InputModel))
 
 	// Status line — always present to avoid layout jumps
-	if m.issueSearchLoading {
+	if m.issue.SearchLoading {
 		b = b.AddSection(modal.Text(styles.Muted.Render("Searching...")))
-	} else if len(m.issueSearchResults) > 0 {
-		countStr := fmt.Sprintf("%d results", len(m.issueSearchResults))
-		if !m.issueSearchIncludeClosed {
+	} else if len(m.issue.SearchResults) > 0 {
+		countStr := fmt.Sprintf("%d results", len(m.issue.SearchResults))
+		if !m.issue.SearchIncludeClosed {
 			countStr += " (excluding closed)"
 		}
 		b = b.AddSection(modal.Text(styles.Muted.Render(countStr)))
@@ -143,10 +143,10 @@ func (m *Model) ensureIssueInputModal() {
 	// Search results dropdown — viewport window over all results
 	const maxVisible = 10
 	const minResultLines = 5
-	if len(m.issueSearchResults) > 0 {
-		searchResults := m.issueSearchResults
-		searchCursor := m.issueSearchCursor
-		searchScrollOffset := m.issueSearchScrollOffset
+	if len(m.issue.SearchResults) > 0 {
+		searchResults := m.issue.SearchResults
+		searchCursor := m.issue.SearchCursor
+		searchScrollOffset := m.issue.SearchScrollOffset
 		b = b.AddSection(modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
 			var sb strings.Builder
 			total := len(searchResults)
@@ -217,18 +217,18 @@ func (m *Model) ensureIssueInputModal() {
 		))
 	}
 
-	m.issueInputModal = b
+	m.issue.InputModal = b
 }
 
 func (m *Model) renderIssuePreviewOverlay(content string) string {
 	m.ensureIssuePreviewModal()
-	if m.issuePreviewModal == nil {
+	if m.issue.PreviewModal == nil {
 		return content
 	}
-	if m.issuePreviewMouseHandler == nil {
-		m.issuePreviewMouseHandler = mouse.NewHandler()
+	if m.issue.PreviewMouseHandler == nil {
+		m.issue.PreviewMouseHandler = mouse.NewHandler()
 	}
-	rendered := m.issuePreviewModal.Render(m.width, m.height, m.issuePreviewMouseHandler)
+	rendered := m.issue.PreviewModal.Render(m.width, m.height, m.issue.PreviewMouseHandler)
 	return ui.OverlayModal(content, rendered, m.width, m.height)
 }
 
@@ -244,13 +244,13 @@ func (m *Model) ensureIssuePreviewModal() {
 
 	// Cache check -- also invalidate when data/error/loading changes
 	cacheKey := modalW
-	if m.issuePreviewModal != nil && m.issuePreviewModalWidth == cacheKey {
+	if m.issue.PreviewModal != nil && m.issue.PreviewModalWidth == cacheKey {
 		return
 	}
-	m.issuePreviewModalWidth = cacheKey
+	m.issue.PreviewModalWidth = cacheKey
 
-	if m.issuePreviewLoading {
-		m.issuePreviewModal = modal.New("Loading...",
+	if m.issue.PreviewLoading {
+		m.issue.PreviewModal = modal.New("Loading...",
 			modal.WithWidth(modalW),
 			modal.WithHints(false),
 		).
@@ -258,13 +258,13 @@ func (m *Model) ensureIssuePreviewModal() {
 		return
 	}
 
-	if m.issuePreviewError != nil {
-		m.issuePreviewModal = modal.New("Issue Not Found",
+	if m.issue.PreviewError != nil {
+		m.issue.PreviewModal = modal.New("Issue Not Found",
 			modal.WithWidth(modalW),
 			modal.WithVariant(modal.VariantDanger),
 			modal.WithHints(false),
 		).
-			AddSection(modal.Text(m.issuePreviewError.Error())).
+			AddSection(modal.Text(m.issue.PreviewError.Error())).
 			AddSection(modal.Spacer()).
 			AddSection(modal.Buttons(
 				modal.Btn(" Close ", "cancel"),
@@ -272,12 +272,12 @@ func (m *Model) ensureIssuePreviewModal() {
 		return
 	}
 
-	if m.issuePreviewData == nil {
-		m.issuePreviewModal = nil
+	if m.issue.PreviewData == nil {
+		m.issue.PreviewModal = nil
 		return
 	}
 
-	data := m.issuePreviewData
+	data := m.issue.PreviewData
 
 	// Build title
 	title := data.ID
@@ -353,5 +353,5 @@ func (m *Model) ensureIssuePreviewModal() {
 		modal.Btn(" Close ", "cancel"),
 	))
 
-	m.issuePreviewModal = b
+	m.issue.PreviewModal = b
 }

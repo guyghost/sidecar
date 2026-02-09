@@ -116,7 +116,7 @@ func TestRepoNameClick_OpensProjectSwitcher(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	updated := newModel.(Model)
 
-	if !updated.showProjectSwitcher {
+	if !updated.project.Show {
 		t.Errorf("clicking repo name at X=%d (bounds %d-%d) should open project switcher", clickX, start, end)
 	}
 	if updated.activeContext != "project-switcher" {
@@ -160,7 +160,7 @@ func TestRepoNameClick_BlockedDuringIntro(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	updated := newModel.(Model)
 
-	if updated.showProjectSwitcher {
+	if updated.project.Show {
 		t.Error("clicking repo name during intro animation should NOT open project switcher")
 	}
 }
@@ -201,7 +201,7 @@ func TestRepoNameClick_OutsideBounds(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	updated := newModel.(Model)
 
-	if updated.showProjectSwitcher {
+	if updated.project.Show {
 		t.Error("clicking outside repo name bounds should NOT open project switcher")
 	}
 }

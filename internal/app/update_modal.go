@@ -54,7 +54,7 @@ func (m *Model) updateModalWidth() int {
 func (m *Model) renderUpdateModalOverlay(background string) string {
 	// Render modal content based on state
 	var modalContent string
-	switch m.updateModalState {
+	switch m.update.ModalState {
 	case UpdateModalPreview:
 		modalContent = m.renderUpdatePreviewModal()
 	case UpdateModalProgress:
@@ -76,10 +76,10 @@ func (m *Model) ensureUpdatePreviewModal() {
 		return
 	}
 	modalW := m.updateModalWidth()
-	if m.updatePreviewModal != nil && m.updatePreviewModalWidth == modalW {
+	if m.update.PreviewModal != nil && m.update.PreviewModalWidth == modalW {
 		return
 	}
-	m.updatePreviewModalWidth = modalW
+	m.update.PreviewModalWidth = modalW
 	contentW := modalW - 6 // borders + padding
 
 	// TD-only update: build a simpler modal
@@ -88,14 +88,14 @@ func (m *Model) ensureUpdatePreviewModal() {
 		versionLine := fmt.Sprintf("%s%s%s", m.tdVersionInfo.CurrentVersion, arrow, m.tdVersionInfo.LatestVersion)
 
 		var methodHint string
-		switch m.updateInstallMethod {
+		switch m.update.InstallMethod {
 		case version.InstallMethodHomebrew:
 			methodHint = styles.Muted.Render("Method: brew upgrade td")
 		default:
 			methodHint = styles.Muted.Render("Method: go install")
 		}
 
-		m.updatePreviewModal = modal.New("td Update",
+		m.update.PreviewModal = modal.New("td Update",
 			modal.WithWidth(modalW),
 			modal.WithVariant(modal.VariantDefault),
 			modal.WithPrimaryAction("update"),
@@ -119,7 +119,7 @@ func (m *Model) ensureUpdatePreviewModal() {
 	versionLine := fmt.Sprintf("%s%s%s", currentV, arrow, latestV)
 
 	// Release notes
-	releaseNotes := m.updateReleaseNotes
+	releaseNotes := m.update.ReleaseNotes
 	if releaseNotes == "" {
 		releaseNotes = m.updateAvailable.ReleaseNotes
 	}
@@ -144,7 +144,7 @@ func (m *Model) ensureUpdatePreviewModal() {
 	var methodHint string
 	var buttons []modal.ButtonDef
 
-	switch m.updateInstallMethod {
+	switch m.update.InstallMethod {
 	case version.InstallMethodHomebrew:
 		methodHint = styles.Muted.Render("Method: brew upgrade sidecar")
 		buttons = []modal.ButtonDef{
@@ -166,7 +166,7 @@ func (m *Model) ensureUpdatePreviewModal() {
 		}
 	}
 
-	m.updatePreviewModal = modal.New("Sidecar Update",
+	m.update.PreviewModal = modal.New("Sidecar Update",
 		modal.WithWidth(modalW),
 		modal.WithVariant(modal.VariantDefault),
 		modal.WithPrimaryAction("update"),
@@ -187,13 +187,13 @@ func (m *Model) ensureUpdatePreviewModal() {
 // renderUpdatePreviewModal renders the preview state showing release notes before update.
 func (m *Model) renderUpdatePreviewModal() string {
 	m.ensureUpdatePreviewModal()
-	if m.updatePreviewModal == nil {
+	if m.update.PreviewModal == nil {
 		return ""
 	}
-	if m.updatePreviewMouseHandler == nil {
-		m.updatePreviewMouseHandler = mouse.NewHandler()
+	if m.update.PreviewMouseHandler == nil {
+		m.update.PreviewMouseHandler = mouse.NewHandler()
 	}
-	return m.updatePreviewModal.Render(m.width, m.height, m.updatePreviewMouseHandler)
+	return m.update.PreviewModal.Render(m.width, m.height, m.update.PreviewMouseHandler)
 }
 
 // parseReleaseNotes cleans up release notes by removing duplicate headers
@@ -281,9 +281,9 @@ func (m *Model) renderUpdateProgressModal() string {
 
 	// Phase indicators - 3 real, observable phases
 	phases := []UpdatePhase{PhaseCheckPrereqs, PhaseInstalling, PhaseVerifying}
-	methodStr := string(m.updateInstallMethod)
+	methodStr := string(m.update.InstallMethod)
 	for _, phase := range phases {
-		status := m.updatePhaseStatus[phase]
+		status := m.update.PhaseStatus[phase]
 		icon := "○" // pending
 		color := styles.TextMuted
 
@@ -300,7 +300,7 @@ func (m *Model) renderUpdateProgressModal() string {
 		}
 
 		phaseName := phase.StringForMethod(methodStr)
-		if phase == m.updatePhase && status == "running" {
+		if phase == m.update.Phase && status == "running" {
 			phaseName = lipgloss.NewStyle().Bold(true).Render(phaseName)
 		}
 
@@ -347,10 +347,10 @@ func (m *Model) renderUpdateProgressModal() string {
 
 // getUpdateElapsed returns the elapsed time since update started.
 func (m *Model) getUpdateElapsed() time.Duration {
-	if m.updateStartTime.IsZero() {
+	if m.update.StartTime.IsZero() {
 		return 0
 	}
-	return time.Since(m.updateStartTime)
+	return time.Since(m.update.StartTime)
 }
 
 // formatElapsed formats a duration as M:SS.
@@ -363,10 +363,10 @@ func formatElapsed(d time.Duration) string {
 // ensureUpdateCompleteModal creates/updates the complete modal with caching.
 func (m *Model) ensureUpdateCompleteModal() {
 	modalW := m.updateModalWidth()
-	if m.updateCompleteModal != nil && m.updateCompleteModalWidth == modalW {
+	if m.update.CompleteModal != nil && m.update.CompleteModalWidth == modalW {
 		return
 	}
-	m.updateCompleteModalWidth = modalW
+	m.update.CompleteModalWidth = modalW
 
 	checkmark := lipgloss.NewStyle().Foreground(styles.Success).Render("✓")
 
@@ -383,7 +383,7 @@ func (m *Model) ensureUpdateCompleteModal() {
 	restartMsg := styles.Muted.Render("Restart sidecar to use the new version.")
 	tip := styles.Muted.Render("Tip: Press q to quit, then run 'sidecar' again.")
 
-	m.updateCompleteModal = modal.New("Update Complete!",
+	m.update.CompleteModal = modal.New("Update Complete!",
 		modal.WithWidth(modalW),
 		modal.WithVariant(modal.VariantInfo),
 		modal.WithPrimaryAction("quit"),
@@ -402,40 +402,40 @@ func (m *Model) ensureUpdateCompleteModal() {
 // renderUpdateCompleteModal renders the completion state.
 func (m *Model) renderUpdateCompleteModal() string {
 	m.ensureUpdateCompleteModal()
-	if m.updateCompleteModal == nil {
+	if m.update.CompleteModal == nil {
 		return ""
 	}
-	if m.updateCompleteMouseHandler == nil {
-		m.updateCompleteMouseHandler = mouse.NewHandler()
+	if m.update.CompleteMouseHandler == nil {
+		m.update.CompleteMouseHandler = mouse.NewHandler()
 	}
-	return m.updateCompleteModal.Render(m.width, m.height, m.updateCompleteMouseHandler)
+	return m.update.CompleteModal.Render(m.width, m.height, m.update.CompleteMouseHandler)
 }
 
 // ensureUpdateErrorModal creates/updates the error modal with caching.
 func (m *Model) ensureUpdateErrorModal() {
 	modalW := m.updateModalWidth()
-	if m.updateErrorModal != nil && m.updateErrorModalWidth == modalW {
+	if m.update.ErrorModal != nil && m.update.ErrorModalWidth == modalW {
 		return
 	}
-	m.updateErrorModalWidth = modalW
+	m.update.ErrorModalWidth = modalW
 
 	errorIcon := lipgloss.NewStyle().Foreground(styles.Error).Render("✗")
-	phaseName := m.updatePhase.String()
+	phaseName := m.update.Phase.String()
 	errorLine := fmt.Sprintf("  %s Error during: %s", errorIcon, phaseName)
 
-	errorMsg := m.updateError
+	errorMsg := m.update.Error
 	if errorMsg == "" {
 		errorMsg = "An unknown error occurred."
 	}
 
-	m.updateErrorModal = modal.New("Update Failed",
+	m.update.ErrorModal = modal.New("Update Failed",
 		modal.WithWidth(modalW),
 		modal.WithVariant(modal.VariantDanger),
 		modal.WithPrimaryAction("retry"),
 	).
 		AddSection(modal.Text(errorLine)).
 		AddSection(modal.Spacer()).
-		AddSection(modal.Text(styles.Muted.Render("  "+errorMsg))).
+		AddSection(modal.Text(styles.Muted.Render("  " + errorMsg))).
 		AddSection(modal.Spacer()).
 		AddSection(modal.Buttons(
 			modal.Btn(" Retry ", "retry"),
@@ -446,13 +446,13 @@ func (m *Model) ensureUpdateErrorModal() {
 // renderUpdateErrorModal renders the error state.
 func (m *Model) renderUpdateErrorModal() string {
 	m.ensureUpdateErrorModal()
-	if m.updateErrorModal == nil {
+	if m.update.ErrorModal == nil {
 		return ""
 	}
-	if m.updateErrorMouseHandler == nil {
-		m.updateErrorMouseHandler = mouse.NewHandler()
+	if m.update.ErrorMouseHandler == nil {
+		m.update.ErrorMouseHandler = mouse.NewHandler()
 	}
-	return m.updateErrorModal.Render(m.width, m.height, m.updateErrorMouseHandler)
+	return m.update.ErrorModal.Render(m.width, m.height, m.update.ErrorMouseHandler)
 }
 
 // getChangelogModalWidth returns the width for the changelog modal.
@@ -487,32 +487,32 @@ func (m *Model) ensureChangelogModal() {
 
 	// Check if we can reuse the cached modal
 	// Rebuild only if width or max visible lines changed
-	if m.changelogModal != nil &&
-		m.changelogModalWidth == modalW &&
-		m.changelogMaxVisibleLines == maxContentLines {
+	if m.update.ChangelogModal != nil &&
+		m.update.ChangelogModalWidth == modalW &&
+		m.update.ChangelogMaxVisibleLines == maxContentLines {
 		return
 	}
 
-	m.changelogModalWidth = modalW
-	m.changelogMaxVisibleLines = maxContentLines
+	m.update.ChangelogModalWidth = modalW
+	m.update.ChangelogMaxVisibleLines = maxContentLines
 
 	// Render changelog content and cache the lines
-	content := m.updateChangelog
+	content := m.update.Changelog
 	if content == "" {
 		content = "Loading changelog..."
 	}
 	renderedContent := m.renderReleaseNotes(content, contentW)
-	m.changelogRenderedLines = strings.Split(renderedContent, "\n")
+	m.update.ChangelogRenderedLines = strings.Split(renderedContent, "\n")
 
 	// Initialize or update the shared scroll state
-	if m.changelogScrollState == nil {
-		m.changelogScrollState = &changelogViewState{}
+	if m.update.ChangelogScrollState == nil {
+		m.update.ChangelogScrollState = &changelogViewState{}
 	}
-	m.changelogScrollState.RenderedLines = m.changelogRenderedLines
-	m.changelogScrollState.MaxVisibleLines = maxContentLines
+	m.update.ChangelogScrollState.RenderedLines = m.update.ChangelogRenderedLines
+	m.update.ChangelogScrollState.MaxVisibleLines = maxContentLines
 
 	// Capture shared pointer - survives bubbletea value copies
-	state := m.changelogScrollState
+	state := m.update.ChangelogScrollState
 
 	// Create a custom section that handles scrolling dynamically.
 	// The closure reads from the shared state pointer so scroll changes
@@ -551,7 +551,7 @@ func (m *Model) ensureChangelogModal() {
 		return modal.RenderedSection{Content: visibleContent}
 	}, nil)
 
-	m.changelogModal = modal.New("Changelog",
+	m.update.ChangelogModal = modal.New("Changelog",
 		modal.WithWidth(modalW),
 		modal.WithVariant(modal.VariantDefault),
 		modal.WithHints(false), // We show custom hints
@@ -566,19 +566,19 @@ func (m *Model) ensureChangelogModal() {
 
 // clearChangelogModal clears the changelog modal cache.
 func (m *Model) clearChangelogModal() {
-	m.changelogModal = nil
-	m.changelogModalWidth = 0
-	m.changelogMouseHandler = nil
-	m.changelogRenderedLines = nil
-	m.changelogMaxVisibleLines = 0
-	m.changelogScrollState = nil
+	m.update.ChangelogModal = nil
+	m.update.ChangelogModalWidth = 0
+	m.update.ChangelogMouseHandler = nil
+	m.update.ChangelogRenderedLines = nil
+	m.update.ChangelogMaxVisibleLines = 0
+	m.update.ChangelogScrollState = nil
 }
 
 // syncChangelogScroll updates the shared scroll state from the model field.
 // Call this after modifying changelogScrollOffset instead of clearChangelogModal.
 func (m *Model) syncChangelogScroll() {
-	if m.changelogScrollState != nil {
-		m.changelogScrollState.ScrollOffset = m.changelogScrollOffset
+	if m.update.ChangelogScrollState != nil {
+		m.update.ChangelogScrollState.ScrollOffset = m.update.ChangelogScrollOffset
 	}
 }
 
@@ -608,12 +608,12 @@ func fetchChangelog() tea.Cmd {
 // renderChangelogOverlay renders the changelog as an overlay on the update preview modal.
 func (m *Model) renderChangelogOverlay(background string) string {
 	m.ensureChangelogModal()
-	if m.changelogModal == nil {
+	if m.update.ChangelogModal == nil {
 		return background
 	}
-	if m.changelogMouseHandler == nil {
-		m.changelogMouseHandler = mouse.NewHandler()
+	if m.update.ChangelogMouseHandler == nil {
+		m.update.ChangelogMouseHandler = mouse.NewHandler()
 	}
-	modalContent := m.changelogModal.Render(m.width, m.height, m.changelogMouseHandler)
+	modalContent := m.update.ChangelogModal.Render(m.width, m.height, m.update.ChangelogMouseHandler)
 	return ui.OverlayModal(background, modalContent, m.width, m.height)
 }

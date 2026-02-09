@@ -13,22 +13,22 @@ func (m *Model) handleThemeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.currentProjectConfig() != nil {
 		switch msg.String() {
 		case "ctrl+s", "left", "right":
-			if m.themeSwitcherScope == "global" {
-				m.themeSwitcherScope = "project"
+			if m.theme.Scope == "global" {
+				m.theme.Scope = "project"
 			} else {
-				m.themeSwitcherScope = "global"
+				m.theme.Scope = "global"
 			}
 			return m, nil
 		}
 	}
 
-	themes := m.themeSwitcherFiltered
+	themes := m.theme.Filtered
 
 	switch msg.Type {
 	case tea.KeyEnter:
 		// Confirm selection and close (ignore separators)
-		if m.themeSwitcherSelectedIdx >= 0 && m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			entry := themes[m.themeSwitcherSelectedIdx]
+		if m.theme.SelectedIdx >= 0 && m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
+			entry := themes[m.theme.SelectedIdx]
 			var tc config.ThemeConfig
 			if entry.IsBuiltIn {
 				tc = config.ThemeConfig{Name: entry.ThemeKey}
@@ -41,33 +41,33 @@ func (m *Model) handleThemeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyUp:
-		m.themeSwitcherSelectedIdx--
-		if m.themeSwitcherSelectedIdx < 0 {
-			m.themeSwitcherSelectedIdx = 0
+		m.theme.SelectedIdx--
+		if m.theme.SelectedIdx < 0 {
+			m.theme.SelectedIdx = 0
 		}
 		// Skip separators
-		for m.themeSwitcherSelectedIdx > 0 && themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.themeSwitcherSelectedIdx--
+		for m.theme.SelectedIdx > 0 && themes[m.theme.SelectedIdx].IsSeparator {
+			m.theme.SelectedIdx--
 		}
-		if m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.previewThemeEntry(themes[m.themeSwitcherSelectedIdx])
+		if m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
+			m.previewThemeEntry(themes[m.theme.SelectedIdx])
 		}
 		return m, nil
 
 	case tea.KeyDown:
-		m.themeSwitcherSelectedIdx++
-		if m.themeSwitcherSelectedIdx >= len(themes) {
-			m.themeSwitcherSelectedIdx = len(themes) - 1
+		m.theme.SelectedIdx++
+		if m.theme.SelectedIdx >= len(themes) {
+			m.theme.SelectedIdx = len(themes) - 1
 		}
-		if m.themeSwitcherSelectedIdx < 0 {
-			m.themeSwitcherSelectedIdx = 0
+		if m.theme.SelectedIdx < 0 {
+			m.theme.SelectedIdx = 0
 		}
 		// Skip separators
-		for m.themeSwitcherSelectedIdx < len(themes)-1 && themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.themeSwitcherSelectedIdx++
+		for m.theme.SelectedIdx < len(themes)-1 && themes[m.theme.SelectedIdx].IsSeparator {
+			m.theme.SelectedIdx++
 		}
-		if m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.previewThemeEntry(themes[m.themeSwitcherSelectedIdx])
+		if m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
+			m.previewThemeEntry(themes[m.theme.SelectedIdx])
 		}
 		return m, nil
 	}
@@ -75,37 +75,37 @@ func (m *Model) handleThemeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Handle non-text shortcuts
 	switch msg.String() {
 	case "ctrl+n":
-		m.themeSwitcherSelectedIdx++
-		if m.themeSwitcherSelectedIdx >= len(themes) {
-			m.themeSwitcherSelectedIdx = len(themes) - 1
+		m.theme.SelectedIdx++
+		if m.theme.SelectedIdx >= len(themes) {
+			m.theme.SelectedIdx = len(themes) - 1
 		}
-		if m.themeSwitcherSelectedIdx < 0 {
-			m.themeSwitcherSelectedIdx = 0
+		if m.theme.SelectedIdx < 0 {
+			m.theme.SelectedIdx = 0
 		}
-		for m.themeSwitcherSelectedIdx < len(themes)-1 && themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.themeSwitcherSelectedIdx++
+		for m.theme.SelectedIdx < len(themes)-1 && themes[m.theme.SelectedIdx].IsSeparator {
+			m.theme.SelectedIdx++
 		}
-		if m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.previewThemeEntry(themes[m.themeSwitcherSelectedIdx])
+		if m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
+			m.previewThemeEntry(themes[m.theme.SelectedIdx])
 		}
 		return m, nil
 
 	case "ctrl+p":
-		m.themeSwitcherSelectedIdx--
-		if m.themeSwitcherSelectedIdx < 0 {
-			m.themeSwitcherSelectedIdx = 0
+		m.theme.SelectedIdx--
+		if m.theme.SelectedIdx < 0 {
+			m.theme.SelectedIdx = 0
 		}
-		for m.themeSwitcherSelectedIdx > 0 && themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.themeSwitcherSelectedIdx--
+		for m.theme.SelectedIdx > 0 && themes[m.theme.SelectedIdx].IsSeparator {
+			m.theme.SelectedIdx--
 		}
-		if m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
-			m.previewThemeEntry(themes[m.themeSwitcherSelectedIdx])
+		if m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
+			m.previewThemeEntry(themes[m.theme.SelectedIdx])
 		}
 		return m, nil
 
 	case "#":
 		// Close modal and restore original
-		m.previewThemeEntry(m.themeSwitcherOriginal)
+		m.previewThemeEntry(m.theme.Original)
 		m.resetThemeSwitcher()
 		m.updateContext()
 		return m, nil
@@ -118,21 +118,21 @@ func (m *Model) handleThemeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Forward other keys to text input for filtering
 	var cmd tea.Cmd
-	m.themeSwitcherInput, cmd = m.themeSwitcherInput.Update(msg)
+	m.theme.Input, cmd = m.theme.Input.Update(msg)
 
 	// Re-filter on input change
-	m.themeSwitcherFiltered = filterThemeEntries(buildUnifiedThemeList(), m.themeSwitcherInput.Value())
+	m.theme.Filtered = filterThemeEntries(buildUnifiedThemeList(), m.theme.Input.Value())
 	m.clearThemeSwitcherModal() // Force modal rebuild
-	if m.themeSwitcherSelectedIdx >= len(m.themeSwitcherFiltered) {
-		m.themeSwitcherSelectedIdx = len(m.themeSwitcherFiltered) - 1
+	if m.theme.SelectedIdx >= len(m.theme.Filtered) {
+		m.theme.SelectedIdx = len(m.theme.Filtered) - 1
 	}
-	if m.themeSwitcherSelectedIdx < 0 {
-		m.themeSwitcherSelectedIdx = 0
+	if m.theme.SelectedIdx < 0 {
+		m.theme.SelectedIdx = 0
 	}
 
 	// Live preview current selection (skip separators)
-	if m.themeSwitcherSelectedIdx >= 0 && m.themeSwitcherSelectedIdx < len(m.themeSwitcherFiltered) && !m.themeSwitcherFiltered[m.themeSwitcherSelectedIdx].IsSeparator {
-		m.previewThemeEntry(m.themeSwitcherFiltered[m.themeSwitcherSelectedIdx])
+	if m.theme.SelectedIdx >= 0 && m.theme.SelectedIdx < len(m.theme.Filtered) && !m.theme.Filtered[m.theme.SelectedIdx].IsSeparator {
+		m.previewThemeEntry(m.theme.Filtered[m.theme.SelectedIdx])
 	}
 
 	return m, cmd
@@ -141,19 +141,19 @@ func (m *Model) handleThemeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleThemeSwitcherMouse handles mouse events for the theme switcher modal.
 func (m *Model) handleThemeSwitcherMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	m.ensureThemeSwitcherModal()
-	if m.themeSwitcherModal == nil {
+	if m.theme.Modal == nil {
 		return m, nil
 	}
-	if m.themeSwitcherMouseHandler == nil {
-		m.themeSwitcherMouseHandler = mouse.NewHandler()
+	if m.theme.MouseHandler == nil {
+		m.theme.MouseHandler = mouse.NewHandler()
 	}
 
-	action := m.themeSwitcherModal.HandleMouse(msg, m.themeSwitcherMouseHandler)
+	action := m.theme.Modal.HandleMouse(msg, m.theme.MouseHandler)
 	switch action {
 	case "select":
-		themes := m.themeSwitcherFiltered
-		if m.themeSwitcherSelectedIdx >= 0 && m.themeSwitcherSelectedIdx < len(themes) {
-			entry := themes[m.themeSwitcherSelectedIdx]
+		themes := m.theme.Filtered
+		if m.theme.SelectedIdx >= 0 && m.theme.SelectedIdx < len(themes) {
+			entry := themes[m.theme.SelectedIdx]
 			m.previewThemeEntry(entry)
 			var tc config.ThemeConfig
 			if entry.IsBuiltIn {

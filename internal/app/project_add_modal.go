@@ -30,12 +30,12 @@ func (m *Model) ensureProjectAddModal() {
 	}
 
 	// Only rebuild if modal doesn't exist or width changed
-	if m.projectAddModal != nil && m.projectAddModalWidth == modalW {
+	if m.project.AddModal != nil && m.project.AddModalWidth == modalW {
 		return
 	}
-	m.projectAddModalWidth = modalW
+	m.project.AddModalWidth = modalW
 
-	m.projectAddModal = modal.New("Add Project",
+	m.project.AddModal = modal.New("Add Project",
 		modal.WithWidth(modalW),
 		modal.WithHints(false),
 	).
@@ -44,7 +44,7 @@ func (m *Model) ensureProjectAddModal() {
 		AddSection(m.projectAddPathSection()).
 		AddSection(modal.Spacer()).
 		AddSection(m.projectAddThemeSection()).
-		AddSection(modal.When(func() bool { return m.projectAdd != nil && m.projectAdd.errorMessage != "" }, m.projectAddErrorSection())).
+		AddSection(modal.When(func() bool { return m.project.Add != nil && m.project.Add.errorMessage != "" }, m.projectAddErrorSection())).
 		AddSection(modal.Spacer()).
 		AddSection(modal.Buttons(
 			modal.Btn(" Add ", projectAddAddID, modal.BtnPrimary()),
@@ -55,14 +55,14 @@ func (m *Model) ensureProjectAddModal() {
 
 // clearProjectAddModal clears the modal state.
 func (m *Model) clearProjectAddModal() {
-	m.projectAddModal = nil
-	m.projectAddModalWidth = 0
+	m.project.AddModal = nil
+	m.project.AddModalWidth = 0
 }
 
 // projectAddNameSection renders the name input field.
 func (m *Model) projectAddNameSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
-		if m.projectAdd == nil {
+		if m.project.Add == nil {
 			return modal.RenderedSection{}
 		}
 		var sb strings.Builder
@@ -73,9 +73,9 @@ func (m *Model) projectAddNameSection() modal.Section {
 		// Sync textinput focus state with modal focus
 		isFocused := focusID == projectAddNameID
 		if isFocused {
-			m.projectAdd.nameInput.Focus()
+			m.project.Add.nameInput.Focus()
 		} else {
-			m.projectAdd.nameInput.Blur()
+			m.project.Add.nameInput.Blur()
 		}
 
 		// Input field style based on focus
@@ -87,7 +87,7 @@ func (m *Model) projectAddNameSection() modal.Section {
 			inputStyle = inputStyle.BorderForeground(styles.Primary)
 		}
 
-		sb.WriteString(inputStyle.Render(m.projectAdd.nameInput.View()))
+		sb.WriteString(inputStyle.Render(m.project.Add.nameInput.View()))
 
 		return modal.RenderedSection{
 			Content: sb.String(),
@@ -107,7 +107,7 @@ func (m *Model) projectAddNameUpdate(msg tea.Msg, focusID string) (string, tea.C
 	if focusID != projectAddNameID {
 		return "", nil
 	}
-	if m.projectAdd == nil {
+	if m.project.Add == nil {
 		return "", nil
 	}
 
@@ -122,18 +122,18 @@ func (m *Model) projectAddNameUpdate(msg tea.Msg, focusID string) (string, tea.C
 	}
 
 	// Clear error on typing
-	m.projectAdd.errorMessage = ""
-	m.projectAddModalWidth = 0 // Force rebuild to hide error
+	m.project.Add.errorMessage = ""
+	m.project.AddModalWidth = 0 // Force rebuild to hide error
 
 	var cmd tea.Cmd
-	m.projectAdd.nameInput, cmd = m.projectAdd.nameInput.Update(keyMsg)
+	m.project.Add.nameInput, cmd = m.project.Add.nameInput.Update(keyMsg)
 	return "", cmd
 }
 
 // projectAddPathSection renders the path input field.
 func (m *Model) projectAddPathSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
-		if m.projectAdd == nil {
+		if m.project.Add == nil {
 			return modal.RenderedSection{}
 		}
 		var sb strings.Builder
@@ -144,9 +144,9 @@ func (m *Model) projectAddPathSection() modal.Section {
 		// Sync textinput focus state with modal focus
 		isFocused := focusID == projectAddPathID
 		if isFocused {
-			m.projectAdd.pathInput.Focus()
+			m.project.Add.pathInput.Focus()
 		} else {
-			m.projectAdd.pathInput.Blur()
+			m.project.Add.pathInput.Blur()
 		}
 
 		// Input field style based on focus
@@ -158,7 +158,7 @@ func (m *Model) projectAddPathSection() modal.Section {
 			inputStyle = inputStyle.BorderForeground(styles.Primary)
 		}
 
-		sb.WriteString(inputStyle.Render(m.projectAdd.pathInput.View()))
+		sb.WriteString(inputStyle.Render(m.project.Add.pathInput.View()))
 
 		return modal.RenderedSection{
 			Content: sb.String(),
@@ -178,7 +178,7 @@ func (m *Model) projectAddPathUpdate(msg tea.Msg, focusID string) (string, tea.C
 	if focusID != projectAddPathID {
 		return "", nil
 	}
-	if m.projectAdd == nil {
+	if m.project.Add == nil {
 		return "", nil
 	}
 
@@ -193,11 +193,11 @@ func (m *Model) projectAddPathUpdate(msg tea.Msg, focusID string) (string, tea.C
 	}
 
 	// Clear error on typing
-	m.projectAdd.errorMessage = ""
-	m.projectAddModalWidth = 0 // Force rebuild to hide error
+	m.project.Add.errorMessage = ""
+	m.project.AddModalWidth = 0 // Force rebuild to hide error
 
 	var cmd tea.Cmd
-	m.projectAdd.pathInput, cmd = m.projectAdd.pathInput.Update(keyMsg)
+	m.project.Add.pathInput, cmd = m.project.Add.pathInput.Update(keyMsg)
 	return "", cmd
 }
 
@@ -210,8 +210,8 @@ func (m *Model) projectAddThemeSection() modal.Section {
 		sb.WriteString("\n")
 
 		themeValue := "(use global)"
-		if m.projectAdd != nil && m.projectAdd.themeSelected != "" {
-			themeValue = m.projectAdd.themeSelected
+		if m.project.Add != nil && m.project.Add.themeSelected != "" {
+			themeValue = m.project.Add.themeSelected
 		}
 
 		// Field style based on focus/hover
@@ -260,10 +260,10 @@ func (m *Model) projectAddThemeUpdate(msg tea.Msg, focusID string) (string, tea.
 func (m *Model) projectAddErrorSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
 		errStyle := lipgloss.NewStyle().Foreground(styles.Error)
-		if m.projectAdd == nil {
+		if m.project.Add == nil {
 			return modal.RenderedSection{}
 		}
-		return modal.RenderedSection{Content: errStyle.Render(m.projectAdd.errorMessage)}
+		return modal.RenderedSection{Content: errStyle.Render(m.project.Add.errorMessage)}
 	}, nil)
 }
 
@@ -286,35 +286,35 @@ func (m *Model) projectAddHintsSection() modal.Section {
 // renderProjectAddModal renders the project add modal using the modal library.
 func (m *Model) renderProjectAddModal(content string) string {
 	// If theme picker is open, render it on top
-	if m.projectAddThemeMode {
+	if m.project.AddThemeMode {
 		return m.renderProjectAddThemePickerOverlay(content)
 	}
 
 	m.ensureProjectAddModal()
-	if m.projectAddModal == nil {
+	if m.project.AddModal == nil {
 		return content
 	}
 
-	if m.projectAddMouseHandler == nil {
-		m.projectAddMouseHandler = mouse.NewHandler()
+	if m.project.AddMouseHandler == nil {
+		m.project.AddMouseHandler = mouse.NewHandler()
 	}
-	modalContent := m.projectAddModal.Render(m.width, m.height, m.projectAddMouseHandler)
+	modalContent := m.project.AddModal.Render(m.width, m.height, m.project.AddMouseHandler)
 	return ui.OverlayModal(content, modalContent, m.width, m.height)
 }
 
 // handleProjectAddModalKeys handles keyboard input for the project add modal.
 func (m *Model) handleProjectAddModalKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// If theme picker is open, handle it separately
-	if m.projectAddThemeMode {
+	if m.project.AddThemeMode {
 		return m.handleProjectAddThemePickerKeys(msg)
 	}
 
 	m.ensureProjectAddModal()
-	if m.projectAddModal == nil {
+	if m.project.AddModal == nil {
 		return m, nil
 	}
 
-	action, cmd := m.projectAddModal.HandleKey(msg)
+	action, cmd := m.project.AddModal.HandleKey(msg)
 
 	switch action {
 	case "cancel", projectAddCancelID:
@@ -325,10 +325,10 @@ func (m *Model) handleProjectAddModalKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case projectAddAddID:
 		if errMsg := m.validateProjectAdd(); errMsg != "" {
-			if m.projectAdd != nil {
-				m.projectAdd.errorMessage = errMsg
+			if m.project.Add != nil {
+				m.project.Add.errorMessage = errMsg
 			}
-			m.projectAddModalWidth = 0 // Force rebuild to show error
+			m.project.AddModalWidth = 0 // Force rebuild to show error
 			return m, nil
 		}
 		saveCmd := m.saveProjectAdd()
@@ -342,20 +342,20 @@ func (m *Model) handleProjectAddModalKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleProjectAddModalMouse handles mouse events for the project add modal.
 func (m *Model) handleProjectAddModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// If theme picker is open, let it handle mouse
-	if m.projectAddThemeMode {
+	if m.project.AddThemeMode {
 		return m.handleProjectAddThemePickerMouse(msg)
 	}
 
 	m.ensureProjectAddModal()
-	if m.projectAddModal == nil {
+	if m.project.AddModal == nil {
 		return m, nil
 	}
 
-	if m.projectAddMouseHandler == nil {
-		m.projectAddMouseHandler = mouse.NewHandler()
+	if m.project.AddMouseHandler == nil {
+		m.project.AddMouseHandler = mouse.NewHandler()
 	}
 
-	action := m.projectAddModal.HandleMouse(msg, m.projectAddMouseHandler)
+	action := m.project.AddModal.HandleMouse(msg, m.project.AddMouseHandler)
 
 	switch action {
 	case projectAddCancelID:
@@ -366,10 +366,10 @@ func (m *Model) handleProjectAddModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd
 		return m, nil
 	case projectAddAddID:
 		if errMsg := m.validateProjectAdd(); errMsg != "" {
-			if m.projectAdd != nil {
-				m.projectAdd.errorMessage = errMsg
+			if m.project.Add != nil {
+				m.project.Add.errorMessage = errMsg
 			}
-			m.projectAddModalWidth = 0 // Force rebuild to show error
+			m.project.AddModalWidth = 0 // Force rebuild to show error
 			return m, nil
 		}
 		saveCmd := m.saveProjectAdd()

@@ -86,17 +86,17 @@ func (m *Model) ensureThemeSwitcherModal() {
 	}
 
 	// Only rebuild if modal doesn't exist or width changed
-	if m.themeSwitcherModal != nil && m.themeSwitcherModalWidth == modalW {
+	if m.theme.Modal != nil && m.theme.ModalWidth == modalW {
 		return
 	}
-	m.themeSwitcherModalWidth = modalW
+	m.theme.ModalWidth = modalW
 
-	m.themeSwitcherModal = modal.New("Switch Theme",
+	m.theme.Modal = modal.New("Switch Theme",
 		modal.WithWidth(modalW),
 		modal.WithHints(false),
 	).
 		AddSection(modal.When(m.themeSwitcherHasProject, m.themeSwitcherScopeSection())).
-		AddSection(modal.Input(themeSwitcherFilterID, &m.themeSwitcherInput, modal.WithSubmitOnEnter(false))).
+		AddSection(modal.Input(themeSwitcherFilterID, &m.theme.Input, modal.WithSubmitOnEnter(false))).
 		AddSection(m.themeSwitcherCountSection()).
 		AddSection(modal.Spacer()).
 		AddSection(m.themeSwitcherListSection()).
@@ -120,14 +120,14 @@ func (m *Model) themeSwitcherCountSection() modal.Section {
 			}
 		}
 		filteredCount := 0
-		for _, e := range m.themeSwitcherFiltered {
+		for _, e := range m.theme.Filtered {
 			if !e.IsSeparator {
 				filteredCount++
 			}
 		}
 
 		var text string
-		if m.themeSwitcherInput.Value() != "" {
+		if m.theme.Input.Value() != "" {
 			text = fmt.Sprintf("%d of %d themes", filteredCount, allCount)
 		}
 
@@ -141,7 +141,7 @@ func (m *Model) themeSwitcherCountSection() modal.Section {
 // themeSwitcherListSection renders the theme list with selection.
 func (m *Model) themeSwitcherListSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
-		themes := m.themeSwitcherFiltered
+		themes := m.theme.Filtered
 
 		if len(themes) == 0 {
 			return modal.RenderedSection{Content: styles.Muted.Render("No matches")}
@@ -155,7 +155,7 @@ func (m *Model) themeSwitcherListSection() modal.Section {
 		maxVisible := 12
 		visibleCount := min(maxVisible, len(themes))
 
-		selectedIdx := m.themeSwitcherSelectedIdx
+		selectedIdx := m.theme.SelectedIdx
 		if selectedIdx < 0 {
 			selectedIdx = 0
 		}
@@ -197,7 +197,7 @@ func (m *Model) themeSwitcherListSection() modal.Section {
 			isSelected := i == selectedIdx
 			itemID := themeSwitcherItemID(i)
 			isHovered := itemID == hoverID
-			isCurrent := entry.IsBuiltIn == m.themeSwitcherOriginal.IsBuiltIn && entry.ThemeKey == m.themeSwitcherOriginal.ThemeKey
+			isCurrent := entry.IsBuiltIn == m.theme.Original.IsBuiltIn && entry.ThemeKey == m.theme.Original.ThemeKey
 
 			if isSelected {
 				sb.WriteString(cursorStyle.Render("> "))
@@ -265,42 +265,42 @@ func (m *Model) themeSwitcherListUpdate(msg tea.Msg, focusID string) (string, te
 		return "", nil
 	}
 
-	themes := m.themeSwitcherFiltered
+	themes := m.theme.Filtered
 	if len(themes) == 0 {
 		return "", nil
 	}
 
 	switch keyMsg.String() {
 	case "up", "k", "ctrl+p":
-		if m.themeSwitcherSelectedIdx > 0 {
-			m.themeSwitcherSelectedIdx--
+		if m.theme.SelectedIdx > 0 {
+			m.theme.SelectedIdx--
 			// Skip separators
-			for m.themeSwitcherSelectedIdx > 0 && themes[m.themeSwitcherSelectedIdx].IsSeparator {
-				m.themeSwitcherSelectedIdx--
+			for m.theme.SelectedIdx > 0 && themes[m.theme.SelectedIdx].IsSeparator {
+				m.theme.SelectedIdx--
 			}
-			m.themeSwitcherModalWidth = 0
-			if m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
-				m.previewThemeEntry(themes[m.themeSwitcherSelectedIdx])
+			m.theme.ModalWidth = 0
+			if m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
+				m.previewThemeEntry(themes[m.theme.SelectedIdx])
 			}
 		}
 		return "", nil
 
 	case "down", "j", "ctrl+n":
-		if m.themeSwitcherSelectedIdx < len(themes)-1 {
-			m.themeSwitcherSelectedIdx++
+		if m.theme.SelectedIdx < len(themes)-1 {
+			m.theme.SelectedIdx++
 			// Skip separators
-			for m.themeSwitcherSelectedIdx < len(themes)-1 && themes[m.themeSwitcherSelectedIdx].IsSeparator {
-				m.themeSwitcherSelectedIdx++
+			for m.theme.SelectedIdx < len(themes)-1 && themes[m.theme.SelectedIdx].IsSeparator {
+				m.theme.SelectedIdx++
 			}
-			m.themeSwitcherModalWidth = 0
-			if m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
-				m.previewThemeEntry(themes[m.themeSwitcherSelectedIdx])
+			m.theme.ModalWidth = 0
+			if m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
+				m.previewThemeEntry(themes[m.theme.SelectedIdx])
 			}
 		}
 		return "", nil
 
 	case "enter":
-		if m.themeSwitcherSelectedIdx >= 0 && m.themeSwitcherSelectedIdx < len(themes) && !themes[m.themeSwitcherSelectedIdx].IsSeparator {
+		if m.theme.SelectedIdx >= 0 && m.theme.SelectedIdx < len(themes) && !themes[m.theme.SelectedIdx].IsSeparator {
 			return "select", nil
 		}
 		return "", nil
@@ -318,7 +318,7 @@ func (m *Model) themeSwitcherScopeSection() modal.Section {
 
 		scopeGlobal := "Global"
 		scopeProject := "This project"
-		if m.themeSwitcherScope == "project" {
+		if m.theme.Scope == "project" {
 			sb.WriteString(styles.Muted.Render(scopeGlobal))
 			sb.WriteString(styles.Muted.Render("  │  "))
 			sb.WriteString(activeStyle.Render(scopeProject))
@@ -337,7 +337,7 @@ func (m *Model) themeSwitcherHintsSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
 		var sb strings.Builder
 
-		if len(m.themeSwitcherFiltered) == 0 {
+		if len(m.theme.Filtered) == 0 {
 			sb.WriteString(styles.KeyHint.Render("esc"))
 			sb.WriteString(styles.Muted.Render(" clear filter  "))
 			sb.WriteString(styles.KeyHint.Render("#"))
@@ -364,13 +364,13 @@ func (m *Model) themeSwitcherHintsSection() modal.Section {
 // renderThemeSwitcherModal renders the theme switcher modal using the modal library.
 func (m *Model) renderThemeSwitcherModal(content string) string {
 	m.ensureThemeSwitcherModal()
-	if m.themeSwitcherModal == nil {
+	if m.theme.Modal == nil {
 		return content
 	}
 
-	if m.themeSwitcherMouseHandler == nil {
-		m.themeSwitcherMouseHandler = mouse.NewHandler()
+	if m.theme.MouseHandler == nil {
+		m.theme.MouseHandler = mouse.NewHandler()
 	}
-	modalContent := m.themeSwitcherModal.Render(m.width, m.height, m.themeSwitcherMouseHandler)
+	modalContent := m.theme.Modal.Render(m.width, m.height, m.theme.MouseHandler)
 	return ui.OverlayModal(content, modalContent, m.width, m.height)
 }

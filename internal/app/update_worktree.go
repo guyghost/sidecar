@@ -7,13 +7,13 @@ import (
 // handleWorktreeSwitcherKeys handles keyboard input for the worktree switcher modal.
 // Extracted from handleKeyMsg to reduce update.go complexity.
 func (m *Model) handleWorktreeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	worktrees := m.worktreeSwitcherFiltered
+	worktrees := m.worktree.Filtered
 
 	switch msg.Type {
 	case tea.KeyEnter:
 		// Select worktree and switch to it
-		if m.worktreeSwitcherCursor >= 0 && m.worktreeSwitcherCursor < len(worktrees) {
-			selectedPath := worktrees[m.worktreeSwitcherCursor].Path
+		if m.worktree.Cursor >= 0 && m.worktree.Cursor < len(worktrees) {
+			selectedPath := worktrees[m.worktree.Cursor].Path
 			m.resetWorktreeSwitcher()
 			m.updateContext()
 			return m, m.switchWorktree(selectedPath)
@@ -21,44 +21,44 @@ func (m *Model) handleWorktreeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		return m, nil
 
 	case tea.KeyUp:
-		m.worktreeSwitcherCursor--
-		if m.worktreeSwitcherCursor < 0 {
-			m.worktreeSwitcherCursor = 0
+		m.worktree.Cursor--
+		if m.worktree.Cursor < 0 {
+			m.worktree.Cursor = 0
 		}
-		m.worktreeSwitcherScroll = worktreeSwitcherEnsureCursorVisible(m.worktreeSwitcherCursor, m.worktreeSwitcherScroll, 8)
+		m.worktree.Scroll = worktreeSwitcherEnsureCursorVisible(m.worktree.Cursor, m.worktree.Scroll, 8)
 		return m, nil
 
 	case tea.KeyDown:
-		m.worktreeSwitcherCursor++
-		if m.worktreeSwitcherCursor >= len(worktrees) {
-			m.worktreeSwitcherCursor = len(worktrees) - 1
+		m.worktree.Cursor++
+		if m.worktree.Cursor >= len(worktrees) {
+			m.worktree.Cursor = len(worktrees) - 1
 		}
-		if m.worktreeSwitcherCursor < 0 {
-			m.worktreeSwitcherCursor = 0
+		if m.worktree.Cursor < 0 {
+			m.worktree.Cursor = 0
 		}
-		m.worktreeSwitcherScroll = worktreeSwitcherEnsureCursorVisible(m.worktreeSwitcherCursor, m.worktreeSwitcherScroll, 8)
+		m.worktree.Scroll = worktreeSwitcherEnsureCursorVisible(m.worktree.Cursor, m.worktree.Scroll, 8)
 		return m, nil
 	}
 
 	// Handle non-text shortcuts
 	switch msg.String() {
 	case "ctrl+n":
-		m.worktreeSwitcherCursor++
-		if m.worktreeSwitcherCursor >= len(worktrees) {
-			m.worktreeSwitcherCursor = len(worktrees) - 1
+		m.worktree.Cursor++
+		if m.worktree.Cursor >= len(worktrees) {
+			m.worktree.Cursor = len(worktrees) - 1
 		}
-		if m.worktreeSwitcherCursor < 0 {
-			m.worktreeSwitcherCursor = 0
+		if m.worktree.Cursor < 0 {
+			m.worktree.Cursor = 0
 		}
-		m.worktreeSwitcherScroll = worktreeSwitcherEnsureCursorVisible(m.worktreeSwitcherCursor, m.worktreeSwitcherScroll, 8)
+		m.worktree.Scroll = worktreeSwitcherEnsureCursorVisible(m.worktree.Cursor, m.worktree.Scroll, 8)
 		return m, nil
 
 	case "ctrl+p":
-		m.worktreeSwitcherCursor--
-		if m.worktreeSwitcherCursor < 0 {
-			m.worktreeSwitcherCursor = 0
+		m.worktree.Cursor--
+		if m.worktree.Cursor < 0 {
+			m.worktree.Cursor = 0
 		}
-		m.worktreeSwitcherScroll = worktreeSwitcherEnsureCursorVisible(m.worktreeSwitcherCursor, m.worktreeSwitcherScroll, 8)
+		m.worktree.Scroll = worktreeSwitcherEnsureCursorVisible(m.worktree.Cursor, m.worktree.Scroll, 8)
 		return m, nil
 
 	case "W":
@@ -75,20 +75,20 @@ func (m *Model) handleWorktreeSwitcherKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 
 	// Forward other keys to text input for filtering
 	var cmd tea.Cmd
-	m.worktreeSwitcherInput, cmd = m.worktreeSwitcherInput.Update(msg)
+	m.worktree.Input, cmd = m.worktree.Input.Update(msg)
 
 	// Re-filter on input change
-	m.worktreeSwitcherFiltered = filterWorktrees(m.worktreeSwitcherAll, m.worktreeSwitcherInput.Value())
+	m.worktree.Filtered = filterWorktrees(m.worktree.All, m.worktree.Input.Value())
 	m.clearWorktreeSwitcherModal() // Clear modal cache on filter change
 	// Reset cursor if it's beyond filtered list
-	if m.worktreeSwitcherCursor >= len(m.worktreeSwitcherFiltered) {
-		m.worktreeSwitcherCursor = len(m.worktreeSwitcherFiltered) - 1
+	if m.worktree.Cursor >= len(m.worktree.Filtered) {
+		m.worktree.Cursor = len(m.worktree.Filtered) - 1
 	}
-	if m.worktreeSwitcherCursor < 0 {
-		m.worktreeSwitcherCursor = 0
+	if m.worktree.Cursor < 0 {
+		m.worktree.Cursor = 0
 	}
-	m.worktreeSwitcherScroll = 0
-	m.worktreeSwitcherScroll = worktreeSwitcherEnsureCursorVisible(m.worktreeSwitcherCursor, m.worktreeSwitcherScroll, 8)
+	m.worktree.Scroll = 0
+	m.worktree.Scroll = worktreeSwitcherEnsureCursorVisible(m.worktree.Cursor, m.worktree.Scroll, 8)
 
 	return m, cmd
 }

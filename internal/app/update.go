@@ -90,7 +90,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ModalQuitConfirm:
 			return m.handleQuitConfirmMouse(msg)
 		case ModalProjectSwitcher:
-			if m.projectAddMode {
+			if m.project.AddMode {
 				return m.handleProjectAddModalMouse(msg)
 			}
 			return m.handleProjectSwitcherMouse(msg)
@@ -107,7 +107,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle header tab clicks (Y < 2 means header area)
 		if msg.Y < headerHeight && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 			if start, end, ok := m.getRepoNameBounds(); ok && !m.intro.Active && msg.X >= start && msg.X < end {
-				m.showProjectSwitcher = true
+				m.project.Show = true
 				m.activeContext = "project-switcher"
 				m.initProjectSwitcher()
 				return m, nil
@@ -117,7 +117,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if start, end, ok := m.getWorktreeIndicatorBounds(); ok && !m.intro.Active && msg.X >= start && msg.X < end {
 				worktrees := GetWorktrees(m.ui.WorkDir)
 				if len(worktrees) > 1 {
-					m.showWorktreeSwitcher = true
+					m.worktree.Show = true
 					m.activeContext = "worktree-switcher"
 					m.initWorktreeSwitcher()
 					return m, nil
@@ -175,16 +175,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Eagerly refresh worktree cache (must happen in Update, not View, due to value receiver)
 		m.refreshWorktreeCache()
 		// Periodically check if current worktree still exists (every 10 seconds)
-		m.worktreeCheckCounter++
-		if m.worktreeCheckCounter >= 10 {
-			m.worktreeCheckCounter = 0
+		m.worktree.CheckCounter++
+		if m.worktree.CheckCounter >= 10 {
+			m.worktree.CheckCounter = 0
 			return m, tea.Batch(tickCmd(), checkWorktreeExists(m.ui.WorkDir))
 		}
 		return m, tickCmd()
 
 	case UpdateSpinnerTickMsg:
-		if m.updateInProgress {
-			m.updateSpinnerFrame = (m.updateSpinnerFrame + 1) % 10
+		if m.update.InProgress {
+			m.update.SpinnerFrame = (m.update.SpinnerFrame + 1) % 10
 			return m, updateSpinnerTick()
 		}
 		return m, nil
@@ -211,15 +211,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case UpdateSuccessMsg:
-		m.updateInProgress = false
-		m.needsRestart = true
+		m.update.InProgress = false
+		m.update.NeedsRestart = true
 		// Set all phases to done
-		m.updatePhaseStatus[PhaseCheckPrereqs] = "done"
-		m.updatePhaseStatus[PhaseInstalling] = "done"
-		m.updatePhaseStatus[PhaseVerifying] = "done"
+		m.update.PhaseStatus[PhaseCheckPrereqs] = "done"
+		m.update.PhaseStatus[PhaseInstalling] = "done"
+		m.update.PhaseStatus[PhaseVerifying] = "done"
 		// Update modal state if modal is open
-		if m.updateModalState == UpdateModalProgress {
-			m.updateModalState = UpdateModalComplete
+		if m.update.ModalState == UpdateModalProgress {
+			m.update.ModalState = UpdateModalComplete
 		}
 		if msg.SidecarUpdated {
 			m.updateAvailable = nil
@@ -228,37 +228,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tdVersionInfo.HasUpdate = false
 		}
 		// Only show toast if modal is not open
-		if m.updateModalState == UpdateModalClosed {
+		if m.update.ModalState == UpdateModalClosed {
 			m.ShowToast("Update complete! Restart sidecar to use new version", 10*time.Second)
 		}
 		return m, nil
 
 	case UpdateErrorMsg:
-		m.updateInProgress = false
-		m.updateError = fmt.Sprintf("Failed to update %s: %s", msg.Step, msg.Err)
+		m.update.InProgress = false
+		m.update.Error = fmt.Sprintf("Failed to update %s: %s", msg.Step, msg.Err)
 		// Mark current phase as error
-		m.updatePhaseStatus[m.updatePhase] = "error"
+		m.update.PhaseStatus[m.update.Phase] = "error"
 		// Update modal state if modal is open
-		if m.updateModalState == UpdateModalProgress {
-			m.updateModalState = UpdateModalError
+		if m.update.ModalState == UpdateModalProgress {
+			m.update.ModalState = UpdateModalError
 		}
 		// Only show toast if modal is not open
-		if m.updateModalState == UpdateModalClosed {
+		if m.update.ModalState == UpdateModalClosed {
 			m.ShowToast("Update failed: "+msg.Err.Error(), 5*time.Second)
 		}
 		m.statusIsError = true
 		return m, nil
 
 	case UpdatePhaseChangeMsg:
-		m.updatePhaseStatus[msg.Phase] = msg.Status
+		m.update.PhaseStatus[msg.Phase] = msg.Status
 		if msg.Status == "running" {
-			m.updatePhase = msg.Phase
+			m.update.Phase = msg.Phase
 		}
 		return m, nil
 
 	case UpdateElapsedTickMsg:
 		// Continue timer if update is in progress
-		if m.updateInProgress && m.updateModalState == UpdateModalProgress {
+		if m.update.InProgress && m.update.ModalState == UpdateModalProgress {
 			return m, tea.Tick(time.Second, func(t time.Time) tea.Msg {
 				return UpdateElapsedTickMsg{}
 			})
@@ -267,23 +267,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case UpdatePrereqsPassedMsg:
 		// Prerequisites passed - transition to install phase
-		m.updatePhaseStatus[PhaseCheckPrereqs] = "done"
-		m.updatePhase = PhaseInstalling
-		m.updatePhaseStatus[PhaseInstalling] = "running"
+		m.update.PhaseStatus[PhaseCheckPrereqs] = "done"
+		m.update.Phase = PhaseInstalling
+		m.update.PhaseStatus[PhaseInstalling] = "running"
 		return m, m.runInstallPhase()
 
 	case UpdateInstallDoneMsg:
 		// Install completed - transition to verify phase
-		m.updatePhaseStatus[PhaseInstalling] = "done"
-		m.updatePhase = PhaseVerifying
-		m.updatePhaseStatus[PhaseVerifying] = "running"
+		m.update.PhaseStatus[PhaseInstalling] = "done"
+		m.update.Phase = PhaseVerifying
+		m.update.PhaseStatus[PhaseVerifying] = "running"
 		return m, m.runVerifyPhase(msg)
 
 	case ChangelogLoadedMsg:
 		if msg.Err != nil {
-			m.updateChangelog = "Failed to load changelog: " + msg.Err.Error()
+			m.update.Changelog = "Failed to load changelog: " + msg.Err.Error()
 		} else {
-			m.updateChangelog = msg.Content
+			m.update.Changelog = msg.Content
 		}
 		m.clearChangelogModal() // Force rebuild with new content
 		return m, nil
@@ -360,7 +360,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case version.UpdateAvailableMsg:
 		m.updateAvailable = &msg
-		m.updateInstallMethod = msg.InstallMethod
+		m.update.InstallMethod = msg.InstallMethod
 		m.clearDiagnosticsModal() // Force rebuild so modal picks up new update state
 		m.ShowToast(
 			fmt.Sprintf("Update %s available! Press ! for details", msg.LatestVersion),
@@ -381,29 +381,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case IssuePreviewResultMsg:
-		m.issuePreviewLoading = false
+		m.issue.PreviewLoading = false
 		if msg.Error != nil {
-			m.issuePreviewError = msg.Error
+			m.issue.PreviewError = msg.Error
 		} else {
-			m.issuePreviewData = msg.Data
+			m.issue.PreviewData = msg.Data
 		}
 		// Clear modal cache to trigger rebuild
-		m.issuePreviewModal = nil
-		m.issuePreviewModalWidth = 0
+		m.issue.PreviewModal = nil
+		m.issue.PreviewModalWidth = 0
 		return m, nil
 
 	case IssueSearchResultMsg:
 		// Discard stale results
-		if msg.Query != m.issueSearchQuery || !m.showIssueInput {
+		if msg.Query != m.issue.SearchQuery || !m.issue.ShowInput {
 			return m, nil
 		}
-		m.issueSearchLoading = false
+		m.issue.SearchLoading = false
 		if msg.Error == nil {
-			m.issueSearchResults = msg.Results
+			m.issue.SearchResults = msg.Results
 		}
-		m.issueSearchScrollOffset = 0
-		m.issueInputModal = nil
-		m.issueInputModalWidth = 0
+		m.issue.SearchScrollOffset = 0
+		m.issue.InputModal = nil
+		m.issue.InputModalWidth = 0
 		return m, nil
 	}
 
@@ -440,15 +440,15 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case ModalUpdate:
 			// Handle Esc in update modal
-			if m.changelogVisible {
+			if m.update.ChangelogVisible {
 				// Close changelog overlay, return to preview
-				m.changelogVisible = false
-				m.changelogScrollOffset = 0
+				m.update.ChangelogVisible = false
+				m.update.ChangelogScrollOffset = 0
 				m.clearChangelogModal()
 				return m, nil
 			}
 			// Close update modal
-			m.updateModalState = UpdateModalClosed
+			m.update.ModalState = UpdateModalClosed
 			return m, nil
 		case ModalDiagnostics:
 			m.showDiagnostics = false
@@ -458,16 +458,16 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case ModalProjectSwitcher:
 			// If in add mode, Esc exits back to list
-			if m.projectAddMode {
+			if m.project.AddMode {
 				m.resetProjectAdd()
 				return m, nil
 			}
 			// Esc: clear filter if set, otherwise close
-			if m.projectSwitcherInput.Value() != "" {
-				m.projectSwitcherInput.SetValue("")
-				m.projectSwitcherFiltered = m.cfg.Projects.List
-				m.projectSwitcherCursor = 0
-				m.projectSwitcherScroll = 0
+			if m.project.Input.Value() != "" {
+				m.project.Input.SetValue("")
+				m.project.Filtered = m.cfg.Projects.List
+				m.project.Cursor = 0
+				m.project.Scroll = 0
 				return m, nil
 			}
 			m.resetProjectSwitcher()
@@ -475,11 +475,11 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case ModalWorktreeSwitcher:
 			// Esc: clear filter if set, otherwise close
-			if m.worktreeSwitcherInput.Value() != "" {
-				m.worktreeSwitcherInput.SetValue("")
-				m.worktreeSwitcherFiltered = m.worktreeSwitcherAll
-				m.worktreeSwitcherCursor = 0
-				m.worktreeSwitcherScroll = 0
+			if m.worktree.Input.Value() != "" {
+				m.worktree.Input.SetValue("")
+				m.worktree.Filtered = m.worktree.All
+				m.worktree.Cursor = 0
+				m.worktree.Scroll = 0
 				return m, nil
 			}
 			m.resetWorktreeSwitcher()
@@ -496,13 +496,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case ModalThemeSwitcher:
 			// Esc: clear filter if set, otherwise close (restore original)
-			if m.themeSwitcherInput.Value() != "" {
-				m.themeSwitcherInput.SetValue("")
-				m.themeSwitcherFiltered = buildUnifiedThemeList()
-				m.themeSwitcherSelectedIdx = 0
+			if m.theme.Input.Value() != "" {
+				m.theme.Input.SetValue("")
+				m.theme.Filtered = buildUnifiedThemeList()
+				m.theme.SelectedIdx = 0
 				return m, nil
 			}
-			m.previewThemeEntry(m.themeSwitcherOriginal)
+			m.previewThemeEntry(m.theme.Original)
 			m.resetThemeSwitcher()
 			m.updateContext()
 			return m, nil
@@ -527,7 +527,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle update modal keys
-	if m.updateModalState != UpdateModalClosed {
+	if m.update.ModalState != UpdateModalClosed {
 		return m.handleUpdateModalKey(msg)
 	}
 
@@ -608,24 +608,24 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			switch action {
 			case "update":
 				// Open update modal instead of starting update directly
-				if m.hasUpdatesAvailable() && !m.updateInProgress && !m.needsRestart {
-					m.updateReleaseNotes = ""
+				if m.hasUpdatesAvailable() && !m.update.InProgress && !m.update.NeedsRestart {
+					m.update.ReleaseNotes = ""
 					if m.updateAvailable != nil {
-						m.updateReleaseNotes = m.updateAvailable.ReleaseNotes
+						m.update.ReleaseNotes = m.updateAvailable.ReleaseNotes
 					}
-					m.updateModalState = UpdateModalPreview
+					m.update.ModalState = UpdateModalPreview
 					m.showDiagnostics = false
 					return m, nil
 				}
 			}
 		}
 		// Handle 'u' shortcut for update - open update modal
-		if msg.String() == "u" && m.hasUpdatesAvailable() && !m.updateInProgress && !m.needsRestart {
-			m.updateReleaseNotes = ""
+		if msg.String() == "u" && m.hasUpdatesAvailable() && !m.update.InProgress && !m.update.NeedsRestart {
+			m.update.ReleaseNotes = ""
 			if m.updateAvailable != nil {
-				m.updateReleaseNotes = m.updateAvailable.ReleaseNotes
+				m.update.ReleaseNotes = m.updateAvailable.ReleaseNotes
 			}
-			m.updateModalState = UpdateModalPreview
+			m.update.ModalState = UpdateModalPreview
 			m.showDiagnostics = false
 			return m, nil
 		}
@@ -633,27 +633,27 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle worktree switcher modal keys (Esc handled above)
-	if m.showWorktreeSwitcher {
+	if m.worktree.Show {
 		return m.handleWorktreeSwitcherKeys(msg)
 	}
 
 	// Handle project switcher modal keys (Esc handled above)
-	if m.showProjectSwitcher {
+	if m.project.Show {
 		return m.handleProjectSwitcherKeys(msg)
 	}
 
 	// Handle theme switcher modal keys (Esc handled above)
-	if m.showThemeSwitcher {
+	if m.theme.Show {
 		return m.handleThemeSwitcherKeys(msg)
 	}
 
 	// Handle issue input modal keys
-	if m.showIssueInput {
+	if m.issue.ShowInput {
 		return m.handleIssueInputKeys(msg)
 	}
 
 	// Handle issue preview modal keys
-	if m.showIssuePreview {
+	if m.issue.ShowPreview {
 		return m.handleIssuePreviewKeys(msg)
 	}
 
@@ -770,50 +770,50 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
 	// Handle changelog overlay first if visible
-	if m.changelogVisible {
+	if m.update.ChangelogVisible {
 		switch key {
 		case "j", "down":
-			m.changelogScrollOffset++
+			m.update.ChangelogScrollOffset++
 			m.syncChangelogScroll()
 			return m, nil
 		case "k", "up":
-			if m.changelogScrollOffset > 0 {
-				m.changelogScrollOffset--
+			if m.update.ChangelogScrollOffset > 0 {
+				m.update.ChangelogScrollOffset--
 				m.syncChangelogScroll()
 			}
 			return m, nil
 		case "ctrl+d", "pgdown":
-			m.changelogScrollOffset += 10
+			m.update.ChangelogScrollOffset += 10
 			m.syncChangelogScroll()
 			return m, nil
 		case "ctrl+u", "pgup":
-			m.changelogScrollOffset -= 10
-			if m.changelogScrollOffset < 0 {
-				m.changelogScrollOffset = 0
+			m.update.ChangelogScrollOffset -= 10
+			if m.update.ChangelogScrollOffset < 0 {
+				m.update.ChangelogScrollOffset = 0
 			}
 			m.syncChangelogScroll()
 			return m, nil
 		case "g":
-			m.changelogScrollOffset = 0
+			m.update.ChangelogScrollOffset = 0
 			m.syncChangelogScroll()
 			return m, nil
 		case "G":
-			m.changelogScrollOffset = 999999 // Will be clamped during render
+			m.update.ChangelogScrollOffset = 999999 // Will be clamped during render
 			m.syncChangelogScroll()
 			return m, nil
 		case "esc", "c", "q":
-			m.changelogVisible = false
-			m.changelogScrollOffset = 0
+			m.update.ChangelogVisible = false
+			m.update.ChangelogScrollOffset = 0
 			m.clearChangelogModal()
 			return m, nil
 		}
 		// Route to modal for Enter (close button)
 		m.ensureChangelogModal()
-		if m.changelogModal != nil {
-			action, _ := m.changelogModal.HandleKey(msg)
+		if m.update.ChangelogModal != nil {
+			action, _ := m.update.ChangelogModal.HandleKey(msg)
 			if action == "cancel" {
-				m.changelogVisible = false
-				m.changelogScrollOffset = 0
+				m.update.ChangelogVisible = false
+				m.update.ChangelogScrollOffset = 0
 				m.clearChangelogModal()
 				return m, nil
 			}
@@ -822,38 +822,38 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle keys based on modal state
-	switch m.updateModalState {
+	switch m.update.ModalState {
 	case UpdateModalPreview:
 		// Handle special keys first
 		switch key {
 		case "c":
 			// Show changelog
-			m.changelogScrollOffset = 0
-			if m.updateChangelog == "" {
-				m.changelogVisible = true
+			m.update.ChangelogScrollOffset = 0
+			if m.update.Changelog == "" {
+				m.update.ChangelogVisible = true
 				return m, fetchChangelog()
 			}
-			m.changelogVisible = true
+			m.update.ChangelogVisible = true
 			return m, nil
 		case "q":
-			m.updateModalState = UpdateModalClosed
+			m.update.ModalState = UpdateModalClosed
 			return m, nil
 		}
 		// Route to modal for Tab/Shift+Tab/Enter/Esc
 		m.ensureUpdatePreviewModal()
-		if m.updatePreviewModal != nil {
-			action, cmd := m.updatePreviewModal.HandleKey(msg)
+		if m.update.PreviewModal != nil {
+			action, cmd := m.update.PreviewModal.HandleKey(msg)
 			switch action {
 			case "update":
-				m.updateModalState = UpdateModalProgress
-				m.updateInProgress = true
-				m.updateStartTime = time.Now()
+				m.update.ModalState = UpdateModalProgress
+				m.update.InProgress = true
+				m.update.StartTime = time.Now()
 				m.initPhaseStatus()
-				m.updatePhase = PhaseCheckPrereqs
-				m.updatePhaseStatus[PhaseCheckPrereqs] = "running"
+				m.update.Phase = PhaseCheckPrereqs
+				m.update.PhaseStatus[PhaseCheckPrereqs] = "running"
 				return m, m.startUpdateWithPhases()
 			case "cancel":
-				m.updateModalState = UpdateModalClosed
+				m.update.ModalState = UpdateModalClosed
 				return m, nil
 			}
 			if cmd != nil {
@@ -876,8 +876,8 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// Route to modal for Tab/Shift+Tab/Enter/Esc
 		m.ensureUpdateCompleteModal()
-		if m.updateCompleteModal != nil {
-			action, cmd := m.updateCompleteModal.HandleKey(msg)
+		if m.update.CompleteModal != nil {
+			action, cmd := m.update.CompleteModal.HandleKey(msg)
 			switch action {
 			case "quit":
 				if activePlugin := m.ActivePlugin(); activePlugin != nil {
@@ -886,7 +886,7 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.registry.Stop()
 				return m, tea.Quit
 			case "cancel":
-				m.updateModalState = UpdateModalClosed
+				m.update.ModalState = UpdateModalClosed
 				return m, nil
 			}
 			if cmd != nil {
@@ -898,32 +898,32 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Handle 'r' for retry and 'q' for close
 		switch key {
 		case "r":
-			m.updateModalState = UpdateModalProgress
-			m.updateError = ""
-			m.updateStartTime = time.Now()
+			m.update.ModalState = UpdateModalProgress
+			m.update.Error = ""
+			m.update.StartTime = time.Now()
 			m.initPhaseStatus()
-			m.updatePhase = PhaseCheckPrereqs
-			m.updatePhaseStatus[PhaseCheckPrereqs] = "running"
+			m.update.Phase = PhaseCheckPrereqs
+			m.update.PhaseStatus[PhaseCheckPrereqs] = "running"
 			return m, m.startUpdateWithPhases()
 		case "q":
-			m.updateModalState = UpdateModalClosed
+			m.update.ModalState = UpdateModalClosed
 			return m, nil
 		}
 		// Route to modal for Tab/Shift+Tab/Enter/Esc
 		m.ensureUpdateErrorModal()
-		if m.updateErrorModal != nil {
-			action, cmd := m.updateErrorModal.HandleKey(msg)
+		if m.update.ErrorModal != nil {
+			action, cmd := m.update.ErrorModal.HandleKey(msg)
 			switch action {
 			case "retry":
-				m.updateModalState = UpdateModalProgress
-				m.updateError = ""
-				m.updateStartTime = time.Now()
+				m.update.ModalState = UpdateModalProgress
+				m.update.Error = ""
+				m.update.StartTime = time.Now()
 				m.initPhaseStatus()
-				m.updatePhase = PhaseCheckPrereqs
-				m.updatePhaseStatus[PhaseCheckPrereqs] = "running"
+				m.update.Phase = PhaseCheckPrereqs
+				m.update.PhaseStatus[PhaseCheckPrereqs] = "running"
 				return m, m.startUpdateWithPhases()
 			case "cancel":
-				m.updateModalState = UpdateModalClosed
+				m.update.ModalState = UpdateModalClosed
 				return m, nil
 			}
 			if cmd != nil {
@@ -938,33 +938,33 @@ func (m *Model) handleUpdateModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleUpdateModalMouse handles mouse events for the update modal.
 func (m *Model) handleUpdateModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// Handle changelog overlay first if visible
-	if m.changelogVisible {
+	if m.update.ChangelogVisible {
 		m.ensureChangelogModal()
-		if m.changelogMouseHandler == nil {
-			m.changelogMouseHandler = mouse.NewHandler()
+		if m.update.ChangelogMouseHandler == nil {
+			m.update.ChangelogMouseHandler = mouse.NewHandler()
 		}
 		// Handle scroll events via shared state pointer (no modal rebuild needed)
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
-			if m.changelogScrollOffset > 0 {
-				m.changelogScrollOffset -= 3
-				if m.changelogScrollOffset < 0 {
-					m.changelogScrollOffset = 0
+			if m.update.ChangelogScrollOffset > 0 {
+				m.update.ChangelogScrollOffset -= 3
+				if m.update.ChangelogScrollOffset < 0 {
+					m.update.ChangelogScrollOffset = 0
 				}
 				m.syncChangelogScroll()
 			}
 			return m, nil
 		case tea.MouseButtonWheelDown:
-			m.changelogScrollOffset += 3
+			m.update.ChangelogScrollOffset += 3
 			m.syncChangelogScroll()
 			return m, nil
 		}
 		// Handle modal interaction (close button, backdrop)
-		if m.changelogModal != nil {
-			action := m.changelogModal.HandleMouse(msg, m.changelogMouseHandler)
+		if m.update.ChangelogModal != nil {
+			action := m.update.ChangelogModal.HandleMouse(msg, m.update.ChangelogMouseHandler)
 			if action == "cancel" {
-				m.changelogVisible = false
-				m.changelogScrollOffset = 0
+				m.update.ChangelogVisible = false
+				m.update.ChangelogScrollOffset = 0
 				m.clearChangelogModal()
 				return m, nil
 			}
@@ -972,39 +972,39 @@ func (m *Model) handleUpdateModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch m.updateModalState {
+	switch m.update.ModalState {
 	case UpdateModalPreview:
 		m.ensureUpdatePreviewModal()
-		if m.updatePreviewModal == nil {
+		if m.update.PreviewModal == nil {
 			return m, nil
 		}
-		if m.updatePreviewMouseHandler == nil {
-			m.updatePreviewMouseHandler = mouse.NewHandler()
+		if m.update.PreviewMouseHandler == nil {
+			m.update.PreviewMouseHandler = mouse.NewHandler()
 		}
-		action := m.updatePreviewModal.HandleMouse(msg, m.updatePreviewMouseHandler)
+		action := m.update.PreviewModal.HandleMouse(msg, m.update.PreviewMouseHandler)
 		switch action {
 		case "update":
-			m.updateModalState = UpdateModalProgress
-			m.updateInProgress = true
-			m.updateStartTime = time.Now()
+			m.update.ModalState = UpdateModalProgress
+			m.update.InProgress = true
+			m.update.StartTime = time.Now()
 			m.initPhaseStatus()
-			m.updatePhase = PhaseCheckPrereqs
-			m.updatePhaseStatus[PhaseCheckPrereqs] = "running"
+			m.update.Phase = PhaseCheckPrereqs
+			m.update.PhaseStatus[PhaseCheckPrereqs] = "running"
 			return m, m.startUpdateWithPhases()
 		case "cancel":
-			m.updateModalState = UpdateModalClosed
+			m.update.ModalState = UpdateModalClosed
 			return m, nil
 		}
 
 	case UpdateModalComplete:
 		m.ensureUpdateCompleteModal()
-		if m.updateCompleteModal == nil {
+		if m.update.CompleteModal == nil {
 			return m, nil
 		}
-		if m.updateCompleteMouseHandler == nil {
-			m.updateCompleteMouseHandler = mouse.NewHandler()
+		if m.update.CompleteMouseHandler == nil {
+			m.update.CompleteMouseHandler = mouse.NewHandler()
 		}
-		action := m.updateCompleteModal.HandleMouse(msg, m.updateCompleteMouseHandler)
+		action := m.update.CompleteModal.HandleMouse(msg, m.update.CompleteMouseHandler)
 		switch action {
 		case "quit":
 			if activePlugin := m.ActivePlugin(); activePlugin != nil {
@@ -1013,30 +1013,30 @@ func (m *Model) handleUpdateModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.registry.Stop()
 			return m, tea.Quit
 		case "cancel":
-			m.updateModalState = UpdateModalClosed
+			m.update.ModalState = UpdateModalClosed
 			return m, nil
 		}
 
 	case UpdateModalError:
 		m.ensureUpdateErrorModal()
-		if m.updateErrorModal == nil {
+		if m.update.ErrorModal == nil {
 			return m, nil
 		}
-		if m.updateErrorMouseHandler == nil {
-			m.updateErrorMouseHandler = mouse.NewHandler()
+		if m.update.ErrorMouseHandler == nil {
+			m.update.ErrorMouseHandler = mouse.NewHandler()
 		}
-		action := m.updateErrorModal.HandleMouse(msg, m.updateErrorMouseHandler)
+		action := m.update.ErrorModal.HandleMouse(msg, m.update.ErrorMouseHandler)
 		switch action {
 		case "retry":
-			m.updateModalState = UpdateModalProgress
-			m.updateError = ""
-			m.updateStartTime = time.Now()
+			m.update.ModalState = UpdateModalProgress
+			m.update.Error = ""
+			m.update.StartTime = time.Now()
 			m.initPhaseStatus()
-			m.updatePhase = PhaseCheckPrereqs
-			m.updatePhaseStatus[PhaseCheckPrereqs] = "running"
+			m.update.Phase = PhaseCheckPrereqs
+			m.update.PhaseStatus[PhaseCheckPrereqs] = "running"
 			return m, m.startUpdateWithPhases()
 		case "cancel":
-			m.updateModalState = UpdateModalClosed
+			m.update.ModalState = UpdateModalClosed
 			return m, nil
 		}
 	}

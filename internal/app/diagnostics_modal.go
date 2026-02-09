@@ -167,7 +167,7 @@ func (m *Model) diagnosticsUpdateSection() modal.Section {
 
 		var b strings.Builder
 
-		if m.needsRestart {
+		if m.update.NeedsRestart {
 			b.WriteString("\n  ")
 			b.WriteString(styles.StatusCompleted.Render("✓ "))
 			b.WriteString("Update complete. ")
@@ -247,12 +247,12 @@ func (m *Model) handleDiagnosticsModalMouse(msg tea.MouseMsg) (tea.Model, tea.Cm
 	action := m.diagnosticsModal.HandleMouse(msg, m.diagnosticsMouseHandler)
 	switch action {
 	case "update":
-		if m.hasUpdatesAvailable() && !m.updateInProgress && !m.needsRestart {
-			m.updateReleaseNotes = ""
+		if m.hasUpdatesAvailable() && !m.update.InProgress && !m.update.NeedsRestart {
+			m.update.ReleaseNotes = ""
 			if m.updateAvailable != nil {
-				m.updateReleaseNotes = m.updateAvailable.ReleaseNotes
+				m.update.ReleaseNotes = m.updateAvailable.ReleaseNotes
 			}
-			m.updateModalState = UpdateModalPreview
+			m.update.ModalState = UpdateModalPreview
 			m.showDiagnostics = false
 			return m, nil
 		}

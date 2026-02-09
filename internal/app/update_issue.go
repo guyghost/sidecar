@@ -15,14 +15,14 @@ import (
 func (m *Model) handleIssueInputKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// ctrl+x toggles closed issue visibility (before type switch)
 	if msg.String() == "ctrl+x" {
-		m.issueSearchIncludeClosed = !m.issueSearchIncludeClosed
-		m.issueSearchScrollOffset = 0
-		m.issueSearchCursor = -1
-		m.issueInputModal = nil
-		m.issueInputModalWidth = 0
-		if len(strings.TrimSpace(m.issueInputInput.Value())) >= 2 {
-			m.issueSearchLoading = true
-			return m, issueSearchCmd(m.ui.WorkDir, strings.TrimSpace(m.issueInputInput.Value()), m.issueSearchIncludeClosed)
+		m.issue.SearchIncludeClosed = !m.issue.SearchIncludeClosed
+		m.issue.SearchScrollOffset = 0
+		m.issue.SearchCursor = -1
+		m.issue.InputModal = nil
+		m.issue.InputModalWidth = 0
+		if len(strings.TrimSpace(m.issue.InputModel.Value())) >= 2 {
+			m.issue.SearchLoading = true
+			return m, issueSearchCmd(m.ui.WorkDir, strings.TrimSpace(m.issue.InputModel.Value()), m.issue.SearchIncludeClosed)
 		}
 		return m, nil
 	}
@@ -31,40 +31,40 @@ func (m *Model) handleIssueInputKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		return m.issueInputSubmit()
 	case tea.KeyUp:
-		if len(m.issueSearchResults) > 0 {
-			m.issueSearchCursor--
-			if m.issueSearchCursor < -1 {
-				m.issueSearchCursor = -1
+		if len(m.issue.SearchResults) > 0 {
+			m.issue.SearchCursor--
+			if m.issue.SearchCursor < -1 {
+				m.issue.SearchCursor = -1
 			}
 			// Keep cursor visible in viewport
-			if m.issueSearchCursor >= 0 && m.issueSearchCursor < m.issueSearchScrollOffset {
-				m.issueSearchScrollOffset = m.issueSearchCursor
+			if m.issue.SearchCursor >= 0 && m.issue.SearchCursor < m.issue.SearchScrollOffset {
+				m.issue.SearchScrollOffset = m.issue.SearchCursor
 			}
-			m.issueInputModal = nil
-			m.issueInputModalWidth = 0
+			m.issue.InputModal = nil
+			m.issue.InputModalWidth = 0
 			return m, nil
 		}
 	case tea.KeyDown:
-		if len(m.issueSearchResults) > 0 {
-			m.issueSearchCursor++
-			if m.issueSearchCursor >= len(m.issueSearchResults) {
-				m.issueSearchCursor = len(m.issueSearchResults) - 1
+		if len(m.issue.SearchResults) > 0 {
+			m.issue.SearchCursor++
+			if m.issue.SearchCursor >= len(m.issue.SearchResults) {
+				m.issue.SearchCursor = len(m.issue.SearchResults) - 1
 			}
 			// Keep cursor visible in viewport
 			const maxVisible = 10
-			if m.issueSearchCursor >= m.issueSearchScrollOffset+maxVisible {
-				m.issueSearchScrollOffset = m.issueSearchCursor - maxVisible + 1
+			if m.issue.SearchCursor >= m.issue.SearchScrollOffset+maxVisible {
+				m.issue.SearchScrollOffset = m.issue.SearchCursor - maxVisible + 1
 			}
-			m.issueInputModal = nil
-			m.issueInputModalWidth = 0
+			m.issue.InputModal = nil
+			m.issue.InputModalWidth = 0
 			return m, nil
 		}
 	case tea.KeyTab:
-		if m.issueSearchCursor >= 0 && m.issueSearchCursor < len(m.issueSearchResults) {
-			m.issueInputInput.SetValue(m.issueSearchResults[m.issueSearchCursor].ID)
-			m.issueInputInput.CursorEnd()
-			m.issueInputModal = nil
-			m.issueInputModalWidth = 0
+		if m.issue.SearchCursor >= 0 && m.issue.SearchCursor < len(m.issue.SearchResults) {
+			m.issue.InputModel.SetValue(m.issue.SearchResults[m.issue.SearchCursor].ID)
+			m.issue.InputModel.CursorEnd()
+			m.issue.InputModal = nil
+			m.issue.InputModalWidth = 0
 		}
 		// Tab is consumed (fill-in or no-op) — don't forward to textinput
 		return m, nil
@@ -76,24 +76,24 @@ func (m *Model) handleIssueInputKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Forward key to text input, then clear modal cache so it rebuilds
 	var cmd tea.Cmd
-	m.issueInputInput, cmd = m.issueInputInput.Update(msg)
-	m.issueInputModal = nil
-	m.issueInputModalWidth = 0
+	m.issue.InputModel, cmd = m.issue.InputModel.Update(msg)
+	m.issue.InputModal = nil
+	m.issue.InputModalWidth = 0
 
 	// Trigger search if input changed (min 2 chars)
-	newValue := strings.TrimSpace(m.issueInputInput.Value())
-	if newValue != m.issueSearchQuery && len(newValue) >= 2 {
-		m.issueSearchQuery = newValue
-		m.issueSearchLoading = true
+	newValue := strings.TrimSpace(m.issue.InputModel.Value())
+	if newValue != m.issue.SearchQuery && len(newValue) >= 2 {
+		m.issue.SearchQuery = newValue
+		m.issue.SearchLoading = true
 		// Keep previous results visible while loading to avoid modal shrink/grow flicker.
 		// Results are replaced when the new IssueSearchResultMsg arrives.
-		m.issueSearchCursor = -1
-		return m, tea.Batch(cmd, issueSearchCmd(m.ui.WorkDir, newValue, m.issueSearchIncludeClosed))
+		m.issue.SearchCursor = -1
+		return m, tea.Batch(cmd, issueSearchCmd(m.ui.WorkDir, newValue, m.issue.SearchIncludeClosed))
 	}
 	if len(newValue) < 2 {
-		m.issueSearchResults = nil
-		m.issueSearchQuery = ""
-		m.issueSearchCursor = -1
+		m.issue.SearchResults = nil
+		m.issue.SearchQuery = ""
+		m.issue.SearchCursor = -1
 	}
 	return m, cmd
 }
@@ -102,33 +102,33 @@ func (m *Model) handleIssueInputKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // Extracted from handleKeyMsg to reduce update.go complexity.
 func (m *Model) handleIssuePreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.ensureIssuePreviewModal()
-	if m.issuePreviewModal == nil {
+	if m.issue.PreviewModal == nil {
 		return m, nil
 	}
 
 	// Shortcuts before modal.HandleKey (which consumes Enter/Esc/Tab)
 	switch msg.String() {
 	case "j", "down":
-		m.issuePreviewModal.ScrollBy(1)
+		m.issue.PreviewModal.ScrollBy(1)
 		return m, nil
 	case "k", "up":
-		m.issuePreviewModal.ScrollBy(-1)
+		m.issue.PreviewModal.ScrollBy(-1)
 		return m, nil
 	case "ctrl+d":
-		m.issuePreviewModal.ScrollBy(10)
+		m.issue.PreviewModal.ScrollBy(10)
 		return m, nil
 	case "ctrl+u":
-		m.issuePreviewModal.ScrollBy(-10)
+		m.issue.PreviewModal.ScrollBy(-10)
 		return m, nil
 	case "g":
-		m.issuePreviewModal.ScrollToTop()
+		m.issue.PreviewModal.ScrollToTop()
 		return m, nil
 	case "G":
-		m.issuePreviewModal.ScrollToBottom()
+		m.issue.PreviewModal.ScrollToBottom()
 		return m, nil
 	case "o":
-		if m.issuePreviewData != nil {
-			issueID := m.issuePreviewData.ID
+		if m.issue.PreviewData != nil {
+			issueID := m.issue.PreviewData.ID
 			m.resetIssuePreview()
 			m.resetIssueInput()
 			m.updateContext()
@@ -141,8 +141,8 @@ func (m *Model) handleIssuePreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.backToIssueInput()
 		return m, nil
 	case "y":
-		if m.issuePreviewData != nil {
-			d := m.issuePreviewData
+		if m.issue.PreviewData != nil {
+			d := m.issue.PreviewData
 			text := d.ID + ": " + d.Title + "\n\n" + d.Description
 			if err := clipboard.WriteAll(text); err != nil {
 				return m, ShowToast("Copy failed: "+err.Error(), 2*time.Second)
@@ -150,8 +150,8 @@ func (m *Model) handleIssuePreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, ShowToast("Yanked issue details", 2*time.Second)
 		}
 	case "Y":
-		if m.issuePreviewData != nil {
-			id := m.issuePreviewData.ID
+		if m.issue.PreviewData != nil {
+			id := m.issue.PreviewData.ID
 			if err := clipboard.WriteAll(id); err != nil {
 				return m, ShowToast("Copy failed: "+err.Error(), 2*time.Second)
 			}
@@ -159,12 +159,12 @@ func (m *Model) handleIssuePreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	action, cmd := m.issuePreviewModal.HandleKey(msg)
+	action, cmd := m.issue.PreviewModal.HandleKey(msg)
 	switch action {
 	case "open-in-td":
 		issueID := ""
-		if m.issuePreviewData != nil {
-			issueID = m.issuePreviewData.ID
+		if m.issue.PreviewData != nil {
+			issueID = m.issue.PreviewData.ID
 		}
 		m.resetIssuePreview()
 		m.resetIssueInput()
@@ -192,10 +192,10 @@ func (m *Model) handleIssuePreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // and either opens the full issue in TD monitor or shows a lightweight preview.
 func (m *Model) issueInputSubmit() (tea.Model, tea.Cmd) {
 	var issueID string
-	if m.issueSearchCursor >= 0 && m.issueSearchCursor < len(m.issueSearchResults) {
-		issueID = m.issueSearchResults[m.issueSearchCursor].ID
+	if m.issue.SearchCursor >= 0 && m.issue.SearchCursor < len(m.issue.SearchResults) {
+		issueID = m.issue.SearchResults[m.issue.SearchCursor].ID
 	} else {
-		issueID = strings.TrimSpace(m.issueInputInput.Value())
+		issueID = strings.TrimSpace(m.issue.InputModel.Value())
 	}
 	if issueID == "" {
 		return m, nil
@@ -209,33 +209,33 @@ func (m *Model) issueInputSubmit() (tea.Model, tea.Cmd) {
 		)
 	}
 	// Hide input modal but preserve search state so "back" can restore it.
-	m.showIssueInput = false
+	m.issue.ShowInput = false
 	// Show lightweight preview
-	m.showIssuePreview = true
+	m.issue.ShowPreview = true
 	m.activeContext = "issue-preview"
-	m.issuePreviewLoading = true
-	m.issuePreviewData = nil
-	m.issuePreviewError = nil
-	m.issuePreviewModal = nil
-	m.issuePreviewModalWidth = 0
-	m.issuePreviewMouseHandler = mouse.NewHandler()
+	m.issue.PreviewLoading = true
+	m.issue.PreviewData = nil
+	m.issue.PreviewError = nil
+	m.issue.PreviewModal = nil
+	m.issue.PreviewModalWidth = 0
+	m.issue.PreviewMouseHandler = mouse.NewHandler()
 	return m, fetchIssuePreviewCmd(m.ui.WorkDir, issueID)
 }
 
 // handleIssueInputMouse handles mouse events for the issue input modal.
 func (m *Model) handleIssueInputMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	m.ensureIssueInputModal()
-	if m.issueInputModal == nil {
+	if m.issue.InputModal == nil {
 		return m, nil
 	}
-	if m.issueInputMouseHandler == nil {
-		m.issueInputMouseHandler = mouse.NewHandler()
+	if m.issue.InputMouseHandler == nil {
+		m.issue.InputMouseHandler = mouse.NewHandler()
 	}
 	// Pre-render to sync hit regions and focusIDs on the (potentially rebuilt) modal.
 	// The issue input modal is nilled on every keystroke to fix a stale text-input
 	// pointer, so the modal object seen here may lack focusIDs from a prior Render.
-	m.issueInputModal.Render(m.width, m.height, m.issueInputMouseHandler)
-	action := m.issueInputModal.HandleMouse(msg, m.issueInputMouseHandler)
+	m.issue.InputModal.Render(m.width, m.height, m.issue.InputMouseHandler)
+	action := m.issue.InputModal.HandleMouse(msg, m.issue.InputMouseHandler)
 	switch {
 	case action == "cancel":
 		m.resetIssueInput()
@@ -245,8 +245,8 @@ func (m *Model) handleIssueInputMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	case strings.HasPrefix(action, issueSearchResultPrefix):
 		// Click on a search result — select it and submit
 		idxStr := strings.TrimPrefix(action, issueSearchResultPrefix)
-		if idx, err := strconv.Atoi(idxStr); err == nil && idx >= 0 && idx < len(m.issueSearchResults) {
-			m.issueSearchCursor = idx
+		if idx, err := strconv.Atoi(idxStr); err == nil && idx >= 0 && idx < len(m.issue.SearchResults) {
+			m.issue.SearchCursor = idx
 			return m.issueInputSubmit()
 		}
 	}
@@ -256,16 +256,16 @@ func (m *Model) handleIssueInputMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 // handleIssuePreviewMouse handles mouse events for the issue preview modal.
 func (m *Model) handleIssuePreviewMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	m.ensureIssuePreviewModal()
-	if m.issuePreviewModal == nil {
+	if m.issue.PreviewModal == nil {
 		return m, nil
 	}
-	if m.issuePreviewMouseHandler == nil {
-		m.issuePreviewMouseHandler = mouse.NewHandler()
+	if m.issue.PreviewMouseHandler == nil {
+		m.issue.PreviewMouseHandler = mouse.NewHandler()
 	}
 	// Pre-render to sync hit regions and focusIDs on the modal, which may have
 	// been rebuilt (e.g. after data/error arrival cleared the cache).
-	m.issuePreviewModal.Render(m.width, m.height, m.issuePreviewMouseHandler)
-	action := m.issuePreviewModal.HandleMouse(msg, m.issuePreviewMouseHandler)
+	m.issue.PreviewModal.Render(m.width, m.height, m.issue.PreviewMouseHandler)
+	action := m.issue.PreviewModal.HandleMouse(msg, m.issue.PreviewMouseHandler)
 	switch action {
 	case "cancel":
 		m.resetIssuePreview()
@@ -276,8 +276,8 @@ func (m *Model) handleIssuePreviewMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "open-in-td":
 		issueID := ""
-		if m.issuePreviewData != nil {
-			issueID = m.issuePreviewData.ID
+		if m.issue.PreviewData != nil {
+			issueID = m.issue.PreviewData.ID
 		}
 		m.resetIssuePreview()
 		m.resetIssueInput()

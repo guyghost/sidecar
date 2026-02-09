@@ -75,7 +75,7 @@ func (m Model) View() string {
 	case ModalUpdate:
 		// Render update modal, with optional changelog overlay
 		updateView := m.renderUpdateModalOverlay(bg)
-		if m.changelogVisible {
+		if m.update.ChangelogVisible {
 			return m.renderChangelogOverlay(updateView)
 		}
 		return updateView
@@ -126,12 +126,12 @@ func (m *Model) ensureProjectSwitcherModal() {
 	}
 
 	// Only rebuild if modal doesn't exist or width changed
-	if m.projectSwitcherModal != nil && m.projectSwitcherModalWidth == modalW {
+	if m.project.Modal != nil && m.project.ModalWidth == modalW {
 		return
 	}
-	m.projectSwitcherModalWidth = modalW
+	m.project.ModalWidth = modalW
 
-	m.projectSwitcherModal = modal.New("Switch Project",
+	m.project.Modal = modal.New("Switch Project",
 		modal.WithWidth(modalW),
 		modal.WithHints(false),
 	).
@@ -143,17 +143,17 @@ func (m *Model) ensureProjectSwitcherModal() {
 
 // projectSwitcherInputSection renders the filter input.
 func (m *Model) projectSwitcherInputSection() modal.Section {
-	return modal.Input("project-filter", &m.projectSwitcherInput)
+	return modal.Input("project-filter", &m.project.Input)
 }
 
 // projectSwitcherCountSection renders the project count.
 func (m *Model) projectSwitcherCountSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
 		allProjects := m.cfg.Projects.List
-		projects := m.projectSwitcherFiltered
+		projects := m.project.Filtered
 
 		var countText string
-		if m.projectSwitcherInput.Value() != "" {
+		if m.project.Input.Value() != "" {
 			countText = fmt.Sprintf("%d of %d projects", len(projects), len(allProjects))
 		} else if len(allProjects) > 0 {
 			countText = fmt.Sprintf("%d projects", len(allProjects))
@@ -166,7 +166,7 @@ func (m *Model) projectSwitcherCountSection() modal.Section {
 func (m *Model) projectSwitcherListSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
 		allProjects := m.cfg.Projects.List
-		projects := m.projectSwitcherFiltered
+		projects := m.project.Filtered
 
 		var b strings.Builder
 
@@ -187,7 +187,7 @@ func (m *Model) projectSwitcherListSection() modal.Section {
 		if visibleCount > maxVisible {
 			visibleCount = maxVisible
 		}
-		scrollOffset := m.projectSwitcherScroll
+		scrollOffset := m.project.Scroll
 
 		// Track focusables and line offset
 		focusables := make([]modal.FocusableInfo, 0, visibleCount)
@@ -207,7 +207,7 @@ func (m *Model) projectSwitcherListSection() modal.Section {
 
 		for i := scrollOffset; i < scrollOffset+visibleCount && i < len(projects); i++ {
 			project := projects[i]
-			isCursor := i == m.projectSwitcherCursor
+			isCursor := i == m.project.Cursor
 			isCurrent := project.Path == m.ui.WorkDir
 			itemID := projectSwitcherItemID(i)
 			isHovered := itemID == hoverID
@@ -273,32 +273,32 @@ func (m *Model) projectSwitcherListUpdate(msg tea.Msg, focusID string) (string, 
 		return "", nil
 	}
 
-	projects := m.projectSwitcherFiltered
+	projects := m.project.Filtered
 	if len(projects) == 0 {
 		return "", nil
 	}
 
 	switch keyMsg.String() {
 	case "up", "k", "ctrl+p":
-		if m.projectSwitcherCursor > 0 {
-			m.projectSwitcherCursor--
-			m.projectSwitcherScroll = projectSwitcherEnsureCursorVisible(m.projectSwitcherCursor, m.projectSwitcherScroll, 8)
-			m.projectSwitcherModalWidth = 0 // Force modal rebuild for scroll
+		if m.project.Cursor > 0 {
+			m.project.Cursor--
+			m.project.Scroll = projectSwitcherEnsureCursorVisible(m.project.Cursor, m.project.Scroll, 8)
+			m.project.ModalWidth = 0 // Force modal rebuild for scroll
 			m.previewProjectTheme()
 		}
 		return "", nil
 
 	case "down", "j", "ctrl+n":
-		if m.projectSwitcherCursor < len(projects)-1 {
-			m.projectSwitcherCursor++
-			m.projectSwitcherScroll = projectSwitcherEnsureCursorVisible(m.projectSwitcherCursor, m.projectSwitcherScroll, 8)
-			m.projectSwitcherModalWidth = 0 // Force modal rebuild for scroll
+		if m.project.Cursor < len(projects)-1 {
+			m.project.Cursor++
+			m.project.Scroll = projectSwitcherEnsureCursorVisible(m.project.Cursor, m.project.Scroll, 8)
+			m.project.ModalWidth = 0 // Force modal rebuild for scroll
 			m.previewProjectTheme()
 		}
 		return "", nil
 
 	case "enter":
-		if m.projectSwitcherCursor >= 0 && m.projectSwitcherCursor < len(projects) {
+		if m.project.Cursor >= 0 && m.project.Cursor < len(projects) {
 			return "select", nil
 		}
 		return "", nil
@@ -311,7 +311,7 @@ func (m *Model) projectSwitcherListUpdate(msg tea.Msg, focusID string) (string, 
 func (m *Model) projectSwitcherHintsSection() modal.Section {
 	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
 		allProjects := m.cfg.Projects.List
-		projects := m.projectSwitcherFiltered
+		projects := m.project.Filtered
 
 		var b strings.Builder
 		b.WriteString("\n")
@@ -352,17 +352,17 @@ func (m *Model) projectSwitcherHintsSection() modal.Section {
 // renderProjectSwitcherOverlay renders the project switcher modal.
 func (m *Model) renderProjectSwitcherOverlay(content string) string {
 	m.ensureProjectSwitcherModal()
-	if m.projectSwitcherModal == nil {
+	if m.project.Modal == nil {
 		return content
 	}
 
-	if m.projectSwitcherMouseHandler == nil {
-		m.projectSwitcherMouseHandler = mouse.NewHandler()
+	if m.project.MouseHandler == nil {
+		m.project.MouseHandler = mouse.NewHandler()
 	}
-	modalContent := m.projectSwitcherModal.Render(m.width, m.height, m.projectSwitcherMouseHandler)
+	modalContent := m.project.Modal.Render(m.width, m.height, m.project.MouseHandler)
 	base := ui.OverlayModal(content, modalContent, m.width, m.height)
 
-	if m.projectAddMode {
+	if m.project.AddMode {
 		return m.renderProjectAddModal(base)
 	}
 	return base
@@ -375,26 +375,26 @@ func (m Model) renderProjectAddThemePickerOverlay(content string) string {
 	cursorStyle := lipgloss.NewStyle().Foreground(styles.Primary)
 	selectedStyle := lipgloss.NewStyle().Foreground(styles.Primary).Bold(true)
 
-	if m.projectAddCommunityMode {
+	if m.project.AddCommunityMode {
 		// Community sub-browser
 		b.WriteString(styles.ModalTitle.Render("Community Themes"))
 		b.WriteString("\n\n")
 
-		list := m.projectAddCommunityList
+		list := m.project.AddCommunityList
 		visibleCount := len(list)
 		if visibleCount > maxVisible {
 			visibleCount = maxVisible
 		}
 
-		if m.projectAddCommunityScroll > 0 {
+		if m.project.AddCommunityScroll > 0 {
 			b.WriteString(styles.Muted.Render("  ↑ more"))
 			b.WriteString("\n")
 		}
 
-		for i := m.projectAddCommunityScroll; i < m.projectAddCommunityScroll+visibleCount && i < len(list); i++ {
+		for i := m.project.AddCommunityScroll; i < m.project.AddCommunityScroll+visibleCount && i < len(list); i++ {
 			cursor := "  "
 			nameStyle := styles.Muted
-			if i == m.projectAddCommunityCursor {
+			if i == m.project.AddCommunityCursor {
 				cursor = cursorStyle.Render("▸ ")
 				nameStyle = selectedStyle
 			}
@@ -403,7 +403,7 @@ func (m Model) renderProjectAddThemePickerOverlay(content string) string {
 			b.WriteString("\n")
 		}
 
-		if len(list) > m.projectAddCommunityScroll+visibleCount {
+		if len(list) > m.project.AddCommunityScroll+visibleCount {
 			b.WriteString(styles.Muted.Render("  ↓ more"))
 			b.WriteString("\n")
 		}
@@ -419,24 +419,24 @@ func (m Model) renderProjectAddThemePickerOverlay(content string) string {
 		// Built-in theme list
 		b.WriteString(styles.ModalTitle.Render("Pick Theme"))
 		b.WriteString("\n\n")
-		b.WriteString(m.projectAddThemeInput.View())
+		b.WriteString(m.project.AddThemeInput.View())
 		b.WriteString("\n\n")
 
-		list := m.projectAddThemeFiltered
+		list := m.project.AddThemeFiltered
 		visibleCount := len(list)
 		if visibleCount > maxVisible {
 			visibleCount = maxVisible
 		}
 
-		if m.projectAddThemeScroll > 0 {
+		if m.project.AddThemeScroll > 0 {
 			b.WriteString(styles.Muted.Render("  ↑ more"))
 			b.WriteString("\n")
 		}
 
-		for i := m.projectAddThemeScroll; i < m.projectAddThemeScroll+visibleCount && i < len(list); i++ {
+		for i := m.project.AddThemeScroll; i < m.project.AddThemeScroll+visibleCount && i < len(list); i++ {
 			cursor := "  "
 			nameStyle := styles.Muted
-			if i == m.projectAddThemeCursor {
+			if i == m.project.AddThemeCursor {
 				cursor = cursorStyle.Render("▸ ")
 				nameStyle = selectedStyle
 			}
@@ -445,7 +445,7 @@ func (m Model) renderProjectAddThemePickerOverlay(content string) string {
 			b.WriteString("\n")
 		}
 
-		if len(list) > m.projectAddThemeScroll+visibleCount {
+		if len(list) > m.project.AddThemeScroll+visibleCount {
 			b.WriteString(styles.Muted.Render("  ↓ more"))
 			b.WriteString("\n")
 		}

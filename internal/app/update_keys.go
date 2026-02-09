@@ -70,8 +70,8 @@ func (m *Model) handleToggleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	case "@":
 		// Toggle project switcher modal
-		m.showProjectSwitcher = !m.showProjectSwitcher
-		if m.showProjectSwitcher {
+		m.project.Show = !m.project.Show
+		if m.project.Show {
 			m.activeContext = "project-switcher"
 			m.initProjectSwitcher()
 		} else {
@@ -89,8 +89,8 @@ func (m *Model) handleToggleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 				return ToastMsg{Message: "No worktrees found", Duration: 2 * time.Second}
 			}, true
 		}
-		m.showWorktreeSwitcher = !m.showWorktreeSwitcher
-		if m.showWorktreeSwitcher {
+		m.worktree.Show = !m.worktree.Show
+		if m.worktree.Show {
 			m.activeContext = "worktree-switcher"
 			m.initWorktreeSwitcher()
 		} else {
@@ -100,19 +100,19 @@ func (m *Model) handleToggleKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	case "#":
 		// Toggle theme switcher modal
-		m.showThemeSwitcher = !m.showThemeSwitcher
-		if m.showThemeSwitcher {
+		m.theme.Show = !m.theme.Show
+		if m.theme.Show {
 			m.activeContext = "theme-switcher"
 			m.initThemeSwitcher()
 		} else {
-			m.previewThemeEntry(m.themeSwitcherOriginal)
+			m.previewThemeEntry(m.theme.Original)
 			m.resetThemeSwitcher()
 			m.updateContext()
 		}
 		return m, nil, true
 	case "i":
 		if !m.hasModal() {
-			m.showIssueInput = true
+			m.issue.ShowInput = true
 			m.activeContext = "issue-input"
 			m.initIssueInput()
 			return m, nil, true
