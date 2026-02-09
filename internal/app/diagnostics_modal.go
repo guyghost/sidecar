@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/guyghost/sidecar/internal/fdmonitor"
 	"github.com/guyghost/sidecar/internal/modal"
 	"github.com/guyghost/sidecar/internal/mouse"
+	"github.com/guyghost/sidecar/internal/perf"
 	"github.com/guyghost/sidecar/internal/plugin"
 	"github.com/guyghost/sidecar/internal/styles"
 	"github.com/guyghost/sidecar/internal/ui"
@@ -36,6 +38,8 @@ func (m *Model) ensureDiagnosticsModal() {
 		AddSection(m.diagnosticsPluginsSection()).
 		AddSection(modal.Spacer()).
 		AddSection(m.diagnosticsSystemSection()).
+		AddSection(modal.Spacer()).
+		AddSection(m.diagnosticsPerfSection()).
 		AddSection(modal.Spacer()).
 		AddSection(m.diagnosticsVersionSection()).
 		AddSection(m.diagnosticsUpdateSection()).
@@ -115,6 +119,37 @@ func (m *Model) diagnosticsSystemSection() modal.Section {
 		b.WriteString("\n")
 		b.WriteString(fmt.Sprintf("  WorkDir: %s\n", styles.Muted.Render(m.ui.WorkDir)))
 		b.WriteString(fmt.Sprintf("  Refresh: %s", styles.Muted.Render(m.ui.LastRefresh.Format("15:04:05"))))
+		return modal.RenderedSection{Content: b.String()}
+	}, nil)
+}
+
+// diagnosticsPerfSection renders the performance metrics section.
+func (m *Model) diagnosticsPerfSection() modal.Section {
+	return modal.Custom(func(contentWidth int, focusID, hoverID string) modal.RenderedSection {
+		snap := perf.Collect()
+
+		var b strings.Builder
+		b.WriteString(styles.Title.Render("Performance"))
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("  Uptime:     %s\n", styles.Muted.Render(perf.FormatUptime(snap.Uptime))))
+		b.WriteString(fmt.Sprintf("  Goroutines: %s\n", styles.Muted.Render(fmt.Sprintf("%d", snap.Goroutines))))
+		b.WriteString(fmt.Sprintf("  Heap:       %s / %s\n",
+			styles.Muted.Render(perf.FormatBytes(snap.HeapAlloc)),
+			styles.Muted.Render(perf.FormatBytes(snap.HeapSys))))
+		b.WriteString(fmt.Sprintf("  GC cycles:  %s", styles.Muted.Render(fmt.Sprintf("%d", snap.NumGC))))
+
+		if snap.FDs >= 0 {
+			b.WriteString("\n")
+			fdStyle := styles.Muted
+			warning, critical := fdmonitor.Thresholds()
+			if snap.FDs >= critical {
+				fdStyle = styles.StatusBlocked
+			} else if snap.FDs >= warning {
+				fdStyle = styles.StatusModified
+			}
+			b.WriteString(fmt.Sprintf("  File desc:  %s", fdStyle.Render(fmt.Sprintf("%d", snap.FDs))))
+		}
+
 		return modal.RenderedSection{Content: b.String()}
 	}, nil)
 }
